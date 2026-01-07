@@ -221,11 +221,11 @@ const Feed = () => {
         <section className="mb-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-display font-bold text-foreground">Serviços no bairro</h2>
-            <button className="text-sm text-primary flex items-center gap-1">Ver todos <ChevronRight className="w-4 h-4" /></button>
+            <button onClick={() => navigate("/services")} className="text-sm text-primary flex items-center gap-1">Ver todos <ChevronRight className="w-4 h-4" /></button>
           </div>
           <div className="flex gap-4 overflow-x-auto pb-2 -mx-4 px-4">
             {services.map((s) => <ServiceCard key={s.id} service={{ id: s.id, name: s.name, service: s.title, rating: s.avg_rating }} />)}
-            <button className="flex-shrink-0 w-28 h-32 rounded-2xl border-2 border-dashed border-border flex flex-col items-center justify-center gap-2 text-muted-foreground hover:border-primary hover:text-primary transition-colors">
+            <button onClick={() => navigate("/services")} className="flex-shrink-0 w-28 h-32 rounded-2xl border-2 border-dashed border-border flex flex-col items-center justify-center gap-2 text-muted-foreground hover:border-primary hover:text-primary transition-colors">
               <Plus className="w-6 h-6" /><span className="text-xs">Cadastrar</span>
             </button>
           </div>
@@ -255,17 +255,17 @@ const Feed = () => {
       <nav className="fixed bottom-0 left-0 right-0 glass border-t border-border z-40">
         <div className="container mx-auto px-4 flex items-center justify-around py-2">
           <NavItem icon={<Home className="w-6 h-6" />} label="Início" active />
-          <NavItem icon={<Briefcase className="w-6 h-6" />} label="Serviços" />
-          <NavItem icon={<MapPin className="w-6 h-6" />} label="Bairros" />
-          <NavItem icon={<UserIcon className="w-6 h-6" />} label="Perfil" />
+          <NavItem icon={<Briefcase className="w-6 h-6" />} label="Serviços" onClick={() => navigate("/services")} />
+          <NavItem icon={<MapPin className="w-6 h-6" />} label="Bairros" onClick={() => navigate("/neighborhoods")} />
+          <NavItem icon={<UserIcon className="w-6 h-6" />} label="Perfil" onClick={() => navigate("/profile")} />
         </div>
       </nav>
     </div>
   );
 };
 
-const NavItem = ({ icon, label, active }: { icon: React.ReactNode; label: string; active?: boolean }) => (
-  <button className={`flex flex-col items-center gap-1 py-2 px-4 rounded-xl transition-colors ${active ? "text-primary" : "text-muted-foreground"}`}>
+const NavItem = ({ icon, label, active, onClick }: { icon: React.ReactNode; label: string; active?: boolean; onClick?: () => void }) => (
+  <button onClick={onClick} className={`flex flex-col items-center gap-1 py-2 px-4 rounded-xl transition-colors ${active ? "text-primary" : "text-muted-foreground"}`}>
     {icon}<span className="text-xs font-medium">{label}</span>
   </button>
 );
