@@ -20,6 +20,7 @@ import ServiceCard from "@/components/ServiceCard";
 import PostCard from "@/components/PostCard";
 import OnboardingModal from "@/components/OnboardingModal";
 import AnnouncementBanner from "@/components/AnnouncementBanner";
+import NotificationPrompt from "@/components/NotificationPrompt";
 
 interface Profile {
   full_name: string;
@@ -36,6 +37,7 @@ const Feed = () => {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [showNotificationPrompt, setShowNotificationPrompt] = useState(false);
   const [postContent, setPostContent] = useState("");
   const [posts, setPosts] = useState<any[]>([]);
   const [services, setServices] = useState<any[]>([]);
@@ -59,6 +61,14 @@ const Feed = () => {
         setLoading(false);
         if (!localStorage.getItem("maridaas_onboarding_seen")) {
           setShowOnboarding(true);
+        }
+        // Show notification prompt after onboarding or if permission not granted
+        if ("Notification" in window && Notification.permission === "default") {
+          setTimeout(() => {
+            if (!localStorage.getItem("maridaas_notification_dismissed")) {
+              setShowNotificationPrompt(true);
+            }
+          }, 2000);
         }
       }
     });
@@ -216,6 +226,14 @@ const Feed = () => {
       </header>
 
       <main className="container mx-auto px-4 pt-20">
+        {showNotificationPrompt && (
+          <NotificationPrompt 
+            onClose={() => {
+              setShowNotificationPrompt(false);
+              localStorage.setItem("maridaas_notification_dismissed", "true");
+            }} 
+          />
+        )}
         {announcement && <AnnouncementBanner announcement={announcement} />}
 
         <section className="mb-6">

@@ -42,7 +42,7 @@ export const useNotifications = () => {
         if (user) {
           await supabase
             .from("profiles")
-            .update({ notifications_enabled: true })
+            .update({ notifications_enabled: true } as any)
             .eq("user_id", user.id);
         }
       }

@@ -226,6 +226,7 @@ export type Database = {
           instagram: string | null
           last_neighborhood_change: string | null
           neighborhood: string
+          notifications_enabled: boolean | null
           primary_neighborhood_id: string | null
           updated_at: string
           user_id: string
@@ -245,6 +246,7 @@ export type Database = {
           instagram?: string | null
           last_neighborhood_change?: string | null
           neighborhood: string
+          notifications_enabled?: boolean | null
           primary_neighborhood_id?: string | null
           updated_at?: string
           user_id: string
@@ -264,6 +266,7 @@ export type Database = {
           instagram?: string | null
           last_neighborhood_change?: string | null
           neighborhood?: string
+          notifications_enabled?: boolean | null
           primary_neighborhood_id?: string | null
           updated_at?: string
           user_id?: string
