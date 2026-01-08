@@ -245,14 +245,23 @@ const Neighborhoods = () => {
                       Seu bairro
                     </span>
                   ) : (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={!canChangeNeighborhood() || changing}
-                      onClick={() => handleChangeNeighborhood(n.id)}
-                    >
-                      {changing ? "..." : "Trocar"}
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => navigate(`/neighborhoods/${n.id}`)}
+                      >
+                        Visitar
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={!canChangeNeighborhood() || changing}
+                        onClick={() => handleChangeNeighborhood(n.id)}
+                      >
+                        {changing ? "..." : "Trocar"}
+                      </Button>
+                    </div>
                   )}
                 </div>
               </div>

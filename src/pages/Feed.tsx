@@ -14,13 +14,15 @@ import {
   ChevronRight,
   LogOut,
   Briefcase,
-  Plus
+  Plus,
+  Search
 } from "lucide-react";
 import ServiceCard from "@/components/ServiceCard";
 import PostCard from "@/components/PostCard";
 import OnboardingModal from "@/components/OnboardingModal";
 import AnnouncementBanner from "@/components/AnnouncementBanner";
 import NotificationPrompt from "@/components/NotificationPrompt";
+import UserSearchModal from "@/components/UserSearchModal";
 
 interface Profile {
   full_name: string;
@@ -44,6 +46,7 @@ const Feed = () => {
   const [userProfile, setUserProfile] = useState<Profile | null>(null);
   const [announcement, setAnnouncement] = useState<any>(null);
   const [posting, setPosting] = useState(false);
+  const [showUserSearch, setShowUserSearch] = useState(false);
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
@@ -219,11 +222,14 @@ const Feed = () => {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <Button variant="ghost" size="icon" onClick={() => setShowUserSearch(true)}><Search className="h-5 w-5" /></Button>
             <Button variant="ghost" size="icon"><Bell className="h-5 w-5" /></Button>
             <Button variant="ghost" size="icon" onClick={handleLogout}><LogOut className="h-5 w-5" /></Button>
           </div>
         </div>
       </header>
+
+      <UserSearchModal isOpen={showUserSearch} onClose={() => setShowUserSearch(false)} />
 
       <main className="container mx-auto px-4 pt-20">
         {showNotificationPrompt && (

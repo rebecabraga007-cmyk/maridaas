@@ -76,6 +76,11 @@ export default {
           light: "hsl(var(--salmon-light))",
           dark: "hsl(var(--salmon-dark))",
         },
+        rose: {
+          DEFAULT: "hsl(var(--rose))",
+          light: "hsl(var(--rose-light))",
+          dark: "hsl(var(--rose-dark))",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",
