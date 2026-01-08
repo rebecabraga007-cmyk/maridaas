@@ -7,8 +7,8 @@
 
 @layer base {
   :root {
-    /* Paleta Maridaas - Teal, Dourado, Rosa Salmão */
-    --background: 160 20% 98%;
+    /* Paleta Maridaas - Teal suave, Dourado, Rosa Salmão */
+    --background: 350 30% 98%;
     --foreground: 170 30% 15%;
 
     --card: 0 0% 100%;
@@ -17,108 +17,117 @@
     --popover: 0 0% 100%;
     --popover-foreground: 170 30% 15%;
 
-    /* Teal principal do logo */
-    --primary: 170 38% 50%;
+    /* Teal suave - menos saturado */
+    --primary: 170 32% 52%;
     --primary-foreground: 0 0% 100%;
 
     /* Dourado do logo */
-    --secondary: 42 70% 60%;
+    --secondary: 42 65% 58%;
     --secondary-foreground: 42 80% 20%;
 
-    /* Rosa salmão do logo */
-    --accent: 14 60% 75%;
-    --accent-foreground: 14 60% 25%;
+    /* Rosa salmão mais presente */
+    --accent: 350 55% 72%;
+    --accent-foreground: 350 60% 25%;
 
-    --muted: 160 15% 93%;
+    --muted: 350 15% 94%;
     --muted-foreground: 170 15% 45%;
 
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 160 20% 88%;
-    --input: 160 20% 88%;
-    --ring: 170 38% 50%;
+    --border: 350 15% 90%;
+    --input: 350 15% 90%;
+    --ring: 350 55% 72%;
 
     --radius: 0.75rem;
 
     /* Cores adicionais Maridaas */
-    --teal: 170 38% 50%;
-    --teal-light: 170 38% 92%;
-    --teal-dark: 170 38% 35%;
-    --gold: 42 70% 60%;
-    --gold-light: 42 70% 92%;
-    --gold-dark: 42 70% 45%;
-    --salmon: 14 60% 75%;
-    --salmon-light: 14 60% 94%;
-    --salmon-dark: 14 60% 55%;
+    --teal: 170 32% 52%;
+    --teal-light: 170 32% 94%;
+    --teal-dark: 170 32% 38%;
+    --gold: 42 65% 58%;
+    --gold-light: 42 65% 94%;
+    --gold-dark: 42 65% 45%;
+    --salmon: 350 55% 72%;
+    --salmon-light: 350 50% 95%;
+    --salmon-dark: 350 55% 55%;
+    
+    /* Rosa adicional */
+    --rose: 350 60% 65%;
+    --rose-light: 350 55% 92%;
+    --rose-dark: 350 60% 48%;
 
-    /* Gradientes */
-    --gradient-primary: linear-gradient(135deg, hsl(170 38% 50%), hsl(170 38% 35%));
-    --gradient-warm: linear-gradient(135deg, hsl(42 70% 60%), hsl(14 60% 75%));
-    --gradient-hero: linear-gradient(135deg, hsl(170 38% 50%) 0%, hsl(42 70% 60%) 50%, hsl(14 60% 75%) 100%);
+    /* Gradientes - Mesclando verde e rosa */
+    --gradient-primary: linear-gradient(135deg, hsl(170 32% 52%), hsl(350 55% 72%));
+    --gradient-warm: linear-gradient(135deg, hsl(42 65% 58%), hsl(350 55% 72%));
+    --gradient-hero: linear-gradient(135deg, hsl(170 32% 52%) 0%, hsl(350 55% 72%) 50%, hsl(42 65% 58%) 100%);
+    --gradient-rose: linear-gradient(135deg, hsl(350 60% 65%), hsl(350 55% 72%));
 
-    /* Sombras */
-    --shadow-soft: 0 4px 20px -4px hsl(170 38% 50% / 0.15);
-    --shadow-card: 0 2px 12px -2px hsl(170 30% 15% / 0.08);
-    --shadow-elevated: 0 8px 30px -8px hsl(170 38% 50% / 0.2);
+    /* Sombras com toque de rosa */
+    --shadow-soft: 0 4px 20px -4px hsl(350 55% 72% / 0.18);
+    --shadow-card: 0 2px 12px -2px hsl(170 30% 15% / 0.06);
+    --shadow-elevated: 0 8px 30px -8px hsl(350 55% 72% / 0.22);
 
-    --sidebar-background: 160 20% 98%;
+    --sidebar-background: 350 25% 98%;
     --sidebar-foreground: 170 30% 25%;
-    --sidebar-primary: 170 38% 50%;
+    --sidebar-primary: 350 55% 72%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 42 70% 95%;
-    --sidebar-accent-foreground: 42 80% 25%;
-    --sidebar-border: 160 20% 90%;
-    --sidebar-ring: 170 38% 50%;
+    --sidebar-accent: 350 50% 95%;
+    --sidebar-accent-foreground: 350 60% 25%;
+    --sidebar-border: 350 20% 92%;
+    --sidebar-ring: 350 55% 72%;
   }
 
   .dark {
-    --background: 170 30% 8%;
-    --foreground: 160 20% 95%;
+    --background: 350 20% 8%;
+    --foreground: 350 15% 95%;
 
-    --card: 170 25% 12%;
-    --card-foreground: 160 20% 95%;
+    --card: 350 18% 12%;
+    --card-foreground: 350 15% 95%;
 
-    --popover: 170 25% 12%;
-    --popover-foreground: 160 20% 95%;
+    --popover: 350 18% 12%;
+    --popover-foreground: 350 15% 95%;
 
-    --primary: 170 45% 55%;
+    --primary: 170 35% 55%;
     --primary-foreground: 170 30% 8%;
 
-    --secondary: 42 65% 55%;
+    --secondary: 42 60% 55%;
     --secondary-foreground: 42 80% 95%;
 
-    --accent: 14 55% 70%;
-    --accent-foreground: 14 60% 95%;
+    --accent: 350 50% 68%;
+    --accent-foreground: 350 55% 95%;
 
-    --muted: 170 20% 18%;
-    --muted-foreground: 160 15% 60%;
+    --muted: 350 15% 18%;
+    --muted-foreground: 350 12% 60%;
 
     --destructive: 0 62% 45%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 170 20% 20%;
-    --input: 170 20% 20%;
-    --ring: 170 45% 55%;
+    --border: 350 15% 20%;
+    --input: 350 15% 20%;
+    --ring: 350 50% 68%;
 
-    --teal: 170 45% 55%;
-    --teal-light: 170 30% 25%;
-    --teal-dark: 170 45% 70%;
-    --gold: 42 65% 55%;
-    --gold-light: 42 50% 25%;
-    --gold-dark: 42 65% 70%;
-    --salmon: 14 55% 70%;
-    --salmon-light: 14 40% 25%;
-    --salmon-dark: 14 55% 80%;
+    --teal: 170 35% 55%;
+    --teal-light: 170 25% 25%;
+    --teal-dark: 170 35% 70%;
+    --gold: 42 60% 55%;
+    --gold-light: 42 45% 25%;
+    --gold-dark: 42 60% 70%;
+    --salmon: 350 50% 68%;
+    --salmon-light: 350 35% 25%;
+    --salmon-dark: 350 50% 78%;
+    --rose: 350 55% 62%;
+    --rose-light: 350 40% 22%;
+    --rose-dark: 350 55% 75%;
 
-    --sidebar-background: 170 25% 10%;
-    --sidebar-foreground: 160 20% 90%;
-    --sidebar-primary: 170 45% 55%;
-    --sidebar-primary-foreground: 170 30% 8%;
-    --sidebar-accent: 42 50% 20%;
-    --sidebar-accent-foreground: 42 65% 90%;
-    --sidebar-border: 170 20% 18%;
-    --sidebar-ring: 170 45% 55%;
+    --sidebar-background: 350 18% 10%;
+    --sidebar-foreground: 350 15% 90%;
+    --sidebar-primary: 350 50% 68%;
+    --sidebar-primary-foreground: 350 20% 8%;
+    --sidebar-accent: 350 40% 20%;
+    --sidebar-accent-foreground: 350 50% 90%;
+    --sidebar-border: 350 15% 18%;
+    --sidebar-ring: 350 50% 68%;
   }
 }
 
@@ -173,11 +182,22 @@
 
   .btn-maridaas {
     @apply inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full font-semibold transition-all duration-300;
-    @apply bg-primary text-primary-foreground hover:opacity-90;
+    @apply bg-accent text-white hover:opacity-90;
     box-shadow: var(--shadow-soft);
   }
 
   .btn-maridaas:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-elevated);
+  }
+  
+  .btn-maridaas-primary {
+    @apply inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full font-semibold transition-all duration-300;
+    @apply bg-primary text-primary-foreground hover:opacity-90;
+    box-shadow: var(--shadow-soft);
+  }
+
+  .btn-maridaas-primary:hover {
     transform: translateY(-2px);
     box-shadow: var(--shadow-elevated);
   }
