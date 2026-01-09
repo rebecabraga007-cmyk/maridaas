@@ -44,10 +44,11 @@ const ServiceClickableCard = ({ serviceId, title, ownerName, avgRating }: Servic
 
     if (serviceData) {
       const [profileRes, reviewsRes] = await Promise.all([
-        supabase.from("profiles").select("full_name").eq("user_id", serviceData.user_id).single(),
+        supabase.rpc("get_public_profile", { target_user_id: serviceData.user_id }),
         supabase.from("service_reviews").select("rating").eq("service_id", serviceId),
       ]);
 
+      const profileData = profileRes.data?.[0];
       const reviews = reviewsRes.data || [];
       const calculatedAvg = reviews.length > 0
         ? reviews.reduce((acc, r) => acc + (r.rating || 0), 0) / reviews.length
@@ -55,7 +56,7 @@ const ServiceClickableCard = ({ serviceId, title, ownerName, avgRating }: Servic
 
       setFullService({
         ...serviceData,
-        owner_name: profileRes.data?.full_name || "Prestadora",
+        owner_name: profileData?.full_name || "Prestadora",
         avg_rating: Math.round(calculatedAvg * 10) / 10,
         review_count: reviews.length,
       });

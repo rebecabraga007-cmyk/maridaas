@@ -38,14 +38,34 @@ const UserSearchModal = ({ isOpen, onClose }: UserSearchModalProps) => {
 
   const searchUsers = async () => {
     setLoading(true);
-    const { data } = await supabase
+    // Use RPC to search - this requires a search function in the database
+    // For now, we'll use a workaround since get_public_profile works per user
+    // Search will be limited but secure
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+    
+    // Get current user's neighborhood to search within same neighborhood
+    const { data: userProfile } = await supabase
       .from("profiles")
-      .select("user_id, full_name, neighborhood, city")
-      .or(`full_name.ilike.%${searchQuery}%`)
-      .limit(20);
+      .select("primary_neighborhood_id")
+      .eq("user_id", user.id)
+      .single();
+    
+    if (userProfile?.primary_neighborhood_id) {
+      // Search users in the same neighborhood using own profile access
+      const { data } = await supabase
+        .from("profiles")
+        .select("user_id, full_name, neighborhood, city")
+        .eq("primary_neighborhood_id", userProfile.primary_neighborhood_id)
+        .ilike("full_name", `%${searchQuery}%`)
+        .limit(20);
 
-    if (data) {
-      setResults(data);
+      if (data) {
+        setResults(data);
+      }
     }
     setLoading(false);
   };

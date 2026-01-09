@@ -96,13 +96,10 @@ const NeighborhoodView = () => {
       const postsWithAuthors = await Promise.all(
         postsData.map(async (post) => {
           const { data: profileData } = await supabase
-            .from("profiles")
-            .select("full_name")
-            .eq("user_id", post.user_id)
-            .single();
+            .rpc("get_public_profile", { target_user_id: post.user_id });
           return {
             ...post,
-            author: profileData?.full_name || "Usuária",
+            author: profileData?.[0]?.full_name || "Usuária",
           };
         })
       );
@@ -121,9 +118,10 @@ const NeighborhoodView = () => {
       const servicesWithDetails = await Promise.all(
         servicesData.map(async (service) => {
           const [profileRes, reviewsRes] = await Promise.all([
-            supabase.from("profiles").select("full_name").eq("user_id", service.user_id).single(),
+            supabase.rpc("get_public_profile", { target_user_id: service.user_id }),
             supabase.from("service_reviews").select("rating").eq("service_id", service.id),
           ]);
+          const profileData = profileRes.data?.[0];
           const reviews = reviewsRes.data || [];
           const avgRating =
             reviews.length > 0
@@ -131,7 +129,7 @@ const NeighborhoodView = () => {
               : 0;
           return {
             ...service,
-            owner_name: profileRes.data?.full_name || "Prestadora",
+            owner_name: profileData?.full_name || "Prestadora",
             avg_rating: Math.round(avgRating * 10) / 10,
           };
         })
