@@ -61,14 +61,11 @@ const CommentsModal = ({
     if (data) {
       const commentsWithAuthors = await Promise.all(
         data.map(async (comment) => {
-          const { data: profile } = await supabase
-            .from("profiles")
-            .select("full_name")
-            .eq("user_id", comment.user_id)
-            .single();
+          const { data: profileData } = await supabase
+            .rpc("get_public_profile", { target_user_id: comment.user_id });
           return {
             ...comment,
-            author_name: profile?.full_name || "Usuária",
+            author_name: profileData?.[0]?.full_name || "Usuária",
           };
         })
       );

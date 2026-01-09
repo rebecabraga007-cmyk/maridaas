@@ -112,8 +112,29 @@ const Feed = () => {
     if (userProfile?.primary_neighborhood_id) {
       loadPosts();
       loadServices();
+      loadAnnouncement();
     }
   }, [userProfile?.primary_neighborhood_id]);
+
+  const loadAnnouncement = async () => {
+    if (!user || !userProfile?.primary_neighborhood_id) return;
+    
+    const { data } = await supabase
+      .from("announcements")
+      .select("*")
+      .or(`is_global.eq.true,neighborhood_id.eq.${userProfile.primary_neighborhood_id},target_user_id.eq.${user.id}`)
+      .lte("starts_at", new Date().toISOString())
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (data) {
+      // Check if ends_at is null or in the future
+      if (!data.ends_at || new Date(data.ends_at) > new Date()) {
+        setAnnouncement(data);
+      }
+    }
+  };
 
   const loadUserProfile = async () => {
     if (!user) return;
@@ -150,13 +171,14 @@ const Feed = () => {
       const postsWithDetails = await Promise.all(
         data.map(async (post) => {
           const [profileRes, likesRes, commentsRes] = await Promise.all([
-            supabase.from("profiles").select("full_name").eq("user_id", post.user_id).single(),
+            supabase.rpc("get_public_profile", { target_user_id: post.user_id }),
             supabase.from("post_likes").select("id", { count: "exact", head: true }).eq("post_id", post.id),
             supabase.from("post_comments").select("id", { count: "exact", head: true }).eq("post_id", post.id),
           ]);
+          const profileData = profileRes.data?.[0];
           return {
             ...post,
-            author: profileRes.data?.full_name || "Usuária",
+            author: profileData?.full_name || "Usuária",
             likes_count: likesRes.count || 0,
             comments_count: commentsRes.count || 0,
           };
@@ -180,16 +202,17 @@ const Feed = () => {
       const servicesWithDetails = await Promise.all(
         data.map(async (service) => {
           const [profileRes, reviewsRes] = await Promise.all([
-            supabase.from("profiles").select("full_name").eq("user_id", service.user_id).single(),
+            supabase.rpc("get_public_profile", { target_user_id: service.user_id }),
             supabase.from("service_reviews").select("rating").eq("service_id", service.id),
           ]);
+          const profileData = profileRes.data?.[0];
           const reviews = reviewsRes.data || [];
           const avgRating = reviews.length > 0
             ? reviews.reduce((acc, r) => acc + (r.rating || 0), 0) / reviews.length
             : 0;
           return {
             ...service,
-            name: profileRes.data?.full_name || "Prestadora",
+            name: profileData?.full_name || "Prestadora",
             avg_rating: Math.round(avgRating * 10) / 10,
           };
         })

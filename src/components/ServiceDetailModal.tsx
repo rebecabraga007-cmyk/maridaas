@@ -70,14 +70,11 @@ const ServiceDetailModal = ({
     if (data) {
       const reviewsWithNames = await Promise.all(
         data.map(async (review) => {
-          const { data: profile } = await supabase
-            .from("profiles")
-            .select("full_name")
-            .eq("user_id", review.user_id)
-            .single();
+          const { data: profileData } = await supabase
+            .rpc("get_public_profile", { target_user_id: review.user_id });
           return {
             ...review,
-            user_name: profile?.full_name || "Usuária",
+            user_name: profileData?.[0]?.full_name || "Usuária",
           };
         })
       );

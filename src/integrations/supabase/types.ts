@@ -445,6 +445,20 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_public_profile: {
+        Args: { target_user_id: string }
+        Returns: {
+          avatar_url: string
+          bio: string
+          city: string
+          full_name: string
+          instagram: string
+          neighborhood: string
+          primary_neighborhood_id: string
+          user_id: string
+          whatsapp: string
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -452,6 +466,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      same_neighborhood: { Args: { target_user_id: string }; Returns: boolean }
     }
     Enums: {
       app_role: "admin" | "moderator" | "user"

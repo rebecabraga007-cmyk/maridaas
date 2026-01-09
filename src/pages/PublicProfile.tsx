@@ -43,13 +43,13 @@ const PublicProfile = () => {
   }, [userId]);
 
   const loadProfile = async () => {
-    const { data } = await supabase
-      .from("profiles")
-      .select("full_name, bio, neighborhood, city, instagram, whatsapp, avatar_url")
-      .eq("user_id", userId)
-      .single();
+    // Use the security definer function to get public profile data
+    const { data, error } = await supabase
+      .rpc("get_public_profile", { target_user_id: userId });
 
-    if (data) setProfile(data);
+    if (data && data.length > 0) {
+      setProfile(data[0]);
+    }
     setLoading(false);
   };
 
