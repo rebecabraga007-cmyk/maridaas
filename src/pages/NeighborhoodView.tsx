@@ -7,9 +7,9 @@ import {
   MapPin,
   Eye,
   Lock,
-  Star,
   User as UserIcon,
 } from "lucide-react";
+import ServiceClickableCard from "@/components/ServiceClickableCard";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -218,20 +218,13 @@ const NeighborhoodView = () => {
           ) : (
             <div className="grid gap-3">
               {services.map((service) => (
-                <div key={service.id} className="card-maridaas p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-semibold text-foreground">{service.title}</p>
-                      <p className="text-sm text-muted-foreground">{service.owner_name}</p>
-                    </div>
-                    {service.avg_rating > 0 && (
-                      <div className="flex items-center gap-1 text-secondary">
-                        <Star className="w-4 h-4 fill-secondary" />
-                        <span className="text-sm font-medium">{service.avg_rating}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
+                <ServiceClickableCard
+                  key={service.id}
+                  serviceId={service.id}
+                  title={service.title}
+                  ownerName={service.owner_name}
+                  avgRating={service.avg_rating}
+                />
               ))}
             </div>
           )}

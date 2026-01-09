@@ -15,7 +15,8 @@ import {
   LogOut,
   Briefcase,
   Plus,
-  Search
+  Search,
+  Shield
 } from "lucide-react";
 import ServiceCard from "@/components/ServiceCard";
 import PostCard from "@/components/PostCard";
@@ -47,6 +48,7 @@ const Feed = () => {
   const [announcement, setAnnouncement] = useState<any>(null);
   const [posting, setPosting] = useState(false);
   const [showUserSearch, setShowUserSearch] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
@@ -80,8 +82,31 @@ const Feed = () => {
   }, [navigate]);
 
   useEffect(() => {
-    if (user) loadUserProfile();
+    if (user) {
+      loadUserProfile();
+      checkAdminRole();
+      registerSession();
+    }
   }, [user]);
+
+  const checkAdminRole = async () => {
+    if (!user) return;
+    const { data } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", user.id)
+      .eq("role", "admin")
+      .maybeSingle();
+    setIsAdmin(!!data);
+  };
+
+  const registerSession = async () => {
+    if (!user) return;
+    await supabase.from("user_sessions").upsert(
+      { user_id: user.id, session_date: new Date().toISOString().split("T")[0] },
+      { onConflict: "user_id,session_date" }
+    );
+  };
 
   useEffect(() => {
     if (userProfile?.primary_neighborhood_id) {
@@ -223,6 +248,11 @@ const Feed = () => {
           </div>
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="icon" onClick={() => setShowUserSearch(true)}><Search className="h-5 w-5" /></Button>
+            {isAdmin && (
+              <Button variant="ghost" size="icon" onClick={() => navigate("/admin")} className="text-secondary">
+                <Shield className="h-5 w-5" />
+              </Button>
+            )}
             <Button variant="ghost" size="icon"><Bell className="h-5 w-5" /></Button>
             <Button variant="ghost" size="icon" onClick={handleLogout}><LogOut className="h-5 w-5" /></Button>
           </div>

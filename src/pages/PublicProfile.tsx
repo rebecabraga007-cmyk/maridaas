@@ -8,9 +8,9 @@ import {
   MapPin,
   Instagram,
   MessageCircle,
-  Star,
   Briefcase,
 } from "lucide-react";
+import ServiceClickableCard from "@/components/ServiceClickableCard";
 
 interface Profile {
   full_name: string;
@@ -179,17 +179,13 @@ const PublicProfile = () => {
             </h3>
             <div className="space-y-3">
               {services.map((service) => (
-                <div key={service.id} className="card-maridaas p-4">
-                  <div className="flex items-center justify-between">
-                    <p className="font-semibold text-foreground">{service.title}</p>
-                    {service.avg_rating > 0 && (
-                      <div className="flex items-center gap-1 text-secondary">
-                        <Star className="w-4 h-4 fill-secondary" />
-                        <span className="text-sm font-medium">{service.avg_rating}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
+                <ServiceClickableCard
+                  key={service.id}
+                  serviceId={service.id}
+                  title={service.title}
+                  ownerName={profile.full_name}
+                  avgRating={service.avg_rating}
+                />
               ))}
             </div>
           </div>

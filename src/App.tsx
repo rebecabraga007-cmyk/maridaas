@@ -11,6 +11,7 @@ import Services from "./pages/Services";
 import Neighborhoods from "./pages/Neighborhoods";
 import PublicProfile from "./pages/PublicProfile";
 import NeighborhoodView from "./pages/NeighborhoodView";
+import Admin from "./pages/Admin";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -30,6 +31,7 @@ const App = () => (
           <Route path="/services" element={<Services />} />
           <Route path="/neighborhoods" element={<Neighborhoods />} />
           <Route path="/neighborhoods/:neighborhoodId" element={<NeighborhoodView />} />
+          <Route path="/admin" element={<Admin />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
