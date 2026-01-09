@@ -274,6 +274,42 @@ export type Database = {
         }
         Relationships: []
       }
+      scheduled_notifications: {
+        Row: {
+          body: string
+          created_at: string
+          created_by: string
+          id: string
+          scheduled_at: string
+          sent_at: string | null
+          target_id: string | null
+          target_type: string
+          title: string
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          created_by: string
+          id?: string
+          scheduled_at: string
+          sent_at?: string | null
+          target_id?: string | null
+          target_type: string
+          title: string
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          scheduled_at?: string
+          sent_at?: string | null
+          target_id?: string | null
+          target_type?: string
+          title?: string
+        }
+        Relationships: []
+      }
       service_reviews: {
         Row: {
           content: string
@@ -379,6 +415,27 @@ export type Database = {
           created_by?: string | null
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_sessions: {
+        Row: {
+          created_at: string
+          id: string
+          session_date: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          session_date?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          session_date?: string
           user_id?: string
         }
         Relationships: []
