@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { User, Send, X } from "lucide-react";
+import { User, Send, Trash2, MoreVertical } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -11,6 +12,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { useToast } from "@/hooks/use-toast";
+import ProfilePreviewPopup from "./ProfilePreviewPopup";
 
 interface Comment {
   id: string;
@@ -28,6 +37,8 @@ interface CommentsModalProps {
   onClose: () => void;
   currentUserId?: string;
   onCommentAdded?: () => void;
+  canModerate?: boolean;
+  isVisitor?: boolean;
 }
 
 const CommentsModal = ({
@@ -38,11 +49,16 @@ const CommentsModal = ({
   onClose,
   currentUserId,
   onCommentAdded,
+  canModerate = false,
+  isVisitor = false,
 }: CommentsModalProps) => {
+  const navigate = useNavigate();
+  const { toast } = useToast();
   const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState("");
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -75,7 +91,7 @@ const CommentsModal = ({
   };
 
   const handleSubmitComment = async () => {
-    if (!newComment.trim() || !currentUserId) return;
+    if (!newComment.trim() || !currentUserId || isVisitor) return;
 
     setSubmitting(true);
     const { error } = await supabase.from("post_comments").insert({
@@ -92,77 +108,140 @@ const CommentsModal = ({
     setSubmitting(false);
   };
 
+  const handleDeleteComment = async (commentId: string) => {
+    const { error } = await supabase.from("post_comments").delete().eq("id", commentId);
+    if (error) {
+      toast({ title: "Erro ao deletar", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Comentário deletado" });
+      loadComments();
+    }
+  };
+
+  const handleProfileClick = (userId: string) => {
+    setSelectedUserId(userId);
+  };
+
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-lg max-h-[80vh] flex flex-col">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            Comentários
-          </DialogTitle>
-        </DialogHeader>
+    <>
+      <Dialog open={isOpen} onOpenChange={onClose}>
+        <DialogContent className="max-w-lg max-h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              Comentários
+            </DialogTitle>
+          </DialogHeader>
 
-        {/* Post original */}
-        <div className="bg-muted/50 rounded-xl p-3 mb-4">
-          <p className="font-semibold text-sm text-foreground">{postAuthor}</p>
-          <p className="text-sm text-foreground mt-1">{postContent}</p>
-        </div>
-
-        {/* Lista de comentários */}
-        <div className="flex-1 overflow-y-auto space-y-3 min-h-[200px]">
-          {loading ? (
-            <div className="flex justify-center py-8">
-              <div className="animate-spin rounded-full h-6 w-6 border-2 border-primary border-t-transparent" />
-            </div>
-          ) : comments.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <p>Nenhum comentário ainda</p>
-              <p className="text-sm">Seja a primeira a comentar!</p>
-            </div>
-          ) : (
-            comments.map((comment) => (
-              <div key={comment.id} className="flex gap-2">
-                <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center flex-shrink-0">
-                  <User className="w-4 h-4 text-accent-foreground" />
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-semibold text-sm">{comment.author_name}</span>
-                    <span className="text-xs text-muted-foreground">
-                      {formatDistanceToNow(new Date(comment.created_at), {
-                        addSuffix: true,
-                        locale: ptBR,
-                      })}
-                    </span>
-                  </div>
-                  <p className="text-sm text-foreground">{comment.content}</p>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-
-        {/* Adicionar comentário */}
-        {currentUserId && (
-          <div className="flex gap-2 mt-4 pt-4 border-t border-border">
-            <Textarea
-              placeholder="Escreva um comentário..."
-              value={newComment}
-              onChange={(e) => setNewComment(e.target.value)}
-              className="min-h-[60px] resize-none"
-              maxLength={500}
-            />
-            <Button
-              onClick={handleSubmitComment}
-              disabled={!newComment.trim() || submitting}
-              size="icon"
-              className="btn-maridaas h-auto"
-            >
-              <Send className="w-4 h-4" />
-            </Button>
+          {/* Post original */}
+          <div className="bg-muted/50 rounded-xl p-3 mb-4">
+            <p className="font-semibold text-sm text-foreground">{postAuthor}</p>
+            <p className="text-sm text-foreground mt-1 whitespace-pre-wrap">{postContent}</p>
           </div>
-        )}
-      </DialogContent>
-    </Dialog>
+
+          {/* Lista de comentários */}
+          <div className="flex-1 overflow-y-auto space-y-3 min-h-[200px]">
+            {loading ? (
+              <div className="flex justify-center py-8">
+                <div className="animate-spin rounded-full h-6 w-6 border-2 border-primary border-t-transparent" />
+              </div>
+            ) : comments.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <p>Nenhum comentário ainda</p>
+                <p className="text-sm">Seja a primeira a comentar!</p>
+              </div>
+            ) : (
+              comments.map((comment) => {
+                const isOwner = currentUserId === comment.user_id;
+                const canDelete = isOwner || canModerate;
+
+                return (
+                  <div key={comment.id} className="flex gap-2">
+                    <button 
+                      onClick={() => handleProfileClick(comment.user_id)}
+                      className="w-8 h-8 rounded-full bg-accent flex items-center justify-center flex-shrink-0 hover:opacity-80 transition-opacity"
+                    >
+                      <User className="w-4 h-4 text-accent-foreground" />
+                    </button>
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => handleProfileClick(comment.user_id)}
+                            className="font-semibold text-sm hover:text-primary transition-colors"
+                          >
+                            {comment.author_name}
+                          </button>
+                          <span className="text-xs text-muted-foreground">
+                            {formatDistanceToNow(new Date(comment.created_at), {
+                              addSuffix: true,
+                              locale: ptBR,
+                            })}
+                          </span>
+                        </div>
+                        {canDelete && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <button className="p-1 text-muted-foreground hover:text-foreground transition-colors">
+                                <MoreVertical className="w-3 h-3" />
+                              </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem
+                                className="text-destructive"
+                                onClick={() => handleDeleteComment(comment.id)}
+                              >
+                                <Trash2 className="w-4 h-4 mr-2" />
+                                Deletar
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
+                      </div>
+                      <p className="text-sm text-foreground whitespace-pre-wrap">{comment.content}</p>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          {/* Adicionar comentário */}
+          {currentUserId && !isVisitor && (
+            <div className="flex gap-2 mt-4 pt-4 border-t border-border">
+              <Textarea
+                placeholder="Escreva um comentário..."
+                value={newComment}
+                onChange={(e) => setNewComment(e.target.value)}
+                className="min-h-[60px] resize-none"
+                maxLength={500}
+              />
+              <Button
+                onClick={handleSubmitComment}
+                disabled={!newComment.trim() || submitting}
+                size="icon"
+                className="btn-maridaas h-auto"
+              >
+                <Send className="w-4 h-4" />
+              </Button>
+            </div>
+          )}
+          {isVisitor && (
+            <div className="text-center py-2 text-sm text-muted-foreground">
+              Visitantes não podem comentar
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {selectedUserId && (
+        <ProfilePreviewPopup
+          userId={selectedUserId}
+          isOpen={!!selectedUserId}
+          onClose={() => setSelectedUserId(null)}
+          currentUserId={currentUserId}
+        />
+      )}
+    </>
   );
 };
 

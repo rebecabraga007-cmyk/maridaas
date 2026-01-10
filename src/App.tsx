@@ -12,6 +12,7 @@ import Neighborhoods from "./pages/Neighborhoods";
 import PublicProfile from "./pages/PublicProfile";
 import NeighborhoodView from "./pages/NeighborhoodView";
 import Admin from "./pages/Admin";
+import Messages from "./pages/Messages";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -32,6 +33,7 @@ const App = () => (
           <Route path="/neighborhoods" element={<Neighborhoods />} />
           <Route path="/neighborhoods/:neighborhoodId" element={<NeighborhoodView />} />
           <Route path="/admin" element={<Admin />} />
+          <Route path="/messages/:userId" element={<Messages />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
