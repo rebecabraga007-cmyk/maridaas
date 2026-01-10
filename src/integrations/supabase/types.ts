@@ -228,6 +228,7 @@ export type Database = {
           neighborhood: string
           notifications_enabled: boolean | null
           primary_neighborhood_id: string | null
+          secondary_neighborhood_id: string | null
           updated_at: string
           user_id: string
           whatsapp: string | null
@@ -248,6 +249,7 @@ export type Database = {
           neighborhood: string
           notifications_enabled?: boolean | null
           primary_neighborhood_id?: string | null
+          secondary_neighborhood_id?: string | null
           updated_at?: string
           user_id: string
           whatsapp?: string | null
@@ -268,11 +270,20 @@ export type Database = {
           neighborhood?: string
           notifications_enabled?: boolean | null
           primary_neighborhood_id?: string | null
+          secondary_neighborhood_id?: string | null
           updated_at?: string
           user_id?: string
           whatsapp?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "profiles_secondary_neighborhood_id_fkey"
+            columns: ["secondary_neighborhood_id"]
+            isOneToOne: false
+            referencedRelation: "neighborhoods"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       scheduled_notifications: {
         Row: {
@@ -395,11 +406,39 @@ export type Database = {
           },
         ]
       }
+      user_messages: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          read_at: string | null
+          receiver_id: string
+          sender_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          read_at?: string | null
+          receiver_id: string
+          sender_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          read_at?: string | null
+          receiver_id?: string
+          sender_id?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string
           created_by: string | null
           id: string
+          moderator_neighborhood_id: string | null
           role: Database["public"]["Enums"]["app_role"]
           user_id: string
         }
@@ -407,6 +446,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           id?: string
+          moderator_neighborhood_id?: string | null
           role?: Database["public"]["Enums"]["app_role"]
           user_id: string
         }
@@ -414,10 +454,19 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           id?: string
+          moderator_neighborhood_id?: string | null
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "user_roles_moderator_neighborhood_id_fkey"
+            columns: ["moderator_neighborhood_id"]
+            isOneToOne: false
+            referencedRelation: "neighborhoods"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_sessions: {
         Row: {
@@ -445,6 +494,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      can_interact_in_neighborhood: {
+        Args: { _neighborhood_id: string; _user_id: string }
+        Returns: boolean
+      }
       get_public_profile: {
         Args: { target_user_id: string }
         Returns: {
@@ -455,6 +508,7 @@ export type Database = {
           instagram: string
           neighborhood: string
           primary_neighborhood_id: string
+          secondary_neighborhood_id: string
           user_id: string
           whatsapp: string
         }[]
@@ -464,6 +518,10 @@ export type Database = {
           _role: Database["public"]["Enums"]["app_role"]
           _user_id: string
         }
+        Returns: boolean
+      }
+      is_moderator_for_neighborhood: {
+        Args: { _neighborhood_id: string; _user_id: string }
         Returns: boolean
       }
       same_neighborhood: { Args: { target_user_id: string }; Returns: boolean }
