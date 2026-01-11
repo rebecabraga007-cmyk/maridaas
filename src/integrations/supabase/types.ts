@@ -494,6 +494,35 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_create_post: {
+        Args: { _content: string; _neighborhood_id: string }
+        Returns: string
+      }
+      admin_delete_comment: { Args: { comment_id: string }; Returns: boolean }
+      admin_delete_post: { Args: { post_id: string }; Returns: boolean }
+      admin_delete_service: { Args: { service_id: string }; Returns: boolean }
+      admin_get_all_posts: {
+        Args: never
+        Returns: {
+          content: string
+          created_at: string
+          id: string
+          neighborhood_id: string
+          user_id: string
+        }[]
+      }
+      admin_get_all_profiles: {
+        Args: never
+        Returns: {
+          city: string
+          created_at: string
+          full_name: string
+          neighborhood: string
+          primary_neighborhood_id: string
+          secondary_neighborhood_id: string
+          user_id: string
+        }[]
+      }
       can_interact_in_neighborhood: {
         Args: { _neighborhood_id: string; _user_id: string }
         Returns: boolean
