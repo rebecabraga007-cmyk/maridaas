@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import ProfilePreviewPopup from "./ProfilePreviewPopup";
 
 interface Service {
   id: string;
@@ -32,7 +33,9 @@ interface Review {
   content: string;
   rating: number | null;
   created_at: string;
+  user_id: string;
   user_name: string;
+  avatar_url: string | null;
 }
 
 interface ServiceDetailModalProps {
@@ -53,8 +56,10 @@ const ServiceDetailModal = ({
   const { toast } = useToast();
   const [reviews, setReviews] = useState<Review[]>([]);
   const [newReview, setNewReview] = useState("");
+  const [profilePopupUserId, setProfilePopupUserId] = useState<string | null>(null);
   const [selectedRating, setSelectedRating] = useState(5);
   const [submitting, setSubmitting] = useState(false);
+  const [profilePopup, setProfilePopup] = useState<{ userId: string; position: { x: number; y: number } } | null>(null);
 
   useEffect(() => {
     loadReviews();
@@ -75,6 +80,7 @@ const ServiceDetailModal = ({
           return {
             ...review,
             user_name: profileData?.[0]?.full_name || "Usuária",
+            avatar_url: profileData?.[0]?.avatar_url || null,
           };
         })
       );
@@ -126,18 +132,35 @@ const ServiceDetailModal = ({
     window.open(`https://instagram.com/${username}`, "_blank");
   };
 
+  const handleProfileClick = (userId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const rect = (e.target as HTMLElement).getBoundingClientRect();
+    setProfilePopup({
+      userId,
+      position: { x: rect.left, y: rect.bottom + 8 },
+    });
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm">
       <div className="bg-card rounded-t-3xl sm:rounded-3xl shadow-elevated w-full sm:max-w-lg max-h-[90vh] overflow-hidden animate-slide-in-bottom sm:animate-scale-in">
         <div className="p-6 max-h-[90vh] overflow-y-auto">
           <div className="flex items-start justify-between mb-6">
             <div className="flex gap-4">
-              <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
+              <button
+                onClick={(e) => handleProfileClick(service.user_id, e)}
+                className="w-16 h-16 rounded-full bg-muted flex items-center justify-center flex-shrink-0 hover:ring-2 hover:ring-primary transition-all cursor-pointer"
+              >
                 <User className="w-8 h-8 text-muted-foreground" />
-              </div>
+              </button>
               <div>
                 <h2 className="text-xl font-display font-bold text-foreground">{service.title}</h2>
-                <p className="text-muted-foreground">{service.owner_name}</p>
+                <button
+                  onClick={(e) => handleProfileClick(service.user_id, e)}
+                  className="text-muted-foreground hover:text-primary transition-colors cursor-pointer"
+                >
+                  {service.owner_name}
+                </button>
                 <div className="flex items-center gap-2 mt-1">
                   <div className="flex items-center gap-1">
                     <Star className="w-4 h-4 text-secondary fill-secondary" />
@@ -155,7 +178,7 @@ const ServiceDetailModal = ({
           {service.description && (
             <div className="mb-6">
               <h3 className="font-semibold text-foreground mb-2">Descrição</h3>
-              <p className="text-muted-foreground">{service.description}</p>
+              <p className="text-muted-foreground whitespace-pre-wrap">{service.description}</p>
             </div>
           )}
 
@@ -178,48 +201,62 @@ const ServiceDetailModal = ({
             <h3 className="font-semibold text-foreground mb-4">Avaliações</h3>
 
             {/* Add review */}
-            <div className="card-maridaas p-4 mb-4">
-              <div className="flex gap-2 mb-3">
-                {[1, 2, 3, 4, 5].map((star) => (
-                  <button
-                    key={star}
-                    onClick={() => setSelectedRating(star)}
-                    className="transition-transform hover:scale-110"
-                  >
-                    <Star
-                      className={`w-6 h-6 ${
-                        star <= selectedRating ? "text-secondary fill-secondary" : "text-muted-foreground"
-                      }`}
-                    />
-                  </button>
-                ))}
+            {currentUserId && (
+              <div className="card-maridaas p-4 mb-4">
+                <div className="flex gap-2 mb-3">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button
+                      key={star}
+                      onClick={() => setSelectedRating(star)}
+                      className="transition-transform hover:scale-110"
+                    >
+                      <Star
+                        className={`w-6 h-6 ${
+                          star <= selectedRating ? "text-secondary fill-secondary" : "text-muted-foreground"
+                        }`}
+                      />
+                    </button>
+                  ))}
+                </div>
+                <Textarea
+                  placeholder="Compartilhe sua experiência com esse serviço..."
+                  value={newReview}
+                  onChange={(e) => setNewReview(e.target.value)}
+                  className="min-h-[60px] resize-none mb-3"
+                  maxLength={500}
+                />
+                <Button
+                  onClick={handleSubmitReview}
+                  className="btn-maridaas w-full"
+                  disabled={!newReview.trim() || submitting}
+                >
+                  {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Send className="w-4 h-4 mr-2" /> Enviar avaliação</>}
+                </Button>
               </div>
-              <Textarea
-                placeholder="Compartilhe sua experiência com esse serviço..."
-                value={newReview}
-                onChange={(e) => setNewReview(e.target.value)}
-                className="min-h-[60px] resize-none mb-3"
-                maxLength={500}
-              />
-              <Button
-                onClick={handleSubmitReview}
-                className="btn-maridaas w-full"
-                disabled={!newReview.trim() || submitting}
-              >
-                {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Send className="w-4 h-4 mr-2" /> Enviar avaliação</>}
-              </Button>
-            </div>
+            )}
 
             {/* Reviews list */}
             <div className="space-y-3">
               {reviews.map((review) => (
                 <div key={review.id} className="card-maridaas p-4">
                   <div className="flex items-center gap-2 mb-2">
-                    <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
-                      <User className="w-4 h-4 text-muted-foreground" />
-                    </div>
+                    <button
+                      onClick={(e) => handleProfileClick(review.user_id, e)}
+                      className="w-8 h-8 rounded-full bg-muted flex items-center justify-center hover:ring-2 hover:ring-primary transition-all cursor-pointer"
+                    >
+                      {review.avatar_url ? (
+                        <img src={review.avatar_url} alt="" className="w-full h-full rounded-full object-cover" />
+                      ) : (
+                        <User className="w-4 h-4 text-muted-foreground" />
+                      )}
+                    </button>
                     <div>
-                      <p className="font-medium text-foreground text-sm">{review.user_name}</p>
+                      <button
+                        onClick={(e) => handleProfileClick(review.user_id, e)}
+                        className="font-medium text-foreground text-sm hover:text-primary transition-colors cursor-pointer"
+                      >
+                        {review.user_name}
+                      </button>
                       <div className="flex items-center gap-1">
                         {[1, 2, 3, 4, 5].map((star) => (
                           <Star
@@ -235,7 +272,7 @@ const ServiceDetailModal = ({
                       {formatDistanceToNow(new Date(review.created_at), { addSuffix: true, locale: ptBR })}
                     </span>
                   </div>
-                  <p className="text-foreground text-sm">{review.content}</p>
+                  <p className="text-foreground text-sm whitespace-pre-wrap">{review.content}</p>
                 </div>
               ))}
 
@@ -248,6 +285,15 @@ const ServiceDetailModal = ({
           </div>
         </div>
       </div>
+
+      {/* Profile Preview Popup */}
+      {profilePopup && (
+        <ProfilePreviewPopup
+          userId={profilePopup.userId}
+          position={profilePopup.position}
+          onClose={() => setProfilePopup(null)}
+        />
+      )}
     </div>
   );
 };

@@ -20,7 +20,23 @@ import {
   Calendar,
   Home,
   Briefcase,
+  Users,
+  UserPlus,
+  UserMinus,
 } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 interface Profile {
   id: string;
@@ -32,6 +48,21 @@ interface Profile {
   whatsapp: string | null;
   birth_date: string | null;
   primary_neighborhood_id: string | null;
+  secondary_neighborhood_id: string | null;
+}
+
+interface Neighborhood {
+  id: string;
+  name: string;
+  city: string;
+}
+
+interface Friend {
+  id: string;
+  user_id: string;
+  full_name: string;
+  avatar_url: string | null;
+  neighborhood: string;
 }
 
 const Profile = () => {
@@ -43,11 +74,16 @@ const Profile = () => {
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(false);
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [neighborhoods, setNeighborhoods] = useState<Neighborhood[]>([]);
+  const [friends, setFriends] = useState<Friend[]>([]);
+  const [showFriends, setShowFriends] = useState(false);
+  const [loadingFriends, setLoadingFriends] = useState(false);
 
   // Editable fields
   const [bio, setBio] = useState("");
   const [instagram, setInstagram] = useState("");
   const [whatsapp, setWhatsapp] = useState("");
+  const [secondaryNeighborhoodId, setSecondaryNeighborhoodId] = useState<string | null>(null);
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
@@ -68,7 +104,10 @@ const Profile = () => {
   }, [navigate]);
 
   useEffect(() => {
-    if (user) loadProfile();
+    if (user) {
+      loadProfile();
+      loadNeighborhoods();
+    }
   }, [user]);
 
   const loadProfile = async () => {
@@ -76,7 +115,7 @@ const Profile = () => {
 
     const { data, error } = await supabase
       .from("profiles")
-      .select("id, full_name, bio, neighborhood, city, instagram, whatsapp, birth_date, primary_neighborhood_id")
+      .select("id, full_name, bio, neighborhood, city, instagram, whatsapp, birth_date, primary_neighborhood_id, secondary_neighborhood_id")
       .eq("user_id", user.id)
       .single();
 
@@ -85,7 +124,65 @@ const Profile = () => {
       setBio(data.bio || "");
       setInstagram(data.instagram || "");
       setWhatsapp(data.whatsapp || "");
+      setSecondaryNeighborhoodId(data.secondary_neighborhood_id);
     }
+  };
+
+  const loadNeighborhoods = async () => {
+    const { data } = await supabase
+      .from("neighborhoods")
+      .select("id, name, city")
+      .order("name");
+    if (data) setNeighborhoods(data);
+  };
+
+  const loadFriends = async () => {
+    if (!user) return;
+    setLoadingFriends(true);
+
+    const { data: friendships } = await supabase
+      .from("friendships")
+      .select("requester_id, addressee_id")
+      .eq("status", "accepted")
+      .or(`requester_id.eq.${user.id},addressee_id.eq.${user.id}`);
+
+    if (friendships) {
+      const friendIds = friendships.map(f => 
+        f.requester_id === user.id ? f.addressee_id : f.requester_id
+      );
+
+      const friendsData = await Promise.all(
+        friendIds.map(async (friendId) => {
+          const { data } = await supabase.rpc("get_public_profile", { target_user_id: friendId });
+          if (data && data.length > 0) {
+            return {
+              id: friendId,
+              user_id: friendId,
+              full_name: data[0].full_name,
+              avatar_url: data[0].avatar_url,
+              neighborhood: data[0].neighborhood,
+            };
+          }
+          return null;
+        })
+      );
+
+      setFriends(friendsData.filter(Boolean) as Friend[]);
+    }
+    setLoadingFriends(false);
+  };
+
+  const handleRemoveFriend = async (friendId: string) => {
+    if (!user) return;
+
+    await supabase
+      .from("friendships")
+      .delete()
+      .or(`requester_id.eq.${user.id},addressee_id.eq.${user.id}`)
+      .or(`requester_id.eq.${friendId},addressee_id.eq.${friendId}`);
+
+    toast({ title: "Amigo removido" });
+    loadFriends();
   };
 
   const handleSave = async () => {
@@ -99,6 +196,7 @@ const Profile = () => {
         bio: bio.trim() || null,
         instagram: instagram.trim() || null,
         whatsapp: whatsapp.trim() || null,
+        secondary_neighborhood_id: secondaryNeighborhoodId || null,
       })
       .eq("user_id", user.id);
 
@@ -124,6 +222,7 @@ const Profile = () => {
     setBio(profile?.bio || "");
     setInstagram(profile?.instagram || "");
     setWhatsapp(profile?.whatsapp || "");
+    setSecondaryNeighborhoodId(profile?.secondary_neighborhood_id || null);
     setEditing(false);
   };
 
@@ -131,6 +230,12 @@ const Profile = () => {
     if (!dateString) return "Não informada";
     const date = new Date(dateString);
     return date.toLocaleDateString("pt-BR");
+  };
+
+  const getNeighborhoodName = (id: string | null) => {
+    if (!id) return null;
+    const n = neighborhoods.find(n => n.id === id);
+    return n ? `${n.name} - ${n.city}` : null;
   };
 
   if (loading) {
@@ -181,6 +286,20 @@ const Profile = () => {
             <MapPin className="w-4 h-4" />
             {profile?.neighborhood}, {profile?.city}
           </p>
+
+          {/* Friends button */}
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-4"
+            onClick={() => {
+              setShowFriends(true);
+              loadFriends();
+            }}
+          >
+            <Users className="w-4 h-4 mr-2" />
+            Meus amigos
+          </Button>
         </div>
 
         {/* Bio */}
@@ -198,7 +317,41 @@ const Profile = () => {
               <p className="text-xs text-muted-foreground mt-1">{bio.length}/140</p>
             </div>
           ) : (
-            <p className="text-foreground">{profile?.bio || "Nenhuma bio adicionada."}</p>
+            <p className="text-foreground whitespace-pre-wrap">{profile?.bio || "Nenhuma bio adicionada."}</p>
+          )}
+        </div>
+
+        {/* Secondary Neighborhood */}
+        <div className="card-maridaas p-4 mb-4">
+          <Label className="text-sm font-medium text-muted-foreground mb-2 block">
+            Segundo bairro (opcional)
+          </Label>
+          <p className="text-xs text-muted-foreground mb-3">
+            Você pode participar de até 2 bairros ao mesmo tempo.
+          </p>
+          {editing ? (
+            <Select
+              value={secondaryNeighborhoodId || "none"}
+              onValueChange={(v) => setSecondaryNeighborhoodId(v === "none" ? null : v)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione um segundo bairro" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Nenhum</SelectItem>
+                {neighborhoods
+                  .filter(n => n.id !== profile?.primary_neighborhood_id)
+                  .map((n) => (
+                    <SelectItem key={n.id} value={n.id}>
+                      {n.name} - {n.city}
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <p className="text-foreground">
+              {getNeighborhoodName(profile?.secondary_neighborhood_id || null) || "Nenhum segundo bairro definido"}
+            </p>
           )}
         </div>
 
@@ -252,6 +405,65 @@ const Profile = () => {
           </p>
         </div>
       </main>
+
+      {/* Friends Dialog */}
+      <Dialog open={showFriends} onOpenChange={setShowFriends}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Users className="w-5 h-5" />
+              Meus amigos
+            </DialogTitle>
+          </DialogHeader>
+          
+          {loadingFriends ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="w-6 h-6 animate-spin text-primary" />
+            </div>
+          ) : friends.length > 0 ? (
+            <div className="space-y-3 max-h-[400px] overflow-y-auto">
+              {friends.map((friend) => (
+                <div key={friend.id} className="flex items-center justify-between p-3 rounded-xl bg-muted/50">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center">
+                      {friend.avatar_url ? (
+                        <img src={friend.avatar_url} alt="" className="w-full h-full rounded-full object-cover" />
+                      ) : (
+                        <UserIcon className="w-5 h-5 text-white" />
+                      )}
+                    </div>
+                    <div>
+                      <p className="font-medium text-foreground">{friend.full_name}</p>
+                      <p className="text-xs text-muted-foreground">{friend.neighborhood}</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => navigate(`/profile/${friend.user_id}`)}
+                    >
+                      Ver perfil
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="text-destructive hover:text-destructive"
+                      onClick={() => handleRemoveFriend(friend.user_id)}
+                    >
+                      <UserMinus className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-center text-muted-foreground py-8">
+              Você ainda não tem amigos adicionados.
+            </p>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Bottom Navigation */}
       <nav className="fixed bottom-0 left-0 right-0 glass border-t border-border z-40">
