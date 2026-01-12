@@ -115,6 +115,35 @@ export type Database = {
         }
         Relationships: []
       }
+      notification_reads: {
+        Row: {
+          id: string
+          notification_id: string
+          read_at: string
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          notification_id: string
+          read_at?: string
+          user_id: string
+        }
+        Update: {
+          id?: string
+          notification_id?: string
+          read_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_reads_notification_id_fkey"
+            columns: ["notification_id"]
+            isOneToOne: false
+            referencedRelation: "scheduled_notifications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       post_comments: {
         Row: {
           content: string
@@ -181,6 +210,7 @@ export type Database = {
           content: string
           created_at: string
           id: string
+          image_url: string | null
           neighborhood_id: string
           updated_at: string
           user_id: string
@@ -189,6 +219,7 @@ export type Database = {
           content: string
           created_at?: string
           id?: string
+          image_url?: string | null
           neighborhood_id: string
           updated_at?: string
           user_id: string
@@ -197,6 +228,7 @@ export type Database = {
           content?: string
           created_at?: string
           id?: string
+          image_url?: string | null
           neighborhood_id?: string
           updated_at?: string
           user_id?: string
@@ -500,6 +532,7 @@ export type Database = {
       }
       admin_delete_comment: { Args: { comment_id: string }; Returns: boolean }
       admin_delete_post: { Args: { post_id: string }; Returns: boolean }
+      admin_delete_review: { Args: { review_id: string }; Returns: boolean }
       admin_delete_service: { Args: { service_id: string }; Returns: boolean }
       admin_get_all_posts: {
         Args: never
