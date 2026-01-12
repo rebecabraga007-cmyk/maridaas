@@ -14,10 +14,10 @@ import {
   User as UserIcon,
   Users,
   Lock,
-  Calendar,
+  Star,
+  X,
 } from "lucide-react";
-import { formatDistanceToNow, differenceInDays } from "date-fns";
-import { ptBR } from "date-fns/locale";
+import { differenceInDays } from "date-fns";
 
 interface Neighborhood {
   id: string;
@@ -28,6 +28,7 @@ interface Neighborhood {
 
 interface Profile {
   primary_neighborhood_id: string | null;
+  secondary_neighborhood_id: string | null;
   neighborhood: string;
   city: string;
   last_neighborhood_change: string | null;
@@ -43,6 +44,7 @@ const Neighborhoods = () => {
   const [userProfile, setUserProfile] = useState<Profile | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [changing, setChanging] = useState(false);
+  const [settingSecondary, setSettingSecondary] = useState(false);
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
@@ -73,7 +75,7 @@ const Neighborhoods = () => {
     if (!user) return;
     const { data } = await supabase
       .from("profiles")
-      .select("primary_neighborhood_id, neighborhood, city, last_neighborhood_change")
+      .select("primary_neighborhood_id, secondary_neighborhood_id, neighborhood, city, last_neighborhood_change")
       .eq("user_id", user.id)
       .single();
 
@@ -88,13 +90,12 @@ const Neighborhoods = () => {
       .order("name");
 
     if (data) {
-      // Get member counts
       const neighborhoodsWithCounts = await Promise.all(
         data.map(async (n) => {
           const { count } = await supabase
             .from("profiles")
             .select("id", { count: "exact", head: true })
-            .eq("primary_neighborhood_id", n.id);
+            .or(`primary_neighborhood_id.eq.${n.id},secondary_neighborhood_id.eq.${n.id}`);
           return { ...n, member_count: count || 0 };
         })
       );
@@ -130,20 +131,53 @@ const Neighborhoods = () => {
       .eq("user_id", user.id);
 
     if (error) {
-      toast({
-        title: "Erro ao trocar bairro",
-        description: "Tente novamente.",
-        variant: "destructive",
-      });
+      toast({ title: "Erro ao trocar bairro", description: "Tente novamente.", variant: "destructive" });
     } else {
-      toast({
-        title: "Bairro alterado!",
-        description: "Agora você pode interagir no novo bairro.",
-      });
+      toast({ title: "Bairro principal alterado!", description: "Agora você pode interagir no novo bairro." });
       loadUserProfile();
     }
 
     setChanging(false);
+  };
+
+  const handleSetSecondaryNeighborhood = async (neighborhoodId: string) => {
+    if (!user) return;
+
+    setSettingSecondary(true);
+
+    const { error } = await supabase
+      .from("profiles")
+      .update({ secondary_neighborhood_id: neighborhoodId })
+      .eq("user_id", user.id);
+
+    if (error) {
+      toast({ title: "Erro", description: "Não foi possível definir o segundo bairro.", variant: "destructive" });
+    } else {
+      toast({ title: "Segundo bairro definido!", description: "Você agora pode interagir em 2 bairros." });
+      loadUserProfile();
+    }
+
+    setSettingSecondary(false);
+  };
+
+  const handleRemoveSecondaryNeighborhood = async () => {
+    if (!user) return;
+
+    setSettingSecondary(true);
+
+    const { error } = await supabase
+      .from("profiles")
+      .update({ secondary_neighborhood_id: null })
+      .eq("user_id", user.id);
+
+    if (error) {
+      toast({ title: "Erro", description: "Não foi possível remover o segundo bairro.", variant: "destructive" });
+    } else {
+      toast({ title: "Segundo bairro removido" });
+      loadUserProfile();
+    }
+
+    setSettingSecondary(false);
   };
 
   const filteredNeighborhoods = neighborhoods.filter(
@@ -151,6 +185,12 @@ const Neighborhoods = () => {
       n.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       n.city.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  const getNeighborhoodName = (id: string | null) => {
+    if (!id) return null;
+    const n = neighborhoods.find(n => n.id === id);
+    return n ? `${n.name}, ${n.city}` : null;
+  };
 
   if (loading) {
     return (
@@ -187,44 +227,82 @@ const Neighborhoods = () => {
       </header>
 
       <main className="container mx-auto px-4 pt-32">
-        {/* Current Neighborhood */}
+        {/* Current Neighborhoods */}
         {userProfile && (
-          <div className="card-maridaas p-4 mb-6 border-2 border-primary">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                <MapPin className="w-5 h-5 text-primary" />
+          <div className="space-y-4 mb-6">
+            {/* Primary Neighborhood */}
+            <div className="card-maridaas p-4 border-2 border-primary">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                  <MapPin className="w-5 h-5 text-primary" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-xs text-primary font-medium">Bairro principal</p>
+                  <p className="font-semibold text-foreground">{userProfile.neighborhood}, {userProfile.city}</p>
+                </div>
+                <Star className="w-5 h-5 text-secondary fill-secondary" />
               </div>
-              <div>
-                <p className="text-xs text-primary font-medium">Seu bairro principal</p>
-                <p className="font-semibold text-foreground">{userProfile.neighborhood}, {userProfile.city}</p>
-              </div>
+              {!canChangeNeighborhood() && (
+                <div className="flex items-center gap-2 mt-3 text-sm text-muted-foreground bg-muted/50 rounded-lg p-2">
+                  <Lock className="w-4 h-4" />
+                  <span>Você poderá trocar novamente em {daysUntilChange()} dias</span>
+                </div>
+              )}
             </div>
-            {!canChangeNeighborhood() && (
-              <div className="flex items-center gap-2 mt-3 text-sm text-muted-foreground bg-muted/50 rounded-lg p-2">
-                <Lock className="w-4 h-4" />
-                <span>Você poderá trocar novamente em {daysUntilChange()} dias</span>
+
+            {/* Secondary Neighborhood */}
+            <div className="card-maridaas p-4 border-2 border-accent">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center">
+                  <MapPin className="w-5 h-5 text-accent-foreground" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-xs text-accent-foreground font-medium">Segundo bairro</p>
+                  {userProfile.secondary_neighborhood_id ? (
+                    <p className="font-semibold text-foreground">
+                      {getNeighborhoodName(userProfile.secondary_neighborhood_id)}
+                    </p>
+                  ) : (
+                    <p className="text-muted-foreground text-sm">Nenhum definido</p>
+                  )}
+                </div>
+                {userProfile.secondary_neighborhood_id && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={handleRemoveSecondaryNeighborhood}
+                    disabled={settingSecondary}
+                    className="text-destructive hover:text-destructive"
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                )}
               </div>
-            )}
+              <p className="text-xs text-muted-foreground mt-2">
+                Você pode interagir em até 2 bairros simultaneamente.
+              </p>
+            </div>
           </div>
         )}
 
         {/* Info */}
         <div className="bg-muted/50 rounded-xl p-4 mb-6">
           <p className="text-sm text-muted-foreground">
-            <strong>Atenção:</strong> Você só pode postar e interagir no seu bairro principal. 
-            É possível visualizar outros bairros, mas a troca do bairro principal só pode ser feita a cada 45 dias.
+            <strong>Atenção:</strong> Você pode postar e interagir nos seus bairros fixos.
+            É possível visitar outros bairros, mas a troca do bairro principal só pode ser feita a cada 45 dias.
           </p>
         </div>
 
         {/* Neighborhoods List */}
         <div className="space-y-3">
           {filteredNeighborhoods.map((n) => {
-            const isCurrentNeighborhood = n.id === userProfile?.primary_neighborhood_id;
+            const isPrimary = n.id === userProfile?.primary_neighborhood_id;
+            const isSecondary = n.id === userProfile?.secondary_neighborhood_id;
             
             return (
               <div
                 key={n.id}
-                className={`card-maridaas p-4 ${isCurrentNeighborhood ? "border-primary bg-primary/5" : ""}`}
+                className={`card-maridaas p-4 ${isPrimary ? "border-primary bg-primary/5" : isSecondary ? "border-accent bg-accent/5" : ""}`}
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
@@ -232,7 +310,11 @@ const Neighborhoods = () => {
                       <MapPin className="w-6 h-6 text-muted-foreground" />
                     </div>
                     <div>
-                      <p className="font-semibold text-foreground">{n.name}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="font-semibold text-foreground">{n.name}</p>
+                        {isPrimary && <Star className="w-4 h-4 text-secondary fill-secondary" />}
+                        {isSecondary && <span className="text-xs bg-accent/20 text-accent-foreground px-2 py-0.5 rounded-full">2º</span>}
+                      </div>
                       <p className="text-sm text-muted-foreground">{n.city}</p>
                       <div className="flex items-center gap-1 mt-1 text-xs text-muted-foreground">
                         <Users className="w-3 h-3" />
@@ -240,29 +322,50 @@ const Neighborhoods = () => {
                       </div>
                     </div>
                   </div>
-                  {isCurrentNeighborhood ? (
-                    <span className="text-xs font-medium text-primary bg-primary/10 px-3 py-1 rounded-full">
-                      Seu bairro
-                    </span>
-                  ) : (
-                    <div className="flex gap-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => navigate(`/neighborhoods/${n.id}`)}
-                      >
-                        Visitar
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={!canChangeNeighborhood() || changing}
-                        onClick={() => handleChangeNeighborhood(n.id)}
-                      >
-                        {changing ? "..." : "Trocar"}
-                      </Button>
-                    </div>
-                  )}
+                  
+                  <div className="flex flex-col gap-2">
+                    {isPrimary ? (
+                      <span className="text-xs font-medium text-primary bg-primary/10 px-3 py-1 rounded-full">
+                        Principal
+                      </span>
+                    ) : isSecondary ? (
+                      <span className="text-xs font-medium text-accent-foreground bg-accent/10 px-3 py-1 rounded-full">
+                        Segundo
+                      </span>
+                    ) : (
+                      <div className="flex flex-col gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => navigate(`/neighborhoods/${n.id}`)}
+                        >
+                          Visitar
+                        </Button>
+                        <div className="flex gap-1">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={!canChangeNeighborhood() || changing}
+                            onClick={() => handleChangeNeighborhood(n.id)}
+                            className="text-xs px-2"
+                          >
+                            Principal
+                          </Button>
+                          {!userProfile?.secondary_neighborhood_id && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled={settingSecondary}
+                              onClick={() => handleSetSecondaryNeighborhood(n.id)}
+                              className="text-xs px-2"
+                            >
+                              2º Bairro
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             );

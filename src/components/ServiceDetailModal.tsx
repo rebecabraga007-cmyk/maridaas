@@ -56,10 +56,10 @@ const ServiceDetailModal = ({
   const { toast } = useToast();
   const [reviews, setReviews] = useState<Review[]>([]);
   const [newReview, setNewReview] = useState("");
-  const [profilePopupUserId, setProfilePopupUserId] = useState<string | null>(null);
   const [selectedRating, setSelectedRating] = useState(5);
   const [submitting, setSubmitting] = useState(false);
-  const [profilePopup, setProfilePopup] = useState<{ userId: string; position: { x: number; y: number } } | null>(null);
+  const [showProfilePopup, setShowProfilePopup] = useState(false);
+  const [profilePopupUserId, setProfilePopupUserId] = useState<string | null>(null);
 
   useEffect(() => {
     loadReviews();
@@ -134,11 +134,8 @@ const ServiceDetailModal = ({
 
   const handleProfileClick = (userId: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    const rect = (e.target as HTMLElement).getBoundingClientRect();
-    setProfilePopup({
-      userId,
-      position: { x: rect.left, y: rect.bottom + 8 },
-    });
+    setProfilePopupUserId(userId);
+    setShowProfilePopup(true);
   };
 
   return (
@@ -287,11 +284,12 @@ const ServiceDetailModal = ({
       </div>
 
       {/* Profile Preview Popup */}
-      {profilePopup && (
+      {showProfilePopup && profilePopupUserId && (
         <ProfilePreviewPopup
-          userId={profilePopup.userId}
-          position={profilePopup.position}
-          onClose={() => setProfilePopup(null)}
+          userId={profilePopupUserId}
+          isOpen={showProfilePopup}
+          onClose={() => setShowProfilePopup(false)}
+          currentUserId={currentUserId}
         />
       )}
     </div>

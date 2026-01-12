@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { User, Session } from "@supabase/supabase-js";
+import { User } from "@supabase/supabase-js";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -21,22 +21,17 @@ import {
   Home,
   Briefcase,
   Users,
-  UserPlus,
   UserMinus,
+  MessageCircle,
+  Mail,
 } from "lucide-react";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import ImageUpload from "@/components/ImageUpload";
 
 interface Profile {
   id: string;
@@ -47,14 +42,9 @@ interface Profile {
   instagram: string | null;
   whatsapp: string | null;
   birth_date: string | null;
+  avatar_url: string | null;
   primary_neighborhood_id: string | null;
   secondary_neighborhood_id: string | null;
-}
-
-interface Neighborhood {
-  id: string;
-  name: string;
-  city: string;
 }
 
 interface Friend {
@@ -63,6 +53,12 @@ interface Friend {
   full_name: string;
   avatar_url: string | null;
   neighborhood: string;
+}
+
+interface Neighborhood {
+  id: string;
+  name: string;
+  city: string;
 }
 
 const Profile = () => {
@@ -83,7 +79,7 @@ const Profile = () => {
   const [bio, setBio] = useState("");
   const [instagram, setInstagram] = useState("");
   const [whatsapp, setWhatsapp] = useState("");
-  const [secondaryNeighborhoodId, setSecondaryNeighborhoodId] = useState<string | null>(null);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
@@ -113,9 +109,9 @@ const Profile = () => {
   const loadProfile = async () => {
     if (!user) return;
 
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from("profiles")
-      .select("id, full_name, bio, neighborhood, city, instagram, whatsapp, birth_date, primary_neighborhood_id, secondary_neighborhood_id")
+      .select("id, full_name, bio, neighborhood, city, instagram, whatsapp, birth_date, avatar_url, primary_neighborhood_id, secondary_neighborhood_id")
       .eq("user_id", user.id)
       .single();
 
@@ -124,7 +120,7 @@ const Profile = () => {
       setBio(data.bio || "");
       setInstagram(data.instagram || "");
       setWhatsapp(data.whatsapp || "");
-      setSecondaryNeighborhoodId(data.secondary_neighborhood_id);
+      setAvatarUrl(data.avatar_url);
     }
   };
 
@@ -178,8 +174,7 @@ const Profile = () => {
     await supabase
       .from("friendships")
       .delete()
-      .or(`requester_id.eq.${user.id},addressee_id.eq.${user.id}`)
-      .or(`requester_id.eq.${friendId},addressee_id.eq.${friendId}`);
+      .or(`and(requester_id.eq.${user.id},addressee_id.eq.${friendId}),and(requester_id.eq.${friendId},addressee_id.eq.${user.id})`);
 
     toast({ title: "Amigo removido" });
     loadFriends();
@@ -196,21 +191,14 @@ const Profile = () => {
         bio: bio.trim() || null,
         instagram: instagram.trim() || null,
         whatsapp: whatsapp.trim() || null,
-        secondary_neighborhood_id: secondaryNeighborhoodId || null,
+        avatar_url: avatarUrl,
       })
       .eq("user_id", user.id);
 
     if (error) {
-      toast({
-        title: "Erro ao salvar",
-        description: "Tente novamente.",
-        variant: "destructive",
-      });
+      toast({ title: "Erro ao salvar", description: "Tente novamente.", variant: "destructive" });
     } else {
-      toast({
-        title: "Perfil atualizado!",
-        description: "Suas informações foram salvas.",
-      });
+      toast({ title: "Perfil atualizado!", description: "Suas informações foram salvas." });
       setEditing(false);
       loadProfile();
     }
@@ -222,7 +210,7 @@ const Profile = () => {
     setBio(profile?.bio || "");
     setInstagram(profile?.instagram || "");
     setWhatsapp(profile?.whatsapp || "");
-    setSecondaryNeighborhoodId(profile?.secondary_neighborhood_id || null);
+    setAvatarUrl(profile?.avatar_url || null);
     setEditing(false);
   };
 
@@ -276,9 +264,25 @@ const Profile = () => {
       <main className="container mx-auto px-4 pt-20">
         {/* Profile Header */}
         <div className="card-maridaas p-6 text-center mb-6">
-          <div className="w-24 h-24 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
-            <UserIcon className="w-12 h-12 text-muted-foreground" />
-          </div>
+          {editing ? (
+            <div className="mb-4">
+              <ImageUpload
+                userId={user?.id || ""}
+                folder="avatars"
+                existingUrl={avatarUrl}
+                onImageUploaded={setAvatarUrl}
+                className="w-24 h-24 mx-auto"
+              />
+            </div>
+          ) : (
+            <div className="w-24 h-24 rounded-full bg-muted flex items-center justify-center mx-auto mb-4 overflow-hidden">
+              {profile?.avatar_url ? (
+                <img src={profile.avatar_url} alt={profile.full_name} className="w-full h-full object-cover" />
+              ) : (
+                <UserIcon className="w-12 h-12 text-muted-foreground" />
+              )}
+            </div>
+          )}
           <h2 className="text-xl font-display font-bold text-foreground mb-1">
             {profile?.full_name || "Usuária"}
           </h2>
@@ -287,19 +291,28 @@ const Profile = () => {
             {profile?.neighborhood}, {profile?.city}
           </p>
 
-          {/* Friends button */}
-          <Button
-            variant="outline"
-            size="sm"
-            className="mt-4"
-            onClick={() => {
-              setShowFriends(true);
-              loadFriends();
-            }}
-          >
-            <Users className="w-4 h-4 mr-2" />
-            Meus amigos
-          </Button>
+          {/* Action buttons */}
+          <div className="flex gap-2 justify-center mt-4">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setShowFriends(true);
+                loadFriends();
+              }}
+            >
+              <Users className="w-4 h-4 mr-2" />
+              Amigos
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate("/inbox")}
+            >
+              <Mail className="w-4 h-4 mr-2" />
+              Recados
+            </Button>
+          </div>
         </div>
 
         {/* Bio */}
@@ -321,38 +334,31 @@ const Profile = () => {
           )}
         </div>
 
-        {/* Secondary Neighborhood */}
+        {/* Neighborhoods Info */}
         <div className="card-maridaas p-4 mb-4">
-          <Label className="text-sm font-medium text-muted-foreground mb-2 block">
-            Segundo bairro (opcional)
-          </Label>
-          <p className="text-xs text-muted-foreground mb-3">
-            Você pode participar de até 2 bairros ao mesmo tempo.
-          </p>
-          {editing ? (
-            <Select
-              value={secondaryNeighborhoodId || "none"}
-              onValueChange={(v) => setSecondaryNeighborhoodId(v === "none" ? null : v)}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione um segundo bairro" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">Nenhum</SelectItem>
-                {neighborhoods
-                  .filter(n => n.id !== profile?.primary_neighborhood_id)
-                  .map((n) => (
-                    <SelectItem key={n.id} value={n.id}>
-                      {n.name} - {n.city}
-                    </SelectItem>
-                  ))}
-              </SelectContent>
-            </Select>
-          ) : (
-            <p className="text-foreground">
-              {getNeighborhoodName(profile?.secondary_neighborhood_id || null) || "Nenhum segundo bairro definido"}
-            </p>
-          )}
+          <Label className="text-sm font-medium text-muted-foreground mb-2 block">Meus Bairros</Label>
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <MapPin className="w-4 h-4 text-primary" />
+              <span className="text-foreground">{profile?.neighborhood}, {profile?.city}</span>
+              <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">Principal</span>
+            </div>
+            {profile?.secondary_neighborhood_id && (
+              <div className="flex items-center gap-2">
+                <MapPin className="w-4 h-4 text-accent-foreground" />
+                <span className="text-foreground">{getNeighborhoodName(profile.secondary_neighborhood_id)}</span>
+                <span className="text-xs bg-accent/10 text-accent-foreground px-2 py-0.5 rounded-full">Segundo</span>
+              </div>
+            )}
+          </div>
+          <Button
+            variant="link"
+            size="sm"
+            className="px-0 mt-2 text-primary"
+            onClick={() => navigate("/neighborhoods")}
+          >
+            Gerenciar bairros
+          </Button>
         </div>
 
         {/* Contact Info */}
@@ -441,9 +447,16 @@ const Profile = () => {
                     <Button
                       variant="ghost"
                       size="sm"
+                      onClick={() => navigate(`/messages/${friend.user_id}`)}
+                    >
+                      <MessageCircle className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       onClick={() => navigate(`/profile/${friend.user_id}`)}
                     >
-                      Ver perfil
+                      Ver
                     </Button>
                     <Button
                       variant="ghost"
