@@ -31,6 +31,12 @@ interface Profile {
   neighborhood: string;
   city: string;
   primary_neighborhood_id: string | null;
+  avatar_url: string | null;
+}
+
+interface UnreadCounts {
+  messages: number;
+  requests: number;
 }
 
 const Feed = () => {
@@ -50,6 +56,7 @@ const Feed = () => {
   const [posting, setPosting] = useState(false);
   const [showUserSearch, setShowUserSearch] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [unreadCounts, setUnreadCounts] = useState<UnreadCounts>({ messages: 0, requests: 0 });
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
@@ -87,6 +94,7 @@ const Feed = () => {
       loadUserProfile();
       checkAdminRole();
       registerSession();
+      loadUnreadCounts();
     }
   }, [user]);
 
@@ -149,7 +157,7 @@ const Feed = () => {
     if (!user) return;
     const { data } = await supabase
       .from("profiles")
-      .select("full_name, neighborhood, city, primary_neighborhood_id")
+      .select("full_name, neighborhood, city, primary_neighborhood_id, avatar_url")
       .eq("user_id", user.id)
       .single();
 
@@ -162,8 +170,32 @@ const Feed = () => {
         neighborhood: m?.neighborhood || "Bairro",
         city: m?.city || "Cidade",
         primary_neighborhood_id: null,
+        avatar_url: null,
       });
     }
+  };
+
+  const loadUnreadCounts = async () => {
+    if (!user) return;
+
+    // Count unread messages
+    const { count: messagesCount } = await supabase
+      .from("user_messages")
+      .select("id", { count: "exact", head: true })
+      .eq("receiver_id", user.id)
+      .is("read_at", null);
+
+    // Count pending friend requests
+    const { count: requestsCount } = await supabase
+      .from("friendships")
+      .select("id", { count: "exact", head: true })
+      .eq("addressee_id", user.id)
+      .eq("status", "pending");
+
+    setUnreadCounts({
+      messages: messagesCount || 0,
+      requests: requestsCount || 0,
+    });
   };
 
   const loadPosts = async () => {
@@ -188,6 +220,7 @@ const Feed = () => {
           return {
             ...post,
             author: profileData?.full_name || "Usuária",
+            avatar_url: profileData?.avatar_url || null,
             likes_count: likesRes.count || 0,
             comments_count: commentsRes.count || 0,
           };
@@ -222,6 +255,7 @@ const Feed = () => {
           return {
             ...service,
             name: profileData?.full_name || "Prestadora",
+            avatar_url: profileData?.avatar_url || null,
             avg_rating: Math.round(avgRating * 10) / 10,
           };
         })
@@ -282,6 +316,11 @@ const Feed = () => {
             <Button variant="ghost" size="icon" onClick={() => setShowUserSearch(true)}><Search className="h-5 w-5" /></Button>
             <Button variant="ghost" size="icon" onClick={() => navigate("/inbox")} className="relative">
               <Mail className="h-5 w-5" />
+              {(unreadCounts.messages + unreadCounts.requests) > 0 && (
+                <span className="absolute -top-1 -right-1 w-5 h-5 bg-secondary text-secondary-foreground text-xs font-bold rounded-full flex items-center justify-center">
+                  {unreadCounts.messages + unreadCounts.requests}
+                </span>
+              )}
             </Button>
             {isAdmin && (
               <Button variant="ghost" size="icon" onClick={() => navigate("/admin")} className="text-secondary">
@@ -335,7 +374,7 @@ const Feed = () => {
             </div>
           </div>
           <div className="space-y-4">
-            {posts.map((p) => <PostCard key={p.id} post={{ id: p.id, author: p.author, content: p.content, createdAt: new Date(p.created_at), likes: p.likes_count, comments: p.comments_count, userId: p.user_id }} currentUserId={user?.id} onLikeChange={loadPosts} />)}
+            {posts.map((p) => <PostCard key={p.id} post={{ id: p.id, author: p.author, content: p.content, createdAt: new Date(p.created_at), likes: p.likes_count, comments: p.comments_count, userId: p.user_id, avatarUrl: p.avatar_url }} currentUserId={user?.id} onLikeChange={loadPosts} />)}
             {posts.length === 0 && <div className="text-center py-12 text-muted-foreground"><p>Nenhuma postagem ainda. Seja a primeira!</p></div>}
           </div>
         </section>

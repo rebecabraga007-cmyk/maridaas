@@ -257,6 +257,7 @@ export type Database = {
           id: string
           instagram: string | null
           last_neighborhood_change: string | null
+          last_secondary_neighborhood_change: string | null
           neighborhood: string
           notifications_enabled: boolean | null
           primary_neighborhood_id: string | null
@@ -278,6 +279,7 @@ export type Database = {
           id?: string
           instagram?: string | null
           last_neighborhood_change?: string | null
+          last_secondary_neighborhood_change?: string | null
           neighborhood: string
           notifications_enabled?: boolean | null
           primary_neighborhood_id?: string | null
@@ -299,6 +301,7 @@ export type Database = {
           id?: string
           instagram?: string | null
           last_neighborhood_change?: string | null
+          last_secondary_neighborhood_change?: string | null
           neighborhood?: string
           notifications_enabled?: boolean | null
           primary_neighborhood_id?: string | null

@@ -24,6 +24,7 @@ interface PostCardProps {
     comments: number;
     userId: string;
     neighborhoodId?: string;
+    avatarUrl?: string | null;
   };
   currentUserId?: string;
   onLikeChange?: () => void;
@@ -138,9 +139,13 @@ const PostCard = ({ post, currentUserId, onLikeChange, onPostDeleted, canModerat
         <div className="flex gap-3">
           <button 
             onClick={handleProfileClick}
-            className="avatar-maridaas flex-shrink-0 cursor-pointer hover:opacity-80 transition-opacity w-12 h-12"
+            className="flex-shrink-0 cursor-pointer hover:opacity-80 transition-opacity w-12 h-12 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center overflow-hidden"
           >
-            <User className="w-6 h-6" />
+            {post.avatarUrl ? (
+              <img src={post.avatarUrl} alt="" className="w-full h-full object-cover" />
+            ) : (
+              <User className="w-6 h-6 text-white" />
+            )}
           </button>
           <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between mb-1">
