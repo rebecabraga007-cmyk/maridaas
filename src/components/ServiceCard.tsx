@@ -9,6 +9,8 @@ interface ServiceCardProps {
     name: string;
     service: string;
     rating: number;
+    image_url?: string | null;
+    avatar_url?: string | null;
   };
   clickable?: boolean;
 }
@@ -20,7 +22,9 @@ interface FullService {
   user_id: string;
   whatsapp: string | null;
   instagram: string | null;
+  image_url: string | null;
   owner_name: string;
+  owner_avatar: string | null;
   avg_rating: number;
   review_count: number;
 }
@@ -41,7 +45,7 @@ const ServiceCard = ({ service, clickable = true }: ServiceCardProps) => {
     setLoading(true);
     const { data: serviceData } = await supabase
       .from("services")
-      .select("id, title, description, user_id, whatsapp, instagram")
+      .select("id, title, description, user_id, whatsapp, instagram, image_url")
       .eq("id", service.id)
       .single();
 
@@ -60,6 +64,7 @@ const ServiceCard = ({ service, clickable = true }: ServiceCardProps) => {
       setFullService({
         ...serviceData,
         owner_name: profileData?.full_name || "Prestadora",
+        owner_avatar: profileData?.avatar_url || null,
         avg_rating: Math.round(avgRating * 10) / 10,
         review_count: reviews.length,
       });
@@ -74,6 +79,9 @@ const ServiceCard = ({ service, clickable = true }: ServiceCardProps) => {
     }
   };
 
+  // Determine which image to show: service image or avatar
+  const displayImage = service.image_url || service.avatar_url;
+
   return (
     <>
       <button
@@ -83,8 +91,16 @@ const ServiceCard = ({ service, clickable = true }: ServiceCardProps) => {
         }`}
         disabled={!clickable || loading}
       >
-        <div className="avatar-maridaas mx-auto mb-3">
-          <User className="w-5 h-5" />
+        <div className="w-14 h-14 rounded-full mx-auto mb-3 bg-muted flex items-center justify-center overflow-hidden">
+          {displayImage ? (
+            <img
+              src={displayImage}
+              alt={service.name}
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <User className="w-5 h-5 text-muted-foreground" />
+          )}
         </div>
         <p className="font-semibold text-sm text-foreground truncate">{service.name}</p>
         <p className="text-xs text-muted-foreground mb-2 truncate">{service.service}</p>
