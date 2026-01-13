@@ -21,6 +21,8 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import ProfilePreviewPopup from "@/components/ProfilePreviewPopup";
+import UserBadge from "@/components/UserBadge";
 
 interface Conversation {
   userId: string;
@@ -49,6 +51,7 @@ const Inbox = () => {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [friendRequests, setFriendRequests] = useState<FriendRequest[]>([]);
   const [processingRequest, setProcessingRequest] = useState<string | null>(null);
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
@@ -240,30 +243,34 @@ const Inbox = () => {
                   className="card-maridaas p-4 flex items-center gap-3"
                 >
                   <button
-                    onClick={() => navigate(`/messages/${conv.userId}`)}
-                    className="flex items-center gap-3 flex-1 text-left"
+                    onClick={() => setSelectedUserId(conv.userId)}
+                    className="relative"
                   >
-                    <div className="relative">
-                      <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center">
-                        {conv.avatarUrl ? (
-                          <img src={conv.avatarUrl} alt="" className="w-full h-full rounded-full object-cover" />
-                        ) : (
-                          <UserIcon className="w-6 h-6 text-white" />
-                        )}
-                      </div>
-                      {conv.unreadCount > 0 && (
-                        <span className="absolute -top-1 -right-1 w-5 h-5 bg-secondary text-secondary-foreground text-xs rounded-full flex items-center justify-center">
-                          {conv.unreadCount}
-                        </span>
+                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center hover:ring-2 hover:ring-primary transition-all">
+                      {conv.avatarUrl ? (
+                        <img src={conv.avatarUrl} alt="" className="w-full h-full rounded-full object-cover" />
+                      ) : (
+                        <UserIcon className="w-6 h-6 text-white" />
                       )}
                     </div>
-                    <div className="flex-1 min-w-0">
+                    {conv.unreadCount > 0 && (
+                      <span className="absolute -top-1 -right-1 w-5 h-5 bg-secondary text-secondary-foreground text-xs rounded-full flex items-center justify-center">
+                        {conv.unreadCount}
+                      </span>
+                    )}
+                  </button>
+                  <button
+                    onClick={() => navigate(`/messages/${conv.userId}`)}
+                    className="flex-1 text-left min-w-0"
+                  >
+                    <div className="flex items-center gap-1">
                       <p className="font-semibold text-foreground truncate">{conv.fullName}</p>
-                      <p className="text-sm text-muted-foreground truncate">{conv.lastMessage}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {formatDistanceToNow(new Date(conv.lastMessageAt), { addSuffix: true, locale: ptBR })}
-                      </p>
+                      <UserBadge userId={conv.userId} />
                     </div>
+                    <p className="text-sm text-muted-foreground truncate">{conv.lastMessage}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {formatDistanceToNow(new Date(conv.lastMessageAt), { addSuffix: true, locale: ptBR })}
+                    </p>
                   </button>
                   <Button
                     variant="ghost"
@@ -290,15 +297,26 @@ const Inbox = () => {
               {friendRequests.map((req) => (
                 <div key={req.id} className="card-maridaas p-4">
                   <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center">
+                    <button
+                      onClick={() => setSelectedUserId(req.requesterId)}
+                      className="w-12 h-12 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center hover:ring-2 hover:ring-primary transition-all"
+                    >
                       {req.requesterAvatar ? (
                         <img src={req.requesterAvatar} alt="" className="w-full h-full rounded-full object-cover" />
                       ) : (
                         <UserIcon className="w-6 h-6 text-white" />
                       )}
-                    </div>
+                    </button>
                     <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-foreground">{req.requesterName}</p>
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => setSelectedUserId(req.requesterId)}
+                          className="font-semibold text-foreground hover:text-primary"
+                        >
+                          {req.requesterName}
+                        </button>
+                        <UserBadge userId={req.requesterId} />
+                      </div>
                       <p className="text-sm text-muted-foreground">{req.requesterNeighborhood}</p>
                       <p className="text-xs text-muted-foreground">
                         {formatDistanceToNow(new Date(req.createdAt), { addSuffix: true, locale: ptBR })}
@@ -340,6 +358,16 @@ const Inbox = () => {
           </TabsContent>
         </Tabs>
       </main>
+
+      {/* Profile Popup */}
+      {selectedUserId && (
+        <ProfilePreviewPopup
+          userId={selectedUserId}
+          isOpen={!!selectedUserId}
+          onClose={() => setSelectedUserId(null)}
+          currentUserId={user?.id}
+        />
+      )}
 
       {/* Bottom Navigation */}
       <nav className="fixed bottom-0 left-0 right-0 glass border-t border-border z-40">

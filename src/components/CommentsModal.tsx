@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import ProfilePreviewPopup from "./ProfilePreviewPopup";
+import UserBadge from "./UserBadge";
 
 interface Comment {
   id: string;
@@ -171,6 +172,7 @@ const CommentsModal = ({
                           >
                             {comment.author_name}
                           </button>
+                          <UserBadge userId={comment.user_id} />
                           <span className="text-xs text-muted-foreground">
                             {formatDistanceToNow(new Date(comment.created_at), {
                               addSuffix: true,

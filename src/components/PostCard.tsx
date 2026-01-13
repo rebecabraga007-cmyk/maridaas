@@ -5,6 +5,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import CommentsModal from "./CommentsModal";
 import ProfilePreviewPopup from "./ProfilePreviewPopup";
+import UserBadge from "./UserBadge";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -142,16 +143,17 @@ const PostCard = ({ post, currentUserId, onLikeChange, onPostDeleted, canModerat
             <User className="w-6 h-6" />
           </button>
           <div className="flex-1 min-w-0">
-            <div className="flex items-center justify-between mb-1">
-              <div className="flex items-center gap-2">
-                <button 
-                  onClick={handleProfileClick}
-                  className="font-semibold text-foreground hover:text-primary transition-colors cursor-pointer"
-                >
-                  {post.author}
-                </button>
-                <span className="text-xs text-muted-foreground">• {timeAgo}</span>
-              </div>
+              <div className="flex items-center justify-between mb-1">
+                <div className="flex items-center gap-2">
+                  <button 
+                    onClick={handleProfileClick}
+                    className="font-semibold text-foreground hover:text-primary transition-colors cursor-pointer"
+                  >
+                    {post.author}
+                  </button>
+                  <UserBadge userId={post.userId} />
+                  <span className="text-xs text-muted-foreground">• {timeAgo}</span>
+                </div>
               {canDelete && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
