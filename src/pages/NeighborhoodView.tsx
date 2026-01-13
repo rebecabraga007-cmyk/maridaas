@@ -62,15 +62,18 @@ const NeighborhoodView = () => {
   const loadData = async () => {
     setLoading(true);
 
-    // Load user's primary neighborhood
+    // Load user's primary and secondary neighborhoods
     const { data: profile } = await supabase
       .from("profiles")
-      .select("primary_neighborhood_id")
+      .select("primary_neighborhood_id, secondary_neighborhood_id")
       .eq("user_id", user!.id)
       .single();
 
     if (profile) {
-      setUserPrimaryNeighborhood(profile.primary_neighborhood_id);
+      // User can interact if it's primary OR secondary neighborhood
+      const canInteract = profile.primary_neighborhood_id === neighborhoodId || 
+                          profile.secondary_neighborhood_id === neighborhoodId;
+      setUserPrimaryNeighborhood(canInteract ? neighborhoodId! : profile.primary_neighborhood_id);
     }
 
     // Load neighborhood info

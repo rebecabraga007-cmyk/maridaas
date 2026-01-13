@@ -4,7 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { X, Loader2, User } from "lucide-react";
+import { X, Loader2, Camera } from "lucide-react";
+import ImageUpload from "./ImageUpload";
 
 interface CreateServiceModalProps {
   onClose: () => void;
@@ -18,6 +19,8 @@ const CreateServiceModal = ({ onClose, onCreated }: CreateServiceModalProps) => 
   const [whatsapp, setWhatsapp] = useState("");
   const [instagram, setInstagram] = useState("");
   const [neighborhoodId, setNeighborhoodId] = useState<string | null>(null);
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
 
   useEffect(() => {
     loadUserNeighborhood();
@@ -26,6 +29,8 @@ const CreateServiceModal = ({ onClose, onCreated }: CreateServiceModalProps) => 
   const loadUserNeighborhood = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
+
+    setUserId(user.id);
 
     const { data } = await supabase
       .from("profiles")
@@ -59,6 +64,7 @@ const CreateServiceModal = ({ onClose, onCreated }: CreateServiceModalProps) => 
       description: description.trim() || null,
       whatsapp: whatsapp.trim() || null,
       instagram: instagram.trim() || null,
+      image_url: imageUrl,
     });
 
     setLoading(false);
@@ -70,7 +76,7 @@ const CreateServiceModal = ({ onClose, onCreated }: CreateServiceModalProps) => 
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-      <div className="bg-card rounded-3xl shadow-elevated max-w-md w-full overflow-hidden animate-scale-in">
+      <div className="bg-card rounded-3xl shadow-elevated max-w-md w-full overflow-hidden animate-scale-in max-h-[90vh] overflow-y-auto">
         <div className="p-6">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xl font-display font-bold text-foreground">Cadastrar serviço</h2>
@@ -80,15 +86,15 @@ const CreateServiceModal = ({ onClose, onCreated }: CreateServiceModalProps) => 
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Image placeholder */}
-            <div className="text-center">
-              <div className="w-24 h-24 rounded-full bg-muted flex items-center justify-center mx-auto mb-2">
-                <User className="w-12 h-12 text-muted-foreground" />
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Foto do serviço em breve
-              </p>
-            </div>
+            {/* Image upload */}
+            {userId && (
+              <ImageUpload
+                userId={userId}
+                folder="services"
+                onImageUploaded={(url) => setImageUrl(url || null)}
+                existingUrl={imageUrl}
+              />
+            )}
 
             <div className="space-y-2">
               <Label htmlFor="title">Título do serviço *</Label>

@@ -22,6 +22,7 @@ import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import ProfilePreviewPopup from "./ProfilePreviewPopup";
 import UserBadge from "./UserBadge";
+import ImageUpload from "./ImageUpload";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -37,6 +38,7 @@ interface Service {
   whatsapp: string | null;
   instagram: string | null;
   owner_name: string;
+  owner_avatar?: string | null;
   avg_rating: number;
   review_count: number;
   image_url?: string | null;
@@ -85,6 +87,7 @@ const ServiceDetailModal = ({
   const [editDescription, setEditDescription] = useState(service.description || "");
   const [editWhatsapp, setEditWhatsapp] = useState(service.whatsapp || "");
   const [editInstagram, setEditInstagram] = useState(service.instagram || "");
+  const [editImageUrl, setEditImageUrl] = useState(service.image_url || "");
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
@@ -172,6 +175,7 @@ const ServiceDetailModal = ({
         description: editDescription.trim() || null,
         whatsapp: editWhatsapp.trim() || null,
         instagram: editInstagram.trim() || null,
+        image_url: editImageUrl || null,
       })
       .eq("id", service.id);
 
@@ -226,9 +230,17 @@ const ServiceDetailModal = ({
             <div className="flex gap-4">
               <button
                 onClick={(e) => handleProfileClick(service.user_id, e)}
-                className="w-16 h-16 rounded-full bg-muted flex items-center justify-center flex-shrink-0 hover:ring-2 hover:ring-primary transition-all cursor-pointer"
+                className="w-16 h-16 rounded-full bg-muted flex items-center justify-center flex-shrink-0 hover:ring-2 hover:ring-primary transition-all cursor-pointer overflow-hidden"
               >
-                <User className="w-8 h-8 text-muted-foreground" />
+                {service.image_url || service.owner_avatar ? (
+                  <img
+                    src={service.image_url || service.owner_avatar || ""}
+                    alt={service.owner_name}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <User className="w-8 h-8 text-muted-foreground" />
+                )}
               </button>
               <div>
                 {editing ? (
@@ -292,6 +304,16 @@ const ServiceDetailModal = ({
           {/* Description */}
           {editing ? (
             <div className="mb-6 space-y-4">
+              {/* Image upload for editing */}
+              <div>
+                <Label>Imagem do serviço</Label>
+                <ImageUpload
+                  userId={service.user_id}
+                  folder="services"
+                  onImageUploaded={(url) => setEditImageUrl(url || "")}
+                  existingUrl={editImageUrl}
+                />
+              </div>
               <div>
                 <Label>Descrição</Label>
                 <Textarea

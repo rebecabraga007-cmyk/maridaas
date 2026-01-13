@@ -52,10 +52,11 @@ const Feed = () => {
   const [posts, setPosts] = useState<any[]>([]);
   const [services, setServices] = useState<any[]>([]);
   const [userProfile, setUserProfile] = useState<Profile | null>(null);
-  const [announcement, setAnnouncement] = useState<any>(null);
+  const [announcements, setAnnouncements] = useState<any[]>([]);
   const [posting, setPosting] = useState(false);
   const [showUserSearch, setShowUserSearch] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isModerator, setIsModerator] = useState(false);
   const [unreadCounts, setUnreadCounts] = useState<UnreadCounts>({ messages: 0, requests: 0 });
 
   useEffect(() => {
@@ -102,11 +103,13 @@ const Feed = () => {
     if (!user) return;
     const { data } = await supabase
       .from("user_roles")
-      .select("role")
-      .eq("user_id", user.id)
-      .eq("role", "admin")
-      .maybeSingle();
-    setIsAdmin(!!data);
+      .select("role, moderator_neighborhood_id")
+      .eq("user_id", user.id);
+    
+    if (data) {
+      setIsAdmin(data.some(r => r.role === "admin"));
+      setIsModerator(data.some(r => r.role === "moderator"));
+    }
   };
 
   const registerSession = async () => {
@@ -121,11 +124,11 @@ const Feed = () => {
     if (userProfile?.primary_neighborhood_id) {
       loadPosts();
       loadServices();
-      loadAnnouncement();
+      loadAnnouncements();
     }
   }, [userProfile?.primary_neighborhood_id]);
 
-  const loadAnnouncement = async () => {
+  const loadAnnouncements = async () => {
     if (!user || !userProfile?.primary_neighborhood_id) return;
     
     // Fetch all active announcements and sort properly
@@ -146,10 +149,8 @@ const Feed = () => {
         return false;
       });
       
-      // Take the first one (global takes priority)
-      if (activeAnnouncements.length > 0) {
-        setAnnouncement(activeAnnouncements[0]);
-      }
+      // Set all announcements (global ones first, then specific)
+      setAnnouncements(activeAnnouncements);
     }
   };
 
@@ -235,7 +236,7 @@ const Feed = () => {
 
     const { data } = await supabase
       .from("services")
-      .select("id, title, user_id")
+      .select("id, title, user_id, image_url")
       .eq("neighborhood_id", userProfile.primary_neighborhood_id)
       .eq("is_active", true)
       .limit(10);
@@ -256,6 +257,7 @@ const Feed = () => {
             ...service,
             name: profileData?.full_name || "Prestadora",
             avatar_url: profileData?.avatar_url || null,
+            image_url: service.image_url,
             avg_rating: Math.round(avgRating * 10) / 10,
           };
         })
@@ -344,7 +346,9 @@ const Feed = () => {
             }} 
           />
         )}
-        {announcement && <AnnouncementBanner announcement={announcement} />}
+        {announcements.map((ann) => (
+          <AnnouncementBanner key={ann.id} announcement={ann} />
+        ))}
 
         <section className="mb-6">
           <div className="flex items-center justify-between mb-4">
@@ -352,7 +356,7 @@ const Feed = () => {
             <button onClick={() => navigate("/services")} className="text-sm text-primary flex items-center gap-1">Ver todos <ChevronRight className="w-4 h-4" /></button>
           </div>
           <div className="flex gap-4 overflow-x-auto pb-2 -mx-4 px-4">
-            {services.map((s) => <ServiceCard key={s.id} service={{ id: s.id, name: s.name, service: s.title, rating: s.avg_rating }} />)}
+            {services.map((s) => <ServiceCard key={s.id} service={{ id: s.id, name: s.name, service: s.title, rating: s.avg_rating, image_url: s.image_url, avatar_url: s.avatar_url }} />)}
             <button onClick={() => navigate("/services")} className="flex-shrink-0 w-28 h-32 rounded-2xl border-2 border-dashed border-border flex flex-col items-center justify-center gap-2 text-muted-foreground hover:border-primary hover:text-primary transition-colors">
               <Plus className="w-6 h-6" /><span className="text-xs">Cadastrar</span>
             </button>
@@ -374,7 +378,7 @@ const Feed = () => {
             </div>
           </div>
           <div className="space-y-4">
-            {posts.map((p) => <PostCard key={p.id} post={{ id: p.id, author: p.author, content: p.content, createdAt: new Date(p.created_at), likes: p.likes_count, comments: p.comments_count, userId: p.user_id, avatarUrl: p.avatar_url }} currentUserId={user?.id} onLikeChange={loadPosts} />)}
+            {posts.map((p) => <PostCard key={p.id} post={{ id: p.id, author: p.author, content: p.content, createdAt: new Date(p.created_at), likes: p.likes_count, comments: p.comments_count, userId: p.user_id, avatarUrl: p.avatar_url }} currentUserId={user?.id} onLikeChange={loadPosts} onPostDeleted={loadPosts} canModerate={isAdmin || isModerator} />)}
             {posts.length === 0 && <div className="text-center py-12 text-muted-foreground"><p>Nenhuma postagem ainda. Seja a primeira!</p></div>}
           </div>
         </section>

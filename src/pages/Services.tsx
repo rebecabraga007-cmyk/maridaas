@@ -25,7 +25,9 @@ interface Service {
   user_id: string;
   whatsapp: string | null;
   instagram: string | null;
+  image_url: string | null;
   owner_name: string;
+  owner_avatar: string | null;
   avg_rating: number;
   review_count: number;
 }
@@ -47,6 +49,8 @@ const Services = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedService, setSelectedService] = useState<Service | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [isModerator, setIsModerator] = useState(false);
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
@@ -67,8 +71,26 @@ const Services = () => {
   }, [navigate]);
 
   useEffect(() => {
-    if (user) loadUserProfile();
+    if (user) {
+      loadUserProfile();
+      checkUserRoles();
+    }
   }, [user]);
+
+  const checkUserRoles = async () => {
+    if (!user) return;
+    
+    const { data: roles } = await supabase
+      .from("user_roles")
+      .select("role, moderator_neighborhood_id")
+      .eq("user_id", user.id);
+    
+    if (roles) {
+      setIsAdmin(roles.some(r => r.role === "admin"));
+      // Check if user is moderator for any neighborhood (will check specific neighborhood in modal)
+      setIsModerator(roles.some(r => r.role === "moderator"));
+    }
+  };
 
   useEffect(() => {
     if (userProfile?.primary_neighborhood_id) loadServices();
@@ -90,7 +112,7 @@ const Services = () => {
 
     const { data } = await supabase
       .from("services")
-      .select("id, title, description, user_id, whatsapp, instagram")
+      .select("id, title, description, user_id, whatsapp, instagram, image_url")
       .eq("neighborhood_id", userProfile.primary_neighborhood_id)
       .eq("is_active", true)
       .order("created_at", { ascending: false });
@@ -99,16 +121,18 @@ const Services = () => {
       const servicesWithDetails = await Promise.all(
         data.map(async (service) => {
           const [profileRes, reviewsRes] = await Promise.all([
-            supabase.from("profiles").select("full_name").eq("user_id", service.user_id).single(),
+            supabase.rpc("get_public_profile", { target_user_id: service.user_id }),
             supabase.from("service_reviews").select("rating").eq("service_id", service.id),
           ]);
+          const profileData = profileRes.data?.[0];
           const reviews = reviewsRes.data || [];
           const avgRating = reviews.length > 0
             ? reviews.reduce((acc, r) => acc + (r.rating || 0), 0) / reviews.length
             : 0;
           return {
             ...service,
-            owner_name: profileRes.data?.full_name || "Prestadora",
+            owner_name: profileData?.full_name || "Prestadora",
+            owner_avatar: profileData?.avatar_url || null,
             avg_rating: Math.round(avgRating * 10) / 10,
             review_count: reviews.length,
           };
@@ -141,6 +165,8 @@ const Services = () => {
           userNeighborhoodId={userProfile?.primary_neighborhood_id}
           onClose={() => setSelectedService(null)}
           onUpdate={loadServices}
+          isAdmin={isAdmin}
+          isModerator={isModerator}
         />
       )}
 
@@ -198,30 +224,41 @@ const Services = () => {
           </div>
         ) : (
           <div className="grid gap-4">
-            {filteredServices.map((service) => (
-              <button
-                key={service.id}
-                onClick={() => setSelectedService(service)}
-                className="card-maridaas p-4 text-left w-full hover:border-primary transition-colors"
-              >
-                <div className="flex gap-4">
-                  <div className="w-14 h-14 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
-                    <UserIcon className="w-7 h-7 text-muted-foreground" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-semibold text-foreground truncate">{service.title}</h3>
-                    <p className="text-sm text-muted-foreground truncate">{service.owner_name}</p>
-                    <div className="flex items-center gap-2 mt-1">
-                      <div className="flex items-center gap-1">
-                        <Star className="w-4 h-4 text-secondary fill-secondary" />
-                        <span className="text-sm font-medium">{service.avg_rating || "—"}</span>
+            {filteredServices.map((service) => {
+              const displayImage = service.image_url || service.owner_avatar;
+              return (
+                <button
+                  key={service.id}
+                  onClick={() => setSelectedService(service)}
+                  className="card-maridaas p-4 text-left w-full hover:border-primary transition-colors"
+                >
+                  <div className="flex gap-4">
+                    <div className="w-14 h-14 rounded-full bg-muted flex items-center justify-center flex-shrink-0 overflow-hidden">
+                      {displayImage ? (
+                        <img
+                          src={displayImage}
+                          alt={service.title}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <UserIcon className="w-7 h-7 text-muted-foreground" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-semibold text-foreground truncate">{service.title}</h3>
+                      <p className="text-sm text-muted-foreground truncate">{service.owner_name}</p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <div className="flex items-center gap-1">
+                          <Star className="w-4 h-4 text-secondary fill-secondary" />
+                          <span className="text-sm font-medium">{service.avg_rating || "—"}</span>
+                        </div>
+                        <span className="text-xs text-muted-foreground">({service.review_count} avaliações)</span>
                       </div>
-                      <span className="text-xs text-muted-foreground">({service.review_count} avaliações)</span>
                     </div>
                   </div>
-                </div>
-              </button>
-            ))}
+                </button>
+              );
+            })}
           </div>
         )}
       </main>
