@@ -16,7 +16,8 @@ import {
   Briefcase,
   Plus,
   Search,
-  Shield
+  Shield,
+  Mail,
 } from "lucide-react";
 import ServiceCard from "@/components/ServiceCard";
 import PostCard from "@/components/PostCard";
@@ -119,19 +120,27 @@ const Feed = () => {
   const loadAnnouncement = async () => {
     if (!user || !userProfile?.primary_neighborhood_id) return;
     
+    // Fetch all active announcements and sort properly
     const { data } = await supabase
       .from("announcements")
       .select("*")
-      .or(`is_global.eq.true,neighborhood_id.eq.${userProfile.primary_neighborhood_id},target_user_id.eq.${user.id}`)
       .lte("starts_at", new Date().toISOString())
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+      .order("is_global", { ascending: false }) // Global first
+      .order("created_at", { ascending: false });
 
     if (data) {
-      // Check if ends_at is null or in the future
-      if (!data.ends_at || new Date(data.ends_at) > new Date()) {
-        setAnnouncement(data);
+      // Filter to active announcements for this user
+      const activeAnnouncements = data.filter(a => {
+        if (a.ends_at && new Date(a.ends_at) <= new Date()) return false;
+        if (a.is_global) return true;
+        if (a.neighborhood_id === userProfile.primary_neighborhood_id) return true;
+        if (a.target_user_id === user.id) return true;
+        return false;
+      });
+      
+      // Take the first one (global takes priority)
+      if (activeAnnouncements.length > 0) {
+        setAnnouncement(activeAnnouncements[0]);
       }
     }
   };
@@ -271,6 +280,9 @@ const Feed = () => {
           </div>
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="icon" onClick={() => setShowUserSearch(true)}><Search className="h-5 w-5" /></Button>
+            <Button variant="ghost" size="icon" onClick={() => navigate("/inbox")} className="relative">
+              <Mail className="h-5 w-5" />
+            </Button>
             {isAdmin && (
               <Button variant="ghost" size="icon" onClick={() => navigate("/admin")} className="text-secondary">
                 <Shield className="h-5 w-5" />
