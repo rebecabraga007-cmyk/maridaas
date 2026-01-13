@@ -32,6 +32,7 @@ interface Profile {
   neighborhood: string;
   city: string;
   last_neighborhood_change: string | null;
+  last_secondary_neighborhood_change: string | null;
 }
 
 const Neighborhoods = () => {
@@ -75,7 +76,7 @@ const Neighborhoods = () => {
     if (!user) return;
     const { data } = await supabase
       .from("profiles")
-      .select("primary_neighborhood_id, secondary_neighborhood_id, neighborhood, city, last_neighborhood_change")
+      .select("primary_neighborhood_id, secondary_neighborhood_id, neighborhood, city, last_neighborhood_change, last_secondary_neighborhood_change")
       .eq("user_id", user.id)
       .single();
 
@@ -140,14 +141,31 @@ const Neighborhoods = () => {
     setChanging(false);
   };
 
+  const canChangeSecondaryNeighborhood = () => {
+    if (!userProfile?.last_secondary_neighborhood_change) return true;
+    const lastChange = new Date(userProfile.last_secondary_neighborhood_change);
+    const daysSince = differenceInDays(new Date(), lastChange);
+    return daysSince >= 45;
+  };
+
+  const daysUntilSecondaryChange = () => {
+    if (!userProfile?.last_secondary_neighborhood_change) return 0;
+    const lastChange = new Date(userProfile.last_secondary_neighborhood_change);
+    const daysSince = differenceInDays(new Date(), lastChange);
+    return Math.max(0, 45 - daysSince);
+  };
+
   const handleSetSecondaryNeighborhood = async (neighborhoodId: string) => {
-    if (!user) return;
+    if (!user || !canChangeSecondaryNeighborhood()) return;
 
     setSettingSecondary(true);
 
     const { error } = await supabase
       .from("profiles")
-      .update({ secondary_neighborhood_id: neighborhoodId })
+      .update({ 
+        secondary_neighborhood_id: neighborhoodId,
+        last_secondary_neighborhood_change: new Date().toISOString(),
+      })
       .eq("user_id", user.id);
 
     if (error) {
@@ -271,15 +289,21 @@ const Neighborhoods = () => {
                     variant="ghost"
                     size="icon"
                     onClick={handleRemoveSecondaryNeighborhood}
-                    disabled={settingSecondary}
+                    disabled={settingSecondary || !canChangeSecondaryNeighborhood()}
                     className="text-destructive hover:text-destructive"
                   >
                     <X className="w-4 h-4" />
                   </Button>
                 )}
               </div>
+              {!canChangeSecondaryNeighborhood() && (
+                <div className="flex items-center gap-2 mt-3 text-sm text-muted-foreground bg-muted/50 rounded-lg p-2">
+                  <Lock className="w-4 h-4" />
+                  <span>Você poderá trocar novamente em {daysUntilSecondaryChange()} dias</span>
+                </div>
+              )}
               <p className="text-xs text-muted-foreground mt-2">
-                Você pode interagir em até 2 bairros simultaneamente.
+                Você pode interagir em até 2 bairros simultaneamente. Troca permitida a cada 45 dias.
               </p>
             </div>
           </div>
@@ -351,11 +375,11 @@ const Neighborhoods = () => {
                           >
                             Principal
                           </Button>
-                          {!userProfile?.secondary_neighborhood_id && (
+                          {(!userProfile?.secondary_neighborhood_id || canChangeSecondaryNeighborhood()) && (
                             <Button
                               variant="outline"
                               size="sm"
-                              disabled={settingSecondary}
+                              disabled={settingSecondary || !canChangeSecondaryNeighborhood()}
                               onClick={() => handleSetSecondaryNeighborhood(n.id)}
                               className="text-xs px-2"
                             >

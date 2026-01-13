@@ -24,6 +24,7 @@ import {
   Activity,
   Send,
   Loader2,
+  Clock,
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -33,8 +34,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { format } from "date-fns";
+import { format, addHours } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import UserDetailsModal from "@/components/UserDetailsModal";
 
 interface DashboardMetrics {
   totalUsers: number;
@@ -86,6 +88,17 @@ interface PostWithDetails {
   neighborhood_name: string;
 }
 
+interface ScheduledNotification {
+  id: string;
+  title: string;
+  body: string;
+  target_type: string;
+  target_id: string | null;
+  scheduled_at: string;
+  sent_at: string | null;
+  created_at: string;
+}
+
 const Admin = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -98,8 +111,12 @@ const Admin = () => {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [neighborhoods, setNeighborhoods] = useState<Neighborhood[]>([]);
   const [posts, setPosts] = useState<PostWithDetails[]>([]);
+  const [scheduledNotifications, setScheduledNotifications] = useState<ScheduledNotification[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [postSearchTerm, setPostSearchTerm] = useState("");
+
+  // User details modal
+  const [selectedUserForDetails, setSelectedUserForDetails] = useState<string | null>(null);
 
   // Announcement form
   const [announcementTitle, setAnnouncementTitle] = useState("");
@@ -108,6 +125,14 @@ const Admin = () => {
   const [announcementTargetId, setAnnouncementTargetId] = useState("");
   const [announcementStartsAt, setAnnouncementStartsAt] = useState("");
   const [announcementEndsAt, setAnnouncementEndsAt] = useState("");
+
+  // Push notification form
+  const [pushTitle, setPushTitle] = useState("");
+  const [pushBody, setPushBody] = useState("");
+  const [pushTarget, setPushTarget] = useState<"all" | "neighborhood" | "user">("all");
+  const [pushTargetId, setPushTargetId] = useState("");
+  const [pushScheduledAt, setPushScheduledAt] = useState("");
+  const [creatingPush, setCreatingPush] = useState(false);
 
   // Admin post form
   const [adminPostContent, setAdminPostContent] = useState("");
@@ -161,6 +186,7 @@ const Admin = () => {
       loadAnnouncements(),
       loadNeighborhoods(),
       loadPosts(),
+      loadScheduledNotifications(),
     ]);
   };
 
@@ -289,6 +315,66 @@ const Admin = () => {
   const loadNeighborhoods = async () => {
     const { data } = await supabase.from("neighborhoods").select("id, name, city");
     if (data) setNeighborhoods(data);
+  };
+
+  const loadScheduledNotifications = async () => {
+    const { data } = await supabase
+      .from("scheduled_notifications")
+      .select("*")
+      .order("scheduled_at", { ascending: true });
+
+    if (data) setScheduledNotifications(data);
+  };
+
+  // Convert local Brasilia time to UTC for storage
+  const brasiliaTzOffset = -3; // UTC-3
+  const convertToUTC = (localDatetime: string) => {
+    if (!localDatetime) return new Date().toISOString();
+    const date = new Date(localDatetime);
+    // Add the offset to convert from Brasilia to UTC
+    return addHours(date, -brasiliaTzOffset).toISOString();
+  };
+
+  const handleCreatePushNotification = async () => {
+    if (!pushTitle.trim() || !pushBody.trim() || !user) {
+      toast({ title: "Erro", description: "Preencha título e conteúdo.", variant: "destructive" });
+      return;
+    }
+
+    setCreatingPush(true);
+
+    const scheduledTime = pushScheduledAt ? convertToUTC(pushScheduledAt) : new Date().toISOString();
+
+    const { error } = await supabase.from("scheduled_notifications").insert({
+      title: pushTitle.trim(),
+      body: pushBody.trim(),
+      target_type: pushTarget,
+      target_id: pushTarget !== "all" ? pushTargetId : null,
+      scheduled_at: scheduledTime,
+      created_by: user.id,
+    });
+
+    if (error) {
+      toast({ title: "Erro ao criar notificação", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Notificação agendada!" });
+      setPushTitle("");
+      setPushBody("");
+      setPushTarget("all");
+      setPushTargetId("");
+      setPushScheduledAt("");
+      loadScheduledNotifications();
+    }
+
+    setCreatingPush(false);
+  };
+
+  const handleDeleteNotification = async (id: string) => {
+    const { error } = await supabase.from("scheduled_notifications").delete().eq("id", id);
+    if (!error) {
+      toast({ title: "Notificação excluída" });
+      loadScheduledNotifications();
+    }
   };
 
   const handleRoleChange = async (userId: string, newRole: "admin" | "moderator" | "user") => {
@@ -463,7 +549,7 @@ const Admin = () => {
 
       <main className="container mx-auto px-4 pt-20">
         <Tabs defaultValue="dashboard" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5 bg-muted/50">
+          <TabsList className="grid w-full grid-cols-6 bg-muted/50">
             <TabsTrigger value="dashboard" className="text-xs sm:text-sm">
               <BarChart3 className="w-4 h-4 mr-1 hidden sm:inline" />
               Dashboard
@@ -479,6 +565,10 @@ const Admin = () => {
             <TabsTrigger value="announcements" className="text-xs sm:text-sm">
               <Bell className="w-4 h-4 mr-1 hidden sm:inline" />
               Recados
+            </TabsTrigger>
+            <TabsTrigger value="notifications" className="text-xs sm:text-sm">
+              <Clock className="w-4 h-4 mr-1 hidden sm:inline" />
+              Push
             </TabsTrigger>
             <TabsTrigger value="moderation" className="text-xs sm:text-sm">
               <UserCog className="w-4 h-4 mr-1 hidden sm:inline" />
@@ -564,7 +654,11 @@ const Admin = () => {
 
             <div className="space-y-3 max-h-[600px] overflow-y-auto">
               {filteredUsers.map((u) => (
-                <div key={u.user_id} className="card-maridaas p-4">
+                <button
+                  key={u.user_id}
+                  onClick={() => setSelectedUserForDetails(u.user_id)}
+                  className="card-maridaas p-4 w-full text-left hover:border-primary transition-colors"
+                >
                   <div className="flex items-center justify-between">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
@@ -577,7 +671,8 @@ const Admin = () => {
                         Desde {format(new Date(u.created_at), "dd/MM/yyyy", { locale: ptBR })}
                       </p>
                     </div>
-                    <div className="text-right">
+                    <div className="flex items-center gap-2">
+                      <Eye className="w-4 h-4 text-muted-foreground" />
                       <span
                         className={`text-xs px-2 py-1 rounded-full ${
                           u.role === "admin"
@@ -591,7 +686,7 @@ const Admin = () => {
                       </span>
                     </div>
                   </div>
-                </div>
+                </button>
               ))}
 
               {filteredUsers.length === 0 && (
@@ -829,6 +924,153 @@ const Admin = () => {
             </div>
           </TabsContent>
 
+          {/* Push Notifications Tab */}
+          <TabsContent value="notifications">
+            <div className="card-maridaas p-4 mb-6">
+              <h3 className="font-display font-bold text-foreground mb-4 flex items-center gap-2">
+                <Bell className="w-5 h-5" />
+                Agendar Notificação Push
+              </h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                As notificações serão enviadas no horário de Brasília (UTC-3).
+              </p>
+
+              <div className="space-y-4">
+                <div>
+                  <Label>Título</Label>
+                  <Input
+                    value={pushTitle}
+                    onChange={(e) => setPushTitle(e.target.value)}
+                    placeholder="Título da notificação"
+                    maxLength={50}
+                  />
+                </div>
+
+                <div>
+                  <Label>Conteúdo</Label>
+                  <Textarea
+                    value={pushBody}
+                    onChange={(e) => setPushBody(e.target.value)}
+                    placeholder="Mensagem da notificação..."
+                    className="min-h-[80px]"
+                    maxLength={200}
+                  />
+                </div>
+
+                <div>
+                  <Label>Destinatário</Label>
+                  <Select
+                    value={pushTarget}
+                    onValueChange={(v) => setPushTarget(v as "all" | "neighborhood" | "user")}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos os usuários</SelectItem>
+                      <SelectItem value="neighborhood">Bairro específico</SelectItem>
+                      <SelectItem value="user">Usuário específico</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {pushTarget === "neighborhood" && (
+                  <div>
+                    <Label>Bairro</Label>
+                    <Select value={pushTargetId} onValueChange={setPushTargetId}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione um bairro" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {neighborhoods.map((n) => (
+                          <SelectItem key={n.id} value={n.id}>
+                            {n.name} - {n.city}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {pushTarget === "user" && (
+                  <div>
+                    <Label>Usuário</Label>
+                    <Select value={pushTargetId} onValueChange={setPushTargetId}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione um usuário" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {users.map((u) => (
+                          <SelectItem key={u.user_id} value={u.user_id}>
+                            {u.full_name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                <div>
+                  <Label>Agendar para (Horário de Brasília)</Label>
+                  <Input
+                    type="datetime-local"
+                    value={pushScheduledAt}
+                    onChange={(e) => setPushScheduledAt(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Deixe vazio para enviar imediatamente
+                  </p>
+                </div>
+
+                <Button onClick={handleCreatePushNotification} className="btn-maridaas w-full" disabled={creatingPush}>
+                  {creatingPush ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Bell className="w-4 h-4 mr-2" />}
+                  Agendar Notificação
+                </Button>
+              </div>
+            </div>
+
+            <h3 className="font-display font-bold text-foreground mb-4">Notificações agendadas</h3>
+            <div className="space-y-3">
+              {scheduledNotifications.map((n) => (
+                <div key={n.id} className="card-maridaas p-4">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <p className="font-semibold text-foreground">{n.title}</p>
+                        {n.sent_at ? (
+                          <span className="text-xs bg-green-500/20 text-green-600 px-2 py-0.5 rounded-full">Enviada</span>
+                        ) : (
+                          <span className="text-xs bg-primary/20 text-primary px-2 py-0.5 rounded-full">Pendente</span>
+                        )}
+                      </div>
+                      <p className="text-sm text-muted-foreground whitespace-pre-wrap">{n.body}</p>
+                      <div className="flex gap-2 mt-2 flex-wrap text-xs text-muted-foreground">
+                        <span className="flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          {format(new Date(n.scheduled_at), "dd/MM HH:mm", { locale: ptBR })}
+                        </span>
+                        <span>
+                          {n.target_type === "all" ? "Todos" : n.target_type === "neighborhood" ? "Bairro" : "Usuário"}
+                        </span>
+                      </div>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleDeleteNotification(n.id)}
+                      className="text-destructive flex-shrink-0"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+              {scheduledNotifications.length === 0 && (
+                <p className="text-center text-muted-foreground py-8">Nenhuma notificação agendada</p>
+              )}
+            </div>
+          </TabsContent>
+
           {/* Moderation Tab */}
           <TabsContent value="moderation">
             <div className="card-maridaas p-4 mb-4">
@@ -904,6 +1146,13 @@ const Admin = () => {
           </TabsContent>
         </Tabs>
       </main>
+
+      {/* User Details Modal */}
+      <UserDetailsModal
+        userId={selectedUserForDetails || ""}
+        isOpen={!!selectedUserForDetails}
+        onClose={() => setSelectedUserForDetails(null)}
+      />
     </div>
   );
 };
