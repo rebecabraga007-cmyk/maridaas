@@ -80,20 +80,29 @@ const NeighborhoodView = () => {
         .eq("user_id", user!.id),
     ]);
 
-    if (profileRes.data) {
-      const profile = profileRes.data;
-      // User can interact if it's primary OR secondary neighborhood
-      const userCanInteract = profile.primary_neighborhood_id === neighborhoodId || 
-                              profile.secondary_neighborhood_id === neighborhoodId;
-      setCanInteract(userCanInteract);
-    }
-
-    // Check admin/moderator roles
+    // Check admin/moderator roles first
+    let userIsAdmin = false;
+    let userIsModerator = false;
     if (rolesRes.data) {
       const roles = rolesRes.data;
-      setIsAdmin(roles.some(r => r.role === "admin"));
-      setIsModerator(roles.some(r => r.role === "moderator" && 
-        (r.moderator_neighborhood_id === neighborhoodId || r.moderator_neighborhood_id === null)));
+      userIsAdmin = roles.some(r => r.role === "admin");
+      userIsModerator = roles.some(r => r.role === "moderator" && 
+        (r.moderator_neighborhood_id === neighborhoodId || r.moderator_neighborhood_id === null));
+      setIsAdmin(userIsAdmin);
+      setIsModerator(userIsModerator);
+    }
+
+    if (profileRes.data) {
+      const profile = profileRes.data;
+      // Admin can interact in ALL neighborhoods
+      // Regular users can only interact in primary OR secondary neighborhood
+      const userCanInteract = userIsAdmin || 
+                              profile.primary_neighborhood_id === neighborhoodId || 
+                              profile.secondary_neighborhood_id === neighborhoodId;
+      setCanInteract(userCanInteract);
+    } else if (userIsAdmin) {
+      // Admin without profile still can interact
+      setCanInteract(true);
     }
 
     // Load neighborhood info
