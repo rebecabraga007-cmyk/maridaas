@@ -1,11 +1,13 @@
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Heart, MessageCircle, User, MoreVertical, Trash2, Edit2 } from "lucide-react";
+import { Heart, MessageCircle, User, MoreVertical, Trash2, Edit2, X, Check } from "lucide-react";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import CommentsModal from "./CommentsModal";
 import ProfilePreviewPopup from "./ProfilePreviewPopup";
 import UserBadge from "./UserBadge";
+import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -30,11 +32,12 @@ interface PostCardProps {
   currentUserId?: string;
   onLikeChange?: () => void;
   onPostDeleted?: () => void;
+  onPostUpdated?: () => void;
   canModerate?: boolean;
   isVisitor?: boolean;
 }
 
-const PostCard = ({ post, currentUserId, onLikeChange, onPostDeleted, canModerate = false, isVisitor = false }: PostCardProps) => {
+const PostCard = ({ post, currentUserId, onLikeChange, onPostDeleted, onPostUpdated, canModerate = false, isVisitor = false }: PostCardProps) => {
   const { toast } = useToast();
   const [liked, setLiked] = useState(false);
   const [likes, setLikes] = useState(post.likes);
@@ -43,6 +46,9 @@ const PostCard = ({ post, currentUserId, onLikeChange, onPostDeleted, canModerat
   const [showComments, setShowComments] = useState(false);
   const [showProfilePopup, setShowProfilePopup] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editContent, setEditContent] = useState(post.content);
+  const [saving, setSaving] = useState(false);
 
   const isOwner = currentUserId === post.userId;
   const canDelete = isOwner || canModerate;
@@ -117,7 +123,44 @@ const PostCard = ({ post, currentUserId, onLikeChange, onPostDeleted, canModerat
     setDeleting(false);
   };
 
+  const handleEdit = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditContent(post.content);
+    setIsEditing(true);
+  };
+
+  const handleCancelEdit = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsEditing(false);
+    setEditContent(post.content);
+  };
+
+  const handleSaveEdit = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!editContent.trim() || saving) return;
+    if (editContent.length > 240) {
+      toast({ title: "Texto muito longo", description: "O limite é de 240 caracteres.", variant: "destructive" });
+      return;
+    }
+
+    setSaving(true);
+    const { error } = await supabase
+      .from("posts")
+      .update({ content: editContent.trim(), updated_at: new Date().toISOString() })
+      .eq("id", post.id);
+
+    if (error) {
+      toast({ title: "Erro ao salvar", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Postagem atualizada" });
+      setIsEditing(false);
+      onPostUpdated?.();
+    }
+    setSaving(false);
+  };
+
   const handleCardClick = () => {
+    if (isEditing) return;
     setShowComments(true);
   };
 
@@ -160,7 +203,7 @@ const PostCard = ({ post, currentUserId, onLikeChange, onPostDeleted, canModerat
                   <UserBadge userId={post.userId} />
                   <span className="text-xs text-muted-foreground">• {timeAgo}</span>
                 </div>
-              {canDelete && (
+              {(isOwner || canDelete) && !isEditing && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
                     <button className="p-1 text-muted-foreground hover:text-foreground transition-colors">
@@ -168,22 +211,57 @@ const PostCard = ({ post, currentUserId, onLikeChange, onPostDeleted, canModerat
                     </button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
-                    <DropdownMenuItem
-                      className="text-destructive"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDelete();
-                      }}
-                      disabled={deleting}
-                    >
-                      <Trash2 className="w-4 h-4 mr-2" />
-                      {deleting ? "Deletando..." : "Deletar"}
-                    </DropdownMenuItem>
+                    {isOwner && (
+                      <DropdownMenuItem onClick={handleEdit}>
+                        <Edit2 className="w-4 h-4 mr-2" />
+                        Editar
+                      </DropdownMenuItem>
+                    )}
+                    {canDelete && (
+                      <DropdownMenuItem
+                        className="text-destructive"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDelete();
+                        }}
+                        disabled={deleting}
+                      >
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        {deleting ? "Deletando..." : "Deletar"}
+                      </DropdownMenuItem>
+                    )}
                   </DropdownMenuContent>
                 </DropdownMenu>
               )}
             </div>
-            <p className="text-foreground whitespace-pre-wrap break-words">{post.content}</p>
+            
+            {/* Content - Editable or Static */}
+            {isEditing ? (
+              <div className="space-y-2" onClick={(e) => e.stopPropagation()}>
+                <Textarea
+                  value={editContent}
+                  onChange={(e) => setEditContent(e.target.value)}
+                  className="min-h-[80px] resize-none"
+                  maxLength={240}
+                  autoFocus
+                />
+                <div className="flex items-center justify-between">
+                  <span className={`text-xs ${editContent.length > 200 ? 'text-destructive' : 'text-muted-foreground'}`}>
+                    {editContent.length}/240
+                  </span>
+                  <div className="flex gap-2">
+                    <Button variant="ghost" size="sm" onClick={handleCancelEdit} disabled={saving}>
+                      <X className="w-4 h-4 mr-1" /> Cancelar
+                    </Button>
+                    <Button size="sm" onClick={handleSaveEdit} disabled={!editContent.trim() || saving}>
+                      <Check className="w-4 h-4 mr-1" /> {saving ? "Salvando..." : "Salvar"}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <p className="text-foreground whitespace-pre-wrap break-words">{post.content}</p>
+            )}
             
             {/* Post image */}
             {post.imageUrl && (
