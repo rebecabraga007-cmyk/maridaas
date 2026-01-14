@@ -488,7 +488,7 @@ const Feed = () => {
             </div>
           </div>
           <div className="space-y-4">
-            {posts.map((p) => <PostCard key={p.id} post={{ id: p.id, author: p.author, content: p.content, createdAt: new Date(p.created_at), likes: p.likes_count, comments: p.comments_count, userId: p.user_id, avatarUrl: p.avatar_url, imageUrl: p.image_url }} currentUserId={user?.id} onLikeChange={loadPosts} onPostDeleted={loadPosts} canModerate={isAdmin || isModerator} />)}
+            {posts.map((p) => <PostCard key={p.id} post={{ id: p.id, author: p.author, content: p.content, createdAt: new Date(p.created_at), likes: p.likes_count, comments: p.comments_count, userId: p.user_id, avatarUrl: p.avatar_url, imageUrl: p.image_url }} currentUserId={user?.id} onLikeChange={loadPosts} onPostDeleted={loadPosts} onPostUpdated={loadPosts} canModerate={isAdmin || isModerator} />)}
             {posts.length === 0 && <div className="text-center py-12 text-muted-foreground"><p>Nenhuma postagem ainda. Seja a primeira!</p></div>}
           </div>
         </section>

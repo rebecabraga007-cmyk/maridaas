@@ -294,6 +294,7 @@ const NeighborhoodView = () => {
                   currentUserId={user?.id}
                   onLikeChange={loadData}
                   onPostDeleted={loadData}
+                  onPostUpdated={loadData}
                   isVisitor={!canInteract}
                   canModerate={isAdmin || isModerator}
                 />

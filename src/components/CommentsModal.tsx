@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { User, Send, Trash2, MoreVertical } from "lucide-react";
+import { User, Send, Trash2, MoreVertical, Edit2, X, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -60,6 +60,9 @@ const CommentsModal = ({
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+  const [editContent, setEditContent] = useState("");
+  const [savingEdit, setSavingEdit] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -119,6 +122,40 @@ const CommentsModal = ({
     }
   };
 
+  const handleEditComment = (comment: Comment) => {
+    setEditingCommentId(comment.id);
+    setEditContent(comment.content);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingCommentId(null);
+    setEditContent("");
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editContent.trim() || !editingCommentId || savingEdit) return;
+    if (editContent.length > 500) {
+      toast({ title: "Texto muito longo", description: "O limite é de 500 caracteres.", variant: "destructive" });
+      return;
+    }
+
+    setSavingEdit(true);
+    const { error } = await supabase
+      .from("post_comments")
+      .update({ content: editContent.trim() })
+      .eq("id", editingCommentId);
+
+    if (error) {
+      toast({ title: "Erro ao salvar", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Comentário atualizado" });
+      setEditingCommentId(null);
+      setEditContent("");
+      loadComments();
+    }
+    setSavingEdit(false);
+  };
+
   const handleProfileClick = (userId: string) => {
     setSelectedUserId(userId);
   };
@@ -154,6 +191,7 @@ const CommentsModal = ({
               comments.map((comment) => {
                 const isOwner = currentUserId === comment.user_id;
                 const canDelete = isOwner || canModerate;
+                const isEditingThis = editingCommentId === comment.id;
 
                 return (
                   <div key={comment.id} className="flex gap-2">
@@ -180,7 +218,7 @@ const CommentsModal = ({
                             })}
                           </span>
                         </div>
-                        {canDelete && (
+                        {(isOwner || canDelete) && !isEditingThis && (
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <button className="p-1 text-muted-foreground hover:text-foreground transition-colors">
@@ -188,18 +226,53 @@ const CommentsModal = ({
                               </button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              <DropdownMenuItem
-                                className="text-destructive"
-                                onClick={() => handleDeleteComment(comment.id)}
-                              >
-                                <Trash2 className="w-4 h-4 mr-2" />
-                                Deletar
-                              </DropdownMenuItem>
+                              {isOwner && (
+                                <DropdownMenuItem onClick={() => handleEditComment(comment)}>
+                                  <Edit2 className="w-4 h-4 mr-2" />
+                                  Editar
+                                </DropdownMenuItem>
+                              )}
+                              {canDelete && (
+                                <DropdownMenuItem
+                                  className="text-destructive"
+                                  onClick={() => handleDeleteComment(comment.id)}
+                                >
+                                  <Trash2 className="w-4 h-4 mr-2" />
+                                  Deletar
+                                </DropdownMenuItem>
+                              )}
                             </DropdownMenuContent>
                           </DropdownMenu>
                         )}
                       </div>
-                      <p className="text-sm text-foreground whitespace-pre-wrap">{comment.content}</p>
+                      
+                      {/* Comment content - Editable or Static */}
+                      {isEditingThis ? (
+                        <div className="space-y-2 mt-1">
+                          <Textarea
+                            value={editContent}
+                            onChange={(e) => setEditContent(e.target.value)}
+                            className="min-h-[60px] resize-none text-sm"
+                            maxLength={500}
+                            autoFocus
+                          />
+                          <div className="flex items-center justify-between">
+                            <span className={`text-xs ${editContent.length > 450 ? 'text-destructive' : 'text-muted-foreground'}`}>
+                              {editContent.length}/500
+                            </span>
+                            <div className="flex gap-2">
+                              <Button variant="ghost" size="sm" onClick={handleCancelEdit} disabled={savingEdit}>
+                                <X className="w-3 h-3 mr-1" /> Cancelar
+                              </Button>
+                              <Button size="sm" onClick={handleSaveEdit} disabled={!editContent.trim() || savingEdit}>
+                                <Check className="w-3 h-3 mr-1" /> {savingEdit ? "..." : "Salvar"}
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-sm text-foreground whitespace-pre-wrap">{comment.content}</p>
+                      )}
                     </div>
                   </div>
                 );
