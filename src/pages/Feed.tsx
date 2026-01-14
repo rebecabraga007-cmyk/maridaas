@@ -18,6 +18,8 @@ import {
   Search,
   Shield,
   Mail,
+  ImagePlus,
+  X,
 } from "lucide-react";
 import ServiceCard from "@/components/ServiceCard";
 import PostCard from "@/components/PostCard";
@@ -25,6 +27,7 @@ import OnboardingModal from "@/components/OnboardingModal";
 import AnnouncementBanner from "@/components/AnnouncementBanner";
 import NotificationPrompt from "@/components/NotificationPrompt";
 import UserSearchModal from "@/components/UserSearchModal";
+import ImageUpload from "@/components/ImageUpload";
 
 interface Profile {
   full_name: string;
@@ -49,6 +52,8 @@ const Feed = () => {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showNotificationPrompt, setShowNotificationPrompt] = useState(false);
   const [postContent, setPostContent] = useState("");
+  const [postImageUrl, setPostImageUrl] = useState<string>("");
+  const [showImageUpload, setShowImageUpload] = useState(false);
   const [posts, setPosts] = useState<any[]>([]);
   const [services, setServices] = useState<any[]>([]);
   const [userProfile, setUserProfile] = useState<Profile | null>(null);
@@ -204,7 +209,7 @@ const Feed = () => {
 
     const { data } = await supabase
       .from("posts")
-      .select("id, content, created_at, user_id")
+      .select("id, content, created_at, user_id, image_url")
       .eq("neighborhood_id", userProfile.primary_neighborhood_id)
       .order("created_at", { ascending: false })
       .limit(50);
@@ -222,6 +227,7 @@ const Feed = () => {
             ...post,
             author: profileData?.full_name || "Usuária",
             avatar_url: profileData?.avatar_url || null,
+            image_url: post.image_url,
             likes_count: likesRes.count || 0,
             comments_count: commentsRes.count || 0,
           };
@@ -277,11 +283,14 @@ const Feed = () => {
       user_id: user.id,
       neighborhood_id: userProfile.primary_neighborhood_id,
       content: postContent.trim(),
+      image_url: postImageUrl || null,
     });
     if (error) {
       toast({ title: "Erro ao publicar", description: "Tente novamente.", variant: "destructive" });
     } else {
       setPostContent("");
+      setPostImageUrl("");
+      setShowImageUpload(false);
       toast({ title: "Publicado!", description: "Sua postagem foi compartilhada." });
       loadPosts();
     }
@@ -370,15 +379,48 @@ const Feed = () => {
               <div className="avatar-maridaas flex-shrink-0"><UserIcon className="w-5 h-5" /></div>
               <div className="flex-1">
                 <Textarea placeholder="O que está acontecendo no bairro?" value={postContent} onChange={(e) => setPostContent(e.target.value)} className="min-h-[80px] resize-none border-0 bg-muted/50 focus-visible:ring-0 rounded-xl" maxLength={240} />
+                
+                {/* Image preview */}
+                {postImageUrl && (
+                  <div className="relative mt-3 rounded-xl overflow-hidden">
+                    <img src={postImageUrl} alt="Preview" className="w-full h-48 object-cover" />
+                    <button
+                      onClick={() => { setPostImageUrl(""); setShowImageUpload(false); }}
+                      className="absolute top-2 right-2 p-1 bg-destructive text-destructive-foreground rounded-full"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
+                
+                {/* Image upload section */}
+                {showImageUpload && !postImageUrl && (
+                  <div className="mt-3">
+                    <ImageUpload
+                      userId={user?.id || ""}
+                      folder="posts"
+                      onImageUploaded={(url) => { setPostImageUrl(url); if (url) setShowImageUpload(false); }}
+                    />
+                  </div>
+                )}
+                
                 <div className="flex items-center justify-between mt-3">
-                  <span className={`text-xs ${postContent.length > 200 ? 'text-destructive' : 'text-muted-foreground'}`}>{postContent.length}/240</span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setShowImageUpload(!showImageUpload)}
+                      className={`p-2 rounded-lg transition-colors ${showImageUpload ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:text-primary hover:bg-muted'}`}
+                    >
+                      <ImagePlus className="w-5 h-5" />
+                    </button>
+                    <span className={`text-xs ${postContent.length > 200 ? 'text-destructive' : 'text-muted-foreground'}`}>{postContent.length}/240</span>
+                  </div>
                   <Button onClick={handlePost} size="sm" className="btn-maridaas" disabled={!postContent.trim() || posting}><Send className="w-4 h-4 mr-2" />{posting ? "..." : "Publicar"}</Button>
                 </div>
               </div>
             </div>
           </div>
           <div className="space-y-4">
-            {posts.map((p) => <PostCard key={p.id} post={{ id: p.id, author: p.author, content: p.content, createdAt: new Date(p.created_at), likes: p.likes_count, comments: p.comments_count, userId: p.user_id, avatarUrl: p.avatar_url }} currentUserId={user?.id} onLikeChange={loadPosts} onPostDeleted={loadPosts} canModerate={isAdmin || isModerator} />)}
+            {posts.map((p) => <PostCard key={p.id} post={{ id: p.id, author: p.author, content: p.content, createdAt: new Date(p.created_at), likes: p.likes_count, comments: p.comments_count, userId: p.user_id, avatarUrl: p.avatar_url, imageUrl: p.image_url }} currentUserId={user?.id} onLikeChange={loadPosts} onPostDeleted={loadPosts} canModerate={isAdmin || isModerator} />)}
             {posts.length === 0 && <div className="text-center py-12 text-muted-foreground"><p>Nenhuma postagem ainda. Seja a primeira!</p></div>}
           </div>
         </section>

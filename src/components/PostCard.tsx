@@ -25,6 +25,7 @@ interface PostCardProps {
     userId: string;
     neighborhoodId?: string;
     avatarUrl?: string | null;
+    imageUrl?: string | null;
   };
   currentUserId?: string;
   onLikeChange?: () => void;
@@ -183,6 +184,13 @@ const PostCard = ({ post, currentUserId, onLikeChange, onPostDeleted, canModerat
               )}
             </div>
             <p className="text-foreground whitespace-pre-wrap break-words">{post.content}</p>
+            
+            {/* Post image */}
+            {post.imageUrl && (
+              <div className="mt-3 rounded-xl overflow-hidden">
+                <img src={post.imageUrl} alt="Post image" className="w-full object-cover max-h-80" />
+              </div>
+            )}
             
             <div className="flex items-center gap-6 mt-3 pt-3 border-t border-border">
               <button 
