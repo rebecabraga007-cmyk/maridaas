@@ -12,6 +12,7 @@ import {
   Bell, 
   Send,
   ChevronRight,
+  ChevronDown,
   LogOut,
   Briefcase,
   Plus,
@@ -20,6 +21,7 @@ import {
   Mail,
   ImagePlus,
   X,
+  Star,
 } from "lucide-react";
 import ServiceCard from "@/components/ServiceCard";
 import PostCard from "@/components/PostCard";
@@ -34,7 +36,14 @@ interface Profile {
   neighborhood: string;
   city: string;
   primary_neighborhood_id: string | null;
+  secondary_neighborhood_id: string | null;
   avatar_url: string | null;
+}
+
+interface NeighborhoodInfo {
+  id: string;
+  name: string;
+  city: string;
 }
 
 interface UnreadCounts {
@@ -63,6 +72,8 @@ const Feed = () => {
   const [isAdmin, setIsAdmin] = useState(false);
   const [isModerator, setIsModerator] = useState(false);
   const [unreadCounts, setUnreadCounts] = useState<UnreadCounts>({ messages: 0, requests: 0 });
+  const [selectedNeighborhood, setSelectedNeighborhood] = useState<"primary" | "secondary">("primary");
+  const [neighborhoodInfo, setNeighborhoodInfo] = useState<{ primary: NeighborhoodInfo | null; secondary: NeighborhoodInfo | null }>({ primary: null, secondary: null });
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
@@ -125,16 +136,21 @@ const Feed = () => {
     );
   };
 
+  // Get the currently selected neighborhood ID
+  const currentNeighborhoodId = selectedNeighborhood === "secondary" && userProfile?.secondary_neighborhood_id
+    ? userProfile.secondary_neighborhood_id
+    : userProfile?.primary_neighborhood_id;
+
   useEffect(() => {
-    if (userProfile?.primary_neighborhood_id) {
+    if (currentNeighborhoodId) {
       loadPosts();
       loadServices();
       loadAnnouncements();
     }
-  }, [userProfile?.primary_neighborhood_id]);
+  }, [currentNeighborhoodId]);
 
   const loadAnnouncements = async () => {
-    if (!user || !userProfile?.primary_neighborhood_id) return;
+    if (!user || !currentNeighborhoodId) return;
     
     // Fetch all active announcements and sort properly
     const { data } = await supabase
@@ -149,7 +165,7 @@ const Feed = () => {
       const activeAnnouncements = data.filter(a => {
         if (a.ends_at && new Date(a.ends_at) <= new Date()) return false;
         if (a.is_global) return true;
-        if (a.neighborhood_id === userProfile.primary_neighborhood_id) return true;
+        if (a.neighborhood_id === currentNeighborhoodId) return true;
         if (a.target_user_id === user.id) return true;
         return false;
       });
@@ -163,12 +179,27 @@ const Feed = () => {
     if (!user) return;
     const { data } = await supabase
       .from("profiles")
-      .select("full_name, neighborhood, city, primary_neighborhood_id, avatar_url")
+      .select("full_name, neighborhood, city, primary_neighborhood_id, secondary_neighborhood_id, avatar_url")
       .eq("user_id", user.id)
       .single();
 
     if (data) {
       setUserProfile(data);
+      
+      // Load neighborhood names
+      const neighborhoodIds = [data.primary_neighborhood_id, data.secondary_neighborhood_id].filter(Boolean);
+      if (neighborhoodIds.length > 0) {
+        const { data: neighborhoods } = await supabase
+          .from("neighborhoods")
+          .select("id, name, city")
+          .in("id", neighborhoodIds);
+        
+        if (neighborhoods) {
+          const primary = neighborhoods.find(n => n.id === data.primary_neighborhood_id) || null;
+          const secondary = neighborhoods.find(n => n.id === data.secondary_neighborhood_id) || null;
+          setNeighborhoodInfo({ primary, secondary });
+        }
+      }
     } else {
       const m = user.user_metadata;
       setUserProfile({
@@ -176,6 +207,7 @@ const Feed = () => {
         neighborhood: m?.neighborhood || "Bairro",
         city: m?.city || "Cidade",
         primary_neighborhood_id: null,
+        secondary_neighborhood_id: null,
         avatar_url: null,
       });
     }
@@ -205,12 +237,12 @@ const Feed = () => {
   };
 
   const loadPosts = async () => {
-    if (!userProfile?.primary_neighborhood_id) return;
+    if (!currentNeighborhoodId) return;
 
     const { data } = await supabase
       .from("posts")
       .select("id, content, created_at, user_id, image_url")
-      .eq("neighborhood_id", userProfile.primary_neighborhood_id)
+      .eq("neighborhood_id", currentNeighborhoodId)
       .order("created_at", { ascending: false })
       .limit(50);
 
@@ -238,12 +270,12 @@ const Feed = () => {
   };
 
   const loadServices = async () => {
-    if (!userProfile?.primary_neighborhood_id) return;
+    if (!currentNeighborhoodId) return;
 
     const { data } = await supabase
       .from("services")
       .select("id, title, user_id, image_url")
-      .eq("neighborhood_id", userProfile.primary_neighborhood_id)
+      .eq("neighborhood_id", currentNeighborhoodId)
       .eq("is_active", true)
       .limit(10);
 
@@ -273,7 +305,7 @@ const Feed = () => {
   };
 
   const handlePost = async () => {
-    if (!postContent.trim() || !user || !userProfile?.primary_neighborhood_id) return;
+    if (!postContent.trim() || !user || !currentNeighborhoodId) return;
     if (postContent.length > 240) {
       toast({ title: "Texto muito longo", description: "O limite é de 240 caracteres.", variant: "destructive" });
       return;
@@ -281,7 +313,7 @@ const Feed = () => {
     setPosting(true);
     const { error } = await supabase.from("posts").insert({
       user_id: user.id,
-      neighborhood_id: userProfile.primary_neighborhood_id,
+      neighborhood_id: currentNeighborhoodId,
       content: postContent.trim(),
       image_url: postImageUrl || null,
     });
@@ -319,8 +351,44 @@ const Feed = () => {
           <div className="flex items-center gap-3">
             <img src="/logo.png" alt="Maridaas" className="h-8 w-8" />
             <div>
-              <h1 className="text-lg font-display font-bold text-foreground">{userProfile?.neighborhood || "Seu Bairro"}</h1>
-              <p className="text-xs text-muted-foreground flex items-center gap-1"><MapPin className="w-3 h-3" />{userProfile?.city || "Sua Cidade"}</p>
+              {/* Neighborhood Selector */}
+              {userProfile?.secondary_neighborhood_id && neighborhoodInfo.secondary ? (
+                <div className="relative">
+                  <button
+                    onClick={() => setSelectedNeighborhood(prev => prev === "primary" ? "secondary" : "primary")}
+                    className="flex items-center gap-2 group"
+                  >
+                    <div className="flex items-center gap-1">
+                      {selectedNeighborhood === "primary" && <Star className="w-3 h-3 text-secondary fill-secondary" />}
+                      <h1 className="text-lg font-display font-bold text-foreground">
+                        {selectedNeighborhood === "primary" 
+                          ? (neighborhoodInfo.primary?.name || userProfile?.neighborhood || "Seu Bairro")
+                          : neighborhoodInfo.secondary.name}
+                      </h1>
+                    </div>
+                    <ChevronDown className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+                  </button>
+                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                    <MapPin className="w-3 h-3" />
+                    {selectedNeighborhood === "primary"
+                      ? (neighborhoodInfo.primary?.city || userProfile?.city || "Sua Cidade")
+                      : neighborhoodInfo.secondary.city}
+                    <span className="ml-1 text-primary">
+                      • Toque para alternar
+                    </span>
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <h1 className="text-lg font-display font-bold text-foreground">
+                    {neighborhoodInfo.primary?.name || userProfile?.neighborhood || "Seu Bairro"}
+                  </h1>
+                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                    <MapPin className="w-3 h-3" />
+                    {neighborhoodInfo.primary?.city || userProfile?.city || "Sua Cidade"}
+                  </p>
+                </>
+              )}
             </div>
           </div>
           <div className="flex items-center gap-2">
