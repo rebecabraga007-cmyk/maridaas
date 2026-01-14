@@ -93,11 +93,10 @@ const Neighborhoods = () => {
     if (data) {
       const neighborhoodsWithCounts = await Promise.all(
         data.map(async (n) => {
-          const { count } = await supabase
-            .from("profiles")
-            .select("id", { count: "exact", head: true })
-            .or(`primary_neighborhood_id.eq.${n.id},secondary_neighborhood_id.eq.${n.id}`);
-          return { ...n, member_count: count || 0 };
+          // Use security definer function to count members (bypasses RLS)
+          const { data: countData } = await supabase
+            .rpc("count_neighborhood_members", { _neighborhood_id: n.id });
+          return { ...n, member_count: countData || 0 };
         })
       );
       setNeighborhoods(neighborhoodsWithCounts);
