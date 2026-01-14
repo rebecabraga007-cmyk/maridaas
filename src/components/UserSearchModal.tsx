@@ -28,6 +28,11 @@ const UserSearchModal = ({ isOpen, onClose }: UserSearchModalProps) => {
   const [results, setResults] = useState<UserResult[]>([]);
   const [loading, setLoading] = useState(false);
 
+  // Sanitize input to escape LIKE special characters (%, _, \)
+  const sanitizeForLike = (input: string): string => {
+    return input.replace(/[%_\\]/g, '\\$&');
+  };
+
   useEffect(() => {
     if (searchQuery.length >= 2) {
       searchUsers();
@@ -38,9 +43,6 @@ const UserSearchModal = ({ isOpen, onClose }: UserSearchModalProps) => {
 
   const searchUsers = async () => {
     setLoading(true);
-    // Use RPC to search - this requires a search function in the database
-    // For now, we'll use a workaround since get_public_profile works per user
-    // Search will be limited but secure
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       setLoading(false);
@@ -55,12 +57,14 @@ const UserSearchModal = ({ isOpen, onClose }: UserSearchModalProps) => {
       .single();
     
     if (userProfile?.primary_neighborhood_id) {
-      // Search users in the same neighborhood using own profile access
+      // Sanitize search query to prevent LIKE pattern injection
+      const sanitizedQuery = sanitizeForLike(searchQuery);
+      
       const { data } = await supabase
         .from("profiles")
         .select("user_id, full_name, neighborhood, city")
         .eq("primary_neighborhood_id", userProfile.primary_neighborhood_id)
-        .ilike("full_name", `%${searchQuery}%`)
+        .ilike("full_name", `%${sanitizedQuery}%`)
         .limit(20);
 
       if (data) {
