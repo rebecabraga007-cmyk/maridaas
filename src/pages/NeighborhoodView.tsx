@@ -10,8 +10,7 @@ import {
   User as UserIcon,
 } from "lucide-react";
 import ServiceClickableCard from "@/components/ServiceClickableCard";
-import { formatDistanceToNow } from "date-fns";
-import { ptBR } from "date-fns/locale";
+import PostCard from "@/components/PostCard";
 
 interface Neighborhood {
   id: string;
@@ -25,6 +24,10 @@ interface Post {
   created_at: string;
   author: string;
   user_id: string;
+  avatar_url: string | null;
+  image_url: string | null;
+  likes_count: number;
+  comments_count: number;
 }
 
 interface Service {
@@ -87,26 +90,34 @@ const NeighborhoodView = () => {
       setNeighborhood(neighborhoodData);
     }
 
-    // Load posts
+    // Load posts with full details
     const { data: postsData } = await supabase
       .from("posts")
-      .select("id, content, created_at, user_id")
+      .select("id, content, created_at, user_id, image_url")
       .eq("neighborhood_id", neighborhoodId)
       .order("created_at", { ascending: false })
       .limit(50);
 
     if (postsData) {
-      const postsWithAuthors = await Promise.all(
+      const postsWithDetails = await Promise.all(
         postsData.map(async (post) => {
-          const { data: profileData } = await supabase
-            .rpc("get_public_profile", { target_user_id: post.user_id });
+          const [profileRes, likesRes, commentsRes] = await Promise.all([
+            supabase.rpc("get_public_profile", { target_user_id: post.user_id }),
+            supabase.from("post_likes").select("id", { count: "exact", head: true }).eq("post_id", post.id),
+            supabase.from("post_comments").select("id", { count: "exact", head: true }).eq("post_id", post.id),
+          ]);
+          const profileData = profileRes.data?.[0];
           return {
             ...post,
-            author: profileData?.[0]?.full_name || "Usuária",
+            author: profileData?.full_name || "Usuária",
+            avatar_url: profileData?.avatar_url || null,
+            image_url: post.image_url,
+            likes_count: likesRes.count || 0,
+            comments_count: commentsRes.count || 0,
           };
         })
       );
-      setPosts(postsWithAuthors);
+      setPosts(postsWithDetails);
     }
 
     // Load services
@@ -243,26 +254,25 @@ const NeighborhoodView = () => {
           ) : (
             <div className="space-y-4">
               {posts.map((post) => (
-                <div key={post.id} className="card-maridaas p-4">
-                  <div className="flex gap-3">
-                    <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
-                      <UserIcon className="w-5 h-5 text-muted-foreground" />
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="font-semibold text-foreground">{post.author}</span>
-                        <span className="text-xs text-muted-foreground">
-                          •{" "}
-                          {formatDistanceToNow(new Date(post.created_at), {
-                            addSuffix: true,
-                            locale: ptBR,
-                          })}
-                        </span>
-                      </div>
-                      <p className="text-foreground whitespace-pre-wrap">{post.content}</p>
-                    </div>
-                  </div>
-                </div>
+                <PostCard
+                  key={post.id}
+                  post={{
+                    id: post.id,
+                    author: post.author,
+                    content: post.content,
+                    createdAt: new Date(post.created_at),
+                    likes: post.likes_count,
+                    comments: post.comments_count,
+                    userId: post.user_id,
+                    avatarUrl: post.avatar_url,
+                    imageUrl: post.image_url,
+                    neighborhoodId: neighborhoodId,
+                  }}
+                  currentUserId={user?.id}
+                  onLikeChange={loadData}
+                  onPostDeleted={loadData}
+                  isVisitor={!isOwnNeighborhood}
+                />
               ))}
             </div>
           )}
