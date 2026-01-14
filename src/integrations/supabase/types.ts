@@ -571,6 +571,7 @@ export type Database = {
           city: string
           full_name: string
           instagram: string
+          is_same_neighborhood: boolean
           neighborhood: string
           primary_neighborhood_id: string
           secondary_neighborhood_id: string

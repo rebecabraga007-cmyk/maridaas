@@ -10,6 +10,8 @@ export interface PublicProfile {
   whatsapp: string | null;
   avatar_url: string | null;
   primary_neighborhood_id: string | null;
+  secondary_neighborhood_id: string | null;
+  is_same_neighborhood: boolean;
 }
 
 /**
