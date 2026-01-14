@@ -45,7 +45,9 @@ const NeighborhoodView = () => {
   const [posts, setPosts] = useState<Post[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(true);
-  const [userPrimaryNeighborhood, setUserPrimaryNeighborhood] = useState<string | null>(null);
+  const [canInteract, setCanInteract] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [isModerator, setIsModerator] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -65,18 +67,33 @@ const NeighborhoodView = () => {
   const loadData = async () => {
     setLoading(true);
 
-    // Load user's primary and secondary neighborhoods
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("primary_neighborhood_id, secondary_neighborhood_id")
-      .eq("user_id", user!.id)
-      .single();
+    // Load user's primary and secondary neighborhoods + roles
+    const [profileRes, rolesRes] = await Promise.all([
+      supabase
+        .from("profiles")
+        .select("primary_neighborhood_id, secondary_neighborhood_id")
+        .eq("user_id", user!.id)
+        .single(),
+      supabase
+        .from("user_roles")
+        .select("role, moderator_neighborhood_id")
+        .eq("user_id", user!.id),
+    ]);
 
-    if (profile) {
+    if (profileRes.data) {
+      const profile = profileRes.data;
       // User can interact if it's primary OR secondary neighborhood
-      const canInteract = profile.primary_neighborhood_id === neighborhoodId || 
-                          profile.secondary_neighborhood_id === neighborhoodId;
-      setUserPrimaryNeighborhood(canInteract ? neighborhoodId! : profile.primary_neighborhood_id);
+      const userCanInteract = profile.primary_neighborhood_id === neighborhoodId || 
+                              profile.secondary_neighborhood_id === neighborhoodId;
+      setCanInteract(userCanInteract);
+    }
+
+    // Check admin/moderator roles
+    if (rolesRes.data) {
+      const roles = rolesRes.data;
+      setIsAdmin(roles.some(r => r.role === "admin"));
+      setIsModerator(roles.some(r => r.role === "moderator" && 
+        (r.moderator_neighborhood_id === neighborhoodId || r.moderator_neighborhood_id === null)));
     }
 
     // Load neighborhood info
@@ -154,8 +171,6 @@ const NeighborhoodView = () => {
     setLoading(false);
   };
 
-  const isOwnNeighborhood = userPrimaryNeighborhood === neighborhoodId;
-
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -208,12 +223,11 @@ const NeighborhoodView = () => {
 
       <main className="container mx-auto px-4 pt-20">
         {/* Aviso de modo visualização */}
-        {!isOwnNeighborhood && (
+        {!canInteract && (
           <div className="bg-accent/10 border border-accent/30 rounded-xl p-4 mb-6 flex items-center gap-3">
             <Lock className="w-5 h-5 text-accent-foreground flex-shrink-0" />
             <p className="text-sm text-accent-foreground">
-              Você está visualizando este bairro. Para interagir, você precisa estar com ele como
-              seu bairro principal.
+              Você está visualizando este bairro. Para interagir, defina-o como seu bairro principal ou secundário.
             </p>
           </div>
         )}
@@ -271,7 +285,8 @@ const NeighborhoodView = () => {
                   currentUserId={user?.id}
                   onLikeChange={loadData}
                   onPostDeleted={loadData}
-                  isVisitor={!isOwnNeighborhood}
+                  isVisitor={!canInteract}
+                  canModerate={isAdmin || isModerator}
                 />
               ))}
             </div>
