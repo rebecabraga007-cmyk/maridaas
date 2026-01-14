@@ -563,6 +563,10 @@ export type Database = {
         Args: { _neighborhood_id: string; _user_id: string }
         Returns: boolean
       }
+      count_neighborhood_members: {
+        Args: { _neighborhood_id: string }
+        Returns: number
+      }
       get_public_profile: {
         Args: { target_user_id: string }
         Returns: {
