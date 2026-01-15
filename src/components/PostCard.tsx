@@ -265,8 +265,8 @@ const PostCard = ({ post, currentUserId, onLikeChange, onPostDeleted, onPostUpda
             
             {/* Post image */}
             {post.imageUrl && (
-              <div className="mt-3 rounded-xl overflow-hidden">
-                <img src={post.imageUrl} alt="Post image" className="w-full object-cover max-h-80" />
+              <div className="mt-3 rounded-xl overflow-hidden aspect-video max-h-80">
+                <img src={post.imageUrl} alt="Post image" className="w-full h-full object-cover" />
               </div>
             )}
             

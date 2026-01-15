@@ -320,6 +320,36 @@ export type Database = {
           },
         ]
       }
+      push_subscriptions: {
+        Row: {
+          auth: string
+          created_at: string
+          endpoint: string
+          id: string
+          p256dh: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          auth: string
+          created_at?: string
+          endpoint: string
+          id?: string
+          p256dh: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          auth?: string
+          created_at?: string
+          endpoint?: string
+          id?: string
+          p256dh?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       scheduled_notifications: {
         Row: {
           body: string
@@ -595,6 +625,15 @@ export type Database = {
         Returns: boolean
       }
       same_neighborhood: { Args: { target_user_id: string }; Returns: boolean }
+      search_users_global: {
+        Args: { search_term: string }
+        Returns: {
+          city: string
+          full_name: string
+          neighborhood: string
+          user_id: string
+        }[]
+      }
     }
     Enums: {
       app_role: "admin" | "moderator" | "user"

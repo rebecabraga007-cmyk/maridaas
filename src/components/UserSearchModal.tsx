@@ -49,28 +49,21 @@ const UserSearchModal = ({ isOpen, onClose }: UserSearchModalProps) => {
       return;
     }
     
-    // Get current user's neighborhood to search within same neighborhood
-    const { data: userProfile } = await supabase
-      .from("profiles")
-      .select("primary_neighborhood_id")
-      .eq("user_id", user.id)
-      .single();
-    
-    if (userProfile?.primary_neighborhood_id) {
-      // Sanitize search query to prevent LIKE pattern injection
-      const sanitizedQuery = sanitizeForLike(searchQuery);
-      
-      const { data } = await supabase
-        .from("profiles")
-        .select("user_id, full_name, neighborhood, city")
-        .eq("primary_neighborhood_id", userProfile.primary_neighborhood_id)
-        .ilike("full_name", `%${sanitizedQuery}%`)
-        .limit(20);
+    // Global search using the search function
+    const { data, error } = await supabase
+      .rpc("search_users_global" as any, { search_term: searchQuery });
 
-      if (data) {
-        setResults(data);
-      }
+    if (data && Array.isArray(data)) {
+      setResults(data.map((p: any) => ({
+        user_id: p.user_id,
+        full_name: p.full_name,
+        neighborhood: p.neighborhood,
+        city: p.city,
+      })));
+    } else if (error) {
+      console.error("Search error:", error);
     }
+    
     setLoading(false);
   };
 

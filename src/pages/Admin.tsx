@@ -326,13 +326,21 @@ const Admin = () => {
     if (data) setScheduledNotifications(data);
   };
 
-  // Convert local Brasilia time to UTC for storage
-  const brasiliaTzOffset = -3; // UTC-3
-  const convertToUTC = (localDatetime: string) => {
+  // The datetime-local input returns local browser time
+  // We need to treat the input as Brasilia time (UTC-3) and store as-is
+  // Since the server should also interpret as Brasilia time
+  const convertBrasiliaToUTC = (localDatetime: string) => {
     if (!localDatetime) return new Date().toISOString();
-    const date = new Date(localDatetime);
-    // Add the offset to convert from Brasilia to UTC
-    return addHours(date, -brasiliaTzOffset).toISOString();
+    // The input value is already in local time format (YYYY-MM-DDTHH:mm)
+    // We need to interpret this as Brasilia time and convert to UTC
+    // Brasilia is UTC-3, so we add 3 hours to get UTC
+    const [datePart, timePart] = localDatetime.split('T');
+    const [year, month, day] = datePart.split('-').map(Number);
+    const [hours, minutes] = timePart.split(':').map(Number);
+    
+    // Create date as if it's Brasilia time, then add 3 hours for UTC
+    const brasiliaDate = new Date(Date.UTC(year, month - 1, day, hours + 3, minutes));
+    return brasiliaDate.toISOString();
   };
 
   const handleCreatePushNotification = async () => {
@@ -343,7 +351,7 @@ const Admin = () => {
 
     setCreatingPush(true);
 
-    const scheduledTime = pushScheduledAt ? convertToUTC(pushScheduledAt) : new Date().toISOString();
+    const scheduledTime = pushScheduledAt ? convertBrasiliaToUTC(pushScheduledAt) : new Date().toISOString();
 
     const { error } = await supabase.from("scheduled_notifications").insert({
       title: pushTitle.trim(),
