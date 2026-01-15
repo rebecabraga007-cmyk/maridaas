@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Smartphone, Bell, Check, ArrowRight, X } from "lucide-react";
+import { usePushNotifications } from "@/hooks/usePushNotifications";
 
 interface OnboardingModalProps {
   onClose: () => void;
@@ -8,12 +9,10 @@ interface OnboardingModalProps {
 
 const OnboardingModal = ({ onClose }: OnboardingModalProps) => {
   const [step, setStep] = useState(1);
+  const { subscribe, isLoading } = usePushNotifications();
 
   const requestNotifications = async () => {
-    if ("Notification" in window) {
-      const permission = await Notification.requestPermission();
-      console.log("Notification permission:", permission);
-    }
+    await subscribe();
     setStep(3);
   };
 

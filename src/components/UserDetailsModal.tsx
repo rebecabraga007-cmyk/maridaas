@@ -51,27 +51,27 @@ const UserDetailsModal = ({ userId, isOpen, onClose }: UserDetailsModalProps) =>
   const loadFullProfile = async () => {
     setLoading(true);
     
-    // Get full profile from admin context
-    const { data } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("user_id", userId)
-      .single();
+    // Use admin function to get full profile (bypasses RLS)
+    const { data, error } = await supabase
+      .rpc("admin_get_full_profile" as any, { target_user_id: userId });
 
-    if (data) {
+    if (data && Array.isArray(data) && data.length > 0) {
+      const profile = data[0] as any;
       setProfile({
-        full_name: data.full_name,
-        cpf: data.cpf,
-        birth_date: data.birth_date,
-        neighborhood: data.neighborhood,
-        city: data.city,
-        address: data.address,
-        cep: data.cep,
-        whatsapp: data.whatsapp,
-        instagram: data.instagram,
-        avatar_url: data.avatar_url,
-        created_at: data.created_at,
+        full_name: profile.full_name,
+        cpf: profile.cpf,
+        birth_date: profile.birth_date,
+        neighborhood: profile.neighborhood,
+        city: profile.city,
+        address: profile.address,
+        cep: profile.cep,
+        whatsapp: profile.whatsapp,
+        instagram: profile.instagram,
+        avatar_url: profile.avatar_url,
+        created_at: profile.created_at,
       });
+    } else {
+      console.error("Error loading profile:", error);
     }
 
     setLoading(false);
