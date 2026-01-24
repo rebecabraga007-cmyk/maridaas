@@ -30,6 +30,7 @@ import AnnouncementBanner from "@/components/AnnouncementBanner";
 import NotificationPrompt from "@/components/NotificationPrompt";
 import UserSearchModal from "@/components/UserSearchModal";
 import ImageUpload from "@/components/ImageUpload";
+import NotificationSettingsModal from "@/components/NotificationSettingsModal";
 
 interface Profile {
   full_name: string;
@@ -69,6 +70,7 @@ const Feed = () => {
   const [announcements, setAnnouncements] = useState<any[]>([]);
   const [posting, setPosting] = useState(false);
   const [showUserSearch, setShowUserSearch] = useState(false);
+  const [showNotificationSettings, setShowNotificationSettings] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isModerator, setIsModerator] = useState(false);
   const [unreadCounts, setUnreadCounts] = useState<UnreadCounts>({ messages: 0, requests: 0 });
@@ -345,6 +347,7 @@ const Feed = () => {
   return (
     <div className="min-h-screen bg-background pb-20">
       {showOnboarding && <OnboardingModal onClose={() => { setShowOnboarding(false); localStorage.setItem("maridaas_onboarding_seen", "true"); }} />}
+      {showNotificationSettings && <NotificationSettingsModal onClose={() => setShowNotificationSettings(false)} />}
 
       <header className="fixed top-0 left-0 right-0 z-40 glass border-b border-border">
         <div className="container mx-auto px-4 py-3 flex items-center justify-between">
@@ -406,7 +409,7 @@ const Feed = () => {
                 <Shield className="h-5 w-5" />
               </Button>
             )}
-            <Button variant="ghost" size="icon"><Bell className="h-5 w-5" /></Button>
+            <Button variant="ghost" size="icon" onClick={() => setShowNotificationSettings(true)}><Bell className="h-5 w-5" /></Button>
             <Button variant="ghost" size="icon" onClick={handleLogout}><LogOut className="h-5 w-5" /></Button>
           </div>
         </div>
