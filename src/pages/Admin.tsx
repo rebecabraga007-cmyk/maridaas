@@ -352,29 +352,84 @@ const Admin = () => {
     setCreatingPush(true);
 
     const scheduledTime = pushScheduledAt ? convertBrasiliaToUTC(pushScheduledAt) : new Date().toISOString();
+    const sendNow = !pushScheduledAt; // Se não tem horário agendado, envia agora
 
-    const { error } = await supabase.from("scheduled_notifications").insert({
+    const { data: insertedNotification, error } = await supabase.from("scheduled_notifications").insert({
       title: pushTitle.trim(),
       body: pushBody.trim(),
       target_type: pushTarget,
       target_id: pushTarget !== "all" ? pushTargetId : null,
       scheduled_at: scheduledTime,
       created_by: user.id,
-    });
+    }).select().single();
 
     if (error) {
       toast({ title: "Erro ao criar notificação", description: error.message, variant: "destructive" });
-    } else {
-      toast({ title: "Notificação agendada!" });
-      setPushTitle("");
-      setPushBody("");
-      setPushTarget("all");
-      setPushTargetId("");
-      setPushScheduledAt("");
-      loadScheduledNotifications();
+      setCreatingPush(false);
+      return;
     }
 
+    // Se for para enviar agora, chama a edge function
+    if (sendNow && insertedNotification) {
+      try {
+        const { data, error: funcError } = await supabase.functions.invoke("send-push-notification", {
+          body: { notification_id: insertedNotification.id },
+        });
+
+        if (funcError) {
+          console.error("Error sending push:", funcError);
+          toast({ 
+            title: "Notificação criada, mas erro ao enviar", 
+            description: funcError.message, 
+            variant: "destructive" 
+          });
+        } else {
+          console.log("Push sent:", data);
+          toast({ 
+            title: "Notificação enviada!", 
+            description: `Enviada para ${data?.results?.[0]?.sent || 0} dispositivos.` 
+          });
+        }
+      } catch (e) {
+        console.error("Error invoking function:", e);
+        toast({ title: "Erro ao enviar notificação", variant: "destructive" });
+      }
+    } else {
+      toast({ title: "Notificação agendada!" });
+    }
+
+    setPushTitle("");
+    setPushBody("");
+    setPushTarget("all");
+    setPushTargetId("");
+    setPushScheduledAt("");
+    loadScheduledNotifications();
     setCreatingPush(false);
+  };
+
+  const handleSendNotificationNow = async (notificationId: string) => {
+    try {
+      toast({ title: "Enviando notificação..." });
+      
+      const { data, error } = await supabase.functions.invoke("send-push-notification", {
+        body: { notification_id: notificationId },
+      });
+
+      if (error) {
+        console.error("Error sending push:", error);
+        toast({ title: "Erro ao enviar", description: error.message, variant: "destructive" });
+      } else {
+        console.log("Push sent:", data);
+        toast({ 
+          title: "Notificação enviada!", 
+          description: `Enviada para ${data?.results?.[0]?.sent || 0} dispositivos.` 
+        });
+        loadScheduledNotifications();
+      }
+    } catch (e) {
+      console.error("Error:", e);
+      toast({ title: "Erro ao enviar notificação", variant: "destructive" });
+    }
   };
 
   const handleDeleteNotification = async (id: string) => {
@@ -1046,7 +1101,7 @@ const Admin = () => {
                       <div className="flex items-center gap-2 mb-1">
                         <p className="font-semibold text-foreground">{n.title}</p>
                         {n.sent_at ? (
-                          <span className="text-xs bg-green-500/20 text-green-600 px-2 py-0.5 rounded-full">Enviada</span>
+                          <span className="text-xs bg-accent/50 text-accent-foreground px-2 py-0.5 rounded-full">Enviada</span>
                         ) : (
                           <span className="text-xs bg-primary/20 text-primary px-2 py-0.5 rounded-full">Pendente</span>
                         )}
@@ -1062,14 +1117,27 @@ const Admin = () => {
                         </span>
                       </div>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleDeleteNotification(n.id)}
-                      className="text-destructive flex-shrink-0"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      {!n.sent_at && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleSendNotificationNow(n.id)}
+                          className="text-primary"
+                        >
+                          <Send className="w-3 h-3 mr-1" />
+                          Enviar
+                        </Button>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleDeleteNotification(n.id)}
+                        className="text-destructive"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
                   </div>
                 </div>
               ))}

@@ -1,9 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
-// Get the VAPID public key from environment
-const VAPID_PUBLIC_KEY = "BCvN5KJp-XPqzpQqVQnp5K9xhpTxTmPjpYjfqzLPF4K2J5QxzE4r5X5vZP5pQPxP5P5P5P5P5P5P5P5P5P5P5P0";
-
 interface PushState {
   permission: NotificationPermission | "unsupported";
   isSupported: boolean;
@@ -29,12 +26,36 @@ export const usePushNotifications = () => {
     isSubscribed: false,
     isLoading: true,
   });
+  const [vapidPublicKey, setVapidPublicKey] = useState<string | null>(null);
 
   useEffect(() => {
-    checkSupport();
+    loadVapidKey();
   }, []);
 
-  const checkSupport = async () => {
+  const loadVapidKey = async () => {
+    try {
+      const { data, error } = await supabase.functions.invoke("get-vapid-public-key");
+      
+      if (error) {
+        console.error("Error fetching VAPID key:", error);
+        setState(prev => ({ ...prev, isLoading: false }));
+        return;
+      }
+
+      if (data?.vapidPublicKey) {
+        setVapidPublicKey(data.vapidPublicKey);
+        checkSupport(data.vapidPublicKey);
+      } else {
+        console.error("VAPID key not found in response");
+        setState(prev => ({ ...prev, isLoading: false }));
+      }
+    } catch (e) {
+      console.error("Error loading VAPID key:", e);
+      setState(prev => ({ ...prev, isLoading: false }));
+    }
+  };
+
+  const checkSupport = async (key?: string) => {
     const isSupported = "Notification" in window && "serviceWorker" in navigator && "PushManager" in window;
     
     if (!isSupported) {
@@ -67,8 +88,8 @@ export const usePushNotifications = () => {
   };
 
   const subscribe = useCallback(async (): Promise<boolean> => {
-    if (!state.isSupported) {
-      console.warn("Push notifications not supported");
+    if (!state.isSupported || !vapidPublicKey) {
+      console.warn("Push notifications not supported or VAPID key not loaded");
       return false;
     }
 
@@ -86,8 +107,14 @@ export const usePushNotifications = () => {
       // Get service worker registration
       const registration = await navigator.serviceWorker.ready;
       
-      // Subscribe to push
-      const applicationServerKey = urlBase64ToUint8Array(VAPID_PUBLIC_KEY);
+      // Unsubscribe from any existing subscription first (to handle key changes)
+      const existingSubscription = await registration.pushManager.getSubscription();
+      if (existingSubscription) {
+        await existingSubscription.unsubscribe();
+      }
+      
+      // Subscribe to push with the correct VAPID key
+      const applicationServerKey = urlBase64ToUint8Array(vapidPublicKey);
       const subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: applicationServerKey.buffer as ArrayBuffer,
@@ -110,16 +137,20 @@ export const usePushNotifications = () => {
         throw new Error("User not authenticated");
       }
 
-      // Save subscription to database
+      // Delete any existing subscriptions for this user (clean slate)
+      await supabase
+        .from("push_subscriptions")
+        .delete()
+        .eq("user_id", user.id);
+
+      // Save new subscription to database
       const { error } = await supabase
-        .from("push_subscriptions" as any)
-        .upsert({
+        .from("push_subscriptions")
+        .insert({
           user_id: user.id,
           endpoint: subscription.endpoint,
           p256dh: p256dh,
           auth: authKey,
-        }, {
-          onConflict: "endpoint",
         });
 
       if (error) {
@@ -130,7 +161,7 @@ export const usePushNotifications = () => {
       // Update profile
       await supabase
         .from("profiles")
-        .update({ notifications_enabled: true } as any)
+        .update({ notifications_enabled: true })
         .eq("user_id", user.id);
 
       setState(prev => ({
@@ -146,7 +177,7 @@ export const usePushNotifications = () => {
       setState(prev => ({ ...prev, isLoading: false }));
       return false;
     }
-  }, [state.isSupported]);
+  }, [state.isSupported, vapidPublicKey]);
 
   const unsubscribe = useCallback(async (): Promise<boolean> => {
     try {
@@ -162,13 +193,13 @@ export const usePushNotifications = () => {
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
           await supabase
-            .from("push_subscriptions" as any)
+            .from("push_subscriptions")
             .delete()
-            .eq("endpoint", subscription.endpoint);
+            .eq("user_id", user.id);
 
           await supabase
             .from("profiles")
-            .update({ notifications_enabled: false } as any)
+            .update({ notifications_enabled: false })
             .eq("user_id", user.id);
         }
       }
