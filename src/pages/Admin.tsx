@@ -37,6 +37,7 @@ import {
 import { format, addHours } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import UserDetailsModal from "@/components/UserDetailsModal";
+import MetricDetailModal, { MetricType } from "@/components/MetricDetailModal";
 
 interface DashboardMetrics {
   totalUsers: number;
@@ -117,6 +118,9 @@ const Admin = () => {
 
   // User details modal
   const [selectedUserForDetails, setSelectedUserForDetails] = useState<string | null>(null);
+  
+  // Metric detail modal
+  const [selectedMetric, setSelectedMetric] = useState<MetricType | null>(null);
 
   // Announcement form
   const [announcementTitle, setAnnouncementTitle] = useState("");
@@ -647,6 +651,7 @@ const Admin = () => {
                 label="Total de Usuários"
                 value={metrics?.totalUsers || 0}
                 color="primary"
+                onClick={() => setSelectedMetric("totalUsers")}
               />
               <MetricCard
                 icon={<Activity className="w-6 h-6" />}
@@ -654,18 +659,21 @@ const Admin = () => {
                 value={metrics?.activeUsers || 0}
                 color="accent"
                 subtitle="3+ logins/semana"
+                onClick={() => setSelectedMetric("activeUsers")}
               />
               <MetricCard
                 icon={<Eye className="w-6 h-6" />}
                 label="Visitas Hoje"
                 value={metrics?.visitsToday || 0}
                 color="secondary"
+                onClick={() => setSelectedMetric("visitsToday")}
               />
               <MetricCard
                 icon={<TrendingUp className="w-6 h-6" />}
                 label="Total Visitas"
                 value={metrics?.totalVisits || 0}
                 color="muted"
+                onClick={() => setSelectedMetric("totalVisits")}
               />
             </div>
 
@@ -675,24 +683,28 @@ const Admin = () => {
                 label="Posts Hoje"
                 value={metrics?.postsToday || 0}
                 color="accent"
+                onClick={() => setSelectedMetric("postsToday")}
               />
               <MetricCard
                 icon={<BarChart3 className="w-6 h-6" />}
                 label="Posts na Semana"
                 value={metrics?.postsThisWeek || 0}
                 color="primary"
+                onClick={() => setSelectedMetric("postsThisWeek")}
               />
               <MetricCard
                 icon={<Shield className="w-6 h-6" />}
                 label="Total Serviços"
                 value={metrics?.totalServices || 0}
                 color="secondary"
+                onClick={() => setSelectedMetric("totalServices")}
               />
               <MetricCard
                 icon={<Calendar className="w-6 h-6" />}
                 label="Serviços na Semana"
                 value={metrics?.servicesThisWeek || 0}
                 color="muted"
+                onClick={() => setSelectedMetric("servicesThisWeek")}
               />
             </div>
           </TabsContent>
@@ -1229,6 +1241,12 @@ const Admin = () => {
         isOpen={!!selectedUserForDetails}
         onClose={() => setSelectedUserForDetails(null)}
       />
+
+      {/* Metric Detail Modal */}
+      <MetricDetailModal
+        type={selectedMetric}
+        onClose={() => setSelectedMetric(null)}
+      />
     </div>
   );
 };
@@ -1239,12 +1257,14 @@ const MetricCard = ({
   value,
   color,
   subtitle,
+  onClick,
 }: {
   icon: React.ReactNode;
   label: string;
   value: number;
   color: "primary" | "secondary" | "accent" | "muted";
   subtitle?: string;
+  onClick?: () => void;
 }) => {
   const colorClasses = {
     primary: "bg-primary/10 text-primary",
@@ -1254,14 +1274,17 @@ const MetricCard = ({
   };
 
   return (
-    <div className="card-maridaas p-4">
+    <button 
+      onClick={onClick}
+      className="card-maridaas p-4 text-left w-full hover:border-primary transition-colors cursor-pointer"
+    >
       <div className={`w-10 h-10 rounded-xl ${colorClasses[color]} flex items-center justify-center mb-3`}>
         {icon}
       </div>
       <p className="text-2xl font-bold text-foreground">{value}</p>
       <p className="text-sm text-muted-foreground">{label}</p>
       {subtitle && <p className="text-xs text-muted-foreground">{subtitle}</p>}
-    </div>
+    </button>
   );
 };
 
