@@ -518,9 +518,9 @@ const MetricDetailModal = ({ type, onClose }: MetricDetailModalProps) => {
   return (
     <>
       <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-        <div className="bg-background rounded-2xl w-full max-w-2xl max-h-[85vh] flex flex-col shadow-elevated">
+        <div className="bg-background rounded-2xl w-full max-w-2xl max-h-[85vh] flex flex-col shadow-elevated overflow-hidden">
           {/* Header */}
-          <div className="flex items-center justify-between p-4 border-b border-border">
+          <div className="flex-shrink-0 flex items-center justify-between p-4 border-b border-border">
             <div>
               <h2 className="font-display font-bold text-lg text-foreground">
                 {METRIC_LABELS[type]}
@@ -538,7 +538,7 @@ const MetricDetailModal = ({ type, onClose }: MetricDetailModalProps) => {
           </div>
 
           {/* Search */}
-          <div className="p-4 border-b border-border">
+          <div className="flex-shrink-0 p-4 border-b border-border">
             <Input
               placeholder="Buscar..."
               value={searchTerm}
@@ -547,11 +547,9 @@ const MetricDetailModal = ({ type, onClose }: MetricDetailModalProps) => {
           </div>
 
           {/* Content */}
-          <ScrollArea className="flex-1 min-h-0">
-            <div className="p-4">
-              {renderContent()}
-            </div>
-          </ScrollArea>
+          <div className="flex-1 overflow-auto p-4">
+            {renderContent()}
+          </div>
         </div>
       </div>
 
