@@ -567,7 +567,6 @@ export type Database = {
       admin_delete_post: { Args: { post_id: string }; Returns: boolean }
       admin_delete_review: { Args: { review_id: string }; Returns: boolean }
       admin_delete_service: { Args: { service_id: string }; Returns: boolean }
-      admin_delete_user: { Args: { target_user_id: string }; Returns: boolean }
       admin_get_all_posts: {
         Args: never
         Returns: {

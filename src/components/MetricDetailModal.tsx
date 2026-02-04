@@ -1,23 +1,10 @@
 import { useState, useEffect } from "react";
-import { X, User, MapPin, Star, Calendar, Eye, Briefcase, MessageSquare, Trash2, ChevronDown, ChevronUp } from "lucide-react";
+import { X, User, MapPin, Star, Calendar, Eye, Briefcase, MessageSquare } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
-import { useToast } from "@/hooks/use-toast";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 
 export type MetricType = 
   | "totalUsers" 
@@ -32,7 +19,6 @@ export type MetricType =
 interface MetricDetailModalProps {
   type: MetricType | null;
   onClose: () => void;
-  onDataChanged?: () => void;
 }
 
 interface ServiceItem {
@@ -83,17 +69,13 @@ const METRIC_LABELS: Record<MetricType, string> = {
   servicesThisWeek: "Serviços da Semana",
 };
 
-const MetricDetailModal = ({ type, onClose, onDataChanged }: MetricDetailModalProps) => {
-  const { toast } = useToast();
+const MetricDetailModal = ({ type, onClose }: MetricDetailModalProps) => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [services, setServices] = useState<ServiceItem[]>([]);
   const [posts, setPosts] = useState<PostItem[]>([]);
   const [users, setUsers] = useState<UserItem[]>([]);
   const [visits, setVisits] = useState<VisitItem[]>([]);
-  const [isExpanded, setIsExpanded] = useState(true);
-  const [userToDelete, setUserToDelete] = useState<UserItem | null>(null);
-  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (type) {
@@ -302,36 +284,6 @@ const MetricDetailModal = ({ type, onClose, onDataChanged }: MetricDetailModalPr
     );
   };
 
-  const handleDeleteUser = async () => {
-    if (!userToDelete) return;
-    
-    setDeleting(true);
-    try {
-      const { error } = await supabase.rpc("admin_delete_user", { 
-        target_user_id: userToDelete.user_id 
-      });
-      
-      if (error) throw error;
-      
-      toast({
-        title: "Conta deletada",
-        description: `A conta de ${userToDelete.full_name} foi removida com sucesso.`,
-      });
-      
-      setUsers(prev => prev.filter(u => u.user_id !== userToDelete.user_id));
-      onDataChanged?.();
-    } catch (error: any) {
-      toast({
-        title: "Erro ao deletar conta",
-        description: error.message || "Não foi possível deletar a conta.",
-        variant: "destructive",
-      });
-    } finally {
-      setDeleting(false);
-      setUserToDelete(null);
-    }
-  };
-
   if (!type) return null;
 
   const renderContent = () => {
@@ -444,21 +396,11 @@ const MetricDetailModal = ({ type, onClose, onDataChanged }: MetricDetailModalPr
                     </span>
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <div className="text-right text-xs text-muted-foreground">
-                    {type === "activeUsers" && user.session_count && (
-                      <p className="font-semibold text-primary">{user.session_count} sessões</p>
-                    )}
-                    <p>{format(new Date(user.created_at), "dd/MM/yyyy", { locale: ptBR })}</p>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                    onClick={() => setUserToDelete(user)}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                <div className="text-right text-xs text-muted-foreground">
+                  {type === "activeUsers" && user.session_count && (
+                    <p className="font-semibold text-primary">{user.session_count} sessões</p>
+                  )}
+                  <p>{format(new Date(user.created_at), "dd/MM/yyyy", { locale: ptBR })}</p>
                 </div>
               </div>
             </div>
@@ -524,103 +466,41 @@ const MetricDetailModal = ({ type, onClose, onDataChanged }: MetricDetailModalPr
   };
 
   return (
-    <>
-      <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-        <div className="bg-background rounded-2xl w-full max-w-2xl max-h-[85vh] flex flex-col shadow-elevated">
-          {/* Header */}
-          <div className="flex items-center justify-between p-4 border-b border-border">
-            <div>
-              <h2 className="font-display font-bold text-lg text-foreground">
-                {METRIC_LABELS[type]}
-              </h2>
-              {!loading && (
-                <p className="text-sm text-muted-foreground">{getItemCount()} item(s)</p>
-              )}
-            </div>
-            <button
-              onClick={onClose}
-              className="p-2 hover:bg-muted rounded-full transition-colors"
-            >
-              <X className="w-5 h-5 text-muted-foreground" />
-            </button>
+    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+      <div className="bg-background rounded-2xl w-full max-w-2xl max-h-[85vh] flex flex-col shadow-elevated">
+        {/* Header */}
+        <div className="flex items-center justify-between p-4 border-b border-border">
+          <div>
+            <h2 className="font-display font-bold text-lg text-foreground">
+              {METRIC_LABELS[type]}
+            </h2>
+            {!loading && (
+              <p className="text-sm text-muted-foreground">{getItemCount()} item(s)</p>
+            )}
           </div>
-
-          {/* Search + Toggle */}
-          <div className="p-4 border-b border-border space-y-3">
-            <Input
-              placeholder="Buscar..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-            <div className="flex items-center justify-between">
-              <button
-                onClick={() => setIsExpanded(!isExpanded)}
-                className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
-              >
-                {isExpanded ? (
-                  <>
-                    <ChevronUp className="w-4 h-4" />
-                    Recolher lista
-                  </>
-                ) : (
-                  <>
-                    <ChevronDown className="w-4 h-4" />
-                    Expandir lista
-                  </>
-                )}
-              </button>
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground">Mostrar lista</span>
-                <Switch
-                  checked={isExpanded}
-                  onCheckedChange={setIsExpanded}
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Content */}
-          {isExpanded && (
-            <ScrollArea className="flex-1 p-4">
-              {renderContent()}
-            </ScrollArea>
-          )}
-          
-          {!isExpanded && (
-            <div className="flex-1 flex items-center justify-center p-8">
-              <p className="text-muted-foreground text-sm">
-                Clique em "Expandir lista" ou ative o toggle para visualizar os itens
-              </p>
-            </div>
-          )}
+          <button
+            onClick={onClose}
+            className="p-2 hover:bg-muted rounded-full transition-colors"
+          >
+            <X className="w-5 h-5 text-muted-foreground" />
+          </button>
         </div>
-      </div>
 
-      {/* Delete User Confirmation Dialog */}
-      <AlertDialog open={!!userToDelete} onOpenChange={() => setUserToDelete(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Deletar conta de usuário</AlertDialogTitle>
-            <AlertDialogDescription>
-              Tem certeza que deseja deletar a conta de <strong>{userToDelete?.full_name}</strong>?
-              <br /><br />
-              Esta ação é <strong>irreversível</strong> e removerá todos os dados associados ao usuário, 
-              incluindo posts, serviços, mensagens e avaliações.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDeleteUser}
-              disabled={deleting}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {deleting ? "Deletando..." : "Deletar conta"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </>
+        {/* Search */}
+        <div className="p-4 border-b border-border">
+          <Input
+            placeholder="Buscar..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
+
+        {/* Content */}
+        <ScrollArea className="flex-1 p-4">
+          {renderContent()}
+        </ScrollArea>
+      </div>
+    </div>
   );
 };
 
