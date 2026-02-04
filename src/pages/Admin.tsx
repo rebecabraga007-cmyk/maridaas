@@ -25,6 +25,9 @@ import {
   Send,
   Loader2,
   Clock,
+  ImagePlus,
+  Link,
+  ExternalLink,
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -38,6 +41,7 @@ import { format, addHours } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import UserDetailsModal from "@/components/UserDetailsModal";
 import MetricDetailModal, { MetricType } from "@/components/MetricDetailModal";
+import ImageUpload from "@/components/ImageUpload";
 
 interface DashboardMetrics {
   totalUsers: number;
@@ -71,6 +75,8 @@ interface Announcement {
   starts_at: string;
   ends_at: string | null;
   created_at: string;
+  image_url: string | null;
+  link_url: string | null;
 }
 
 interface Neighborhood {
@@ -129,6 +135,8 @@ const Admin = () => {
   const [announcementTargetId, setAnnouncementTargetId] = useState("");
   const [announcementStartsAt, setAnnouncementStartsAt] = useState("");
   const [announcementEndsAt, setAnnouncementEndsAt] = useState("");
+  const [announcementImageUrl, setAnnouncementImageUrl] = useState("");
+  const [announcementLinkUrl, setAnnouncementLinkUrl] = useState("");
 
   // Push notification form
   const [pushTitle, setPushTitle] = useState("");
@@ -516,6 +524,8 @@ const Admin = () => {
       starts_at: announcementStartsAt || new Date().toISOString(),
       ends_at: announcementEndsAt || null,
       created_by: user.id,
+      image_url: announcementImageUrl || null,
+      link_url: announcementLinkUrl.trim() || null,
     });
 
     if (error) {
@@ -534,6 +544,8 @@ const Admin = () => {
     setAnnouncementTargetId("");
     setAnnouncementStartsAt("");
     setAnnouncementEndsAt("");
+    setAnnouncementImageUrl("");
+    setAnnouncementLinkUrl("");
     loadAnnouncements();
   };
 
@@ -953,6 +965,35 @@ const Admin = () => {
                   </div>
                 </div>
 
+                <div>
+                  <Label className="flex items-center gap-2">
+                    <Link className="w-4 h-4" />
+                    Link (opcional)
+                  </Label>
+                  <Input
+                    value={announcementLinkUrl}
+                    onChange={(e) => setAnnouncementLinkUrl(e.target.value)}
+                    placeholder="https://exemplo.com"
+                    type="url"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">O usuário poderá clicar para abrir este link</p>
+                </div>
+
+                <div>
+                  <Label className="flex items-center gap-2">
+                    <ImagePlus className="w-4 h-4" />
+                    Imagem (opcional)
+                  </Label>
+                  {user && (
+                    <ImageUpload
+                      userId={user.id}
+                      folder="announcements"
+                      onImageUploaded={setAnnouncementImageUrl}
+                      existingUrl={announcementImageUrl}
+                    />
+                  )}
+                </div>
+
                 <Button onClick={handleCreateAnnouncement} className="btn-maridaas w-full">
                   <Megaphone className="w-4 h-4 mr-2" />
                   Publicar Recado
@@ -968,6 +1009,29 @@ const Admin = () => {
                     <div className="flex-1 min-w-0">
                       <p className="font-semibold text-foreground">{a.title}</p>
                       <p className="text-sm text-muted-foreground mt-1 whitespace-pre-wrap">{a.content}</p>
+                      
+                      {a.image_url && (
+                        <div className="mt-2 rounded-lg overflow-hidden max-w-xs">
+                          <img 
+                            src={a.image_url} 
+                            alt={a.title}
+                            className="w-full h-24 object-cover"
+                          />
+                        </div>
+                      )}
+                      
+                      {a.link_url && (
+                        <a 
+                          href={a.link_url} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="mt-2 inline-flex items-center gap-1 text-sm text-primary hover:underline"
+                        >
+                          <ExternalLink className="w-3 h-3" />
+                          {a.link_url.length > 40 ? a.link_url.substring(0, 40) + "..." : a.link_url}
+                        </a>
+                      )}
+                      
                       <div className="flex gap-2 mt-2 flex-wrap">
                         <span className="text-xs bg-muted px-2 py-1 rounded">
                           {a.is_global ? "Global" : a.neighborhood_id ? "Bairro" : "Usuário"}
