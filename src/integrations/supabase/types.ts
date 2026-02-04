@@ -556,7 +556,50 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      profiles_public: {
+        Row: {
+          avatar_url: string | null
+          bio: string | null
+          city: string | null
+          created_at: string | null
+          full_name: string | null
+          neighborhood: string | null
+          primary_neighborhood_id: string | null
+          secondary_neighborhood_id: string | null
+          user_id: string | null
+        }
+        Insert: {
+          avatar_url?: string | null
+          bio?: string | null
+          city?: string | null
+          created_at?: string | null
+          full_name?: string | null
+          neighborhood?: string | null
+          primary_neighborhood_id?: string | null
+          secondary_neighborhood_id?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          avatar_url?: string | null
+          bio?: string | null
+          city?: string | null
+          created_at?: string | null
+          full_name?: string | null
+          neighborhood?: string | null
+          primary_neighborhood_id?: string | null
+          secondary_neighborhood_id?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profiles_secondary_neighborhood_id_fkey"
+            columns: ["secondary_neighborhood_id"]
+            isOneToOne: false
+            referencedRelation: "neighborhoods"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       admin_create_post: {

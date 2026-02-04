@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { validateAuthHeader, safeErrorResponse } from "../_shared/validation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -16,52 +17,44 @@ serve(async (req) => {
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
 
     if (!supabaseUrl || !supabaseAnonKey) {
-      throw new Error("Missing Supabase configuration");
+      console.error("Missing Supabase configuration");
+      return safeErrorResponse("Configuration error", corsHeaders, 500);
     }
 
-    // ===== AUTHENTICATION CHECK =====
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
-      return new Response(
-        JSON.stringify({ error: "Unauthorized: Missing or invalid authorization header" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    // ===== VALIDATE AUTHORIZATION HEADER =====
+    const authValidation = validateAuthHeader(req.headers.get("Authorization"));
+    if (!authValidation.valid) {
+      return safeErrorResponse(authValidation.error, corsHeaders, 401);
     }
 
+    // ===== AUTHENTICATE USER =====
     const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: authHeader } }
+      global: { headers: { Authorization: `Bearer ${authValidation.token}` } }
     });
 
-    const token = authHeader.replace("Bearer ", "");
-    const { data: claimsData, error: claimsError } = await supabase.auth.getClaims(token);
+    const { data: claimsData, error: claimsError } = await supabase.auth.getClaims(authValidation.token!);
     
     if (claimsError || !claimsData?.claims) {
-      console.error("Auth error:", claimsError);
-      return new Response(
-        JSON.stringify({ error: "Unauthorized: Invalid token" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      console.error("Token validation failed:", claimsError);
+      return safeErrorResponse("Invalid token", corsHeaders, 401);
     }
 
-    // User is authenticated, return the VAPID public key
+    // User is authenticated - return VAPID key
     const vapidPublicKey = Deno.env.get("VAPID_PUBLIC_KEY");
 
     if (!vapidPublicKey) {
-      throw new Error("VAPID_PUBLIC_KEY not configured");
+      console.error("VAPID_PUBLIC_KEY not configured");
+      return safeErrorResponse("Configuration error", corsHeaders, 500);
     }
 
-    console.log(`VAPID key requested by user ${claimsData.claims.sub}`);
+    // Log access (without exposing user ID in response)
+    console.log(`VAPID key requested by authenticated user`);
 
     return new Response(
       JSON.stringify({ vapidPublicKey }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {
-    console.error("Error:", error);
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    return new Response(
-      JSON.stringify({ error: errorMessage }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return safeErrorResponse(error, corsHeaders, 500);
   }
 });

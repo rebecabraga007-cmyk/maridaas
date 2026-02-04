@@ -1,5 +1,11 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  validateAuthHeader,
+  validateNotificationPayload,
+  safeErrorResponse,
+  isValidUUID,
+} from "../_shared/validation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -27,41 +33,39 @@ serve(async (req) => {
     const vapidPrivateKey = Deno.env.get("VAPID_PRIVATE_KEY");
 
     if (!supabaseUrl || !supabaseServiceKey || !supabaseAnonKey) {
-      throw new Error("Missing Supabase credentials");
+      console.error("Missing Supabase credentials");
+      return safeErrorResponse("Configuration error", corsHeaders, 500);
     }
 
     if (!vapidPublicKey || !vapidPrivateKey) {
-      throw new Error("Missing VAPID keys. Please configure VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY secrets.");
+      console.error("Missing VAPID keys");
+      return safeErrorResponse("Configuration error", corsHeaders, 500);
     }
 
-    // ===== AUTHENTICATION CHECK =====
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
-      return new Response(
-        JSON.stringify({ error: "Unauthorized: Missing or invalid authorization header" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    // ===== VALIDATE AUTHORIZATION HEADER =====
+    const authValidation = validateAuthHeader(req.headers.get("Authorization"));
+    if (!authValidation.valid) {
+      return safeErrorResponse(authValidation.error, corsHeaders, 401);
     }
 
-    // Create client with user's token to validate
+    // ===== AUTHENTICATE USER =====
     const supabaseUser = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: authHeader } }
+      global: { headers: { Authorization: `Bearer ${authValidation.token}` } }
     });
 
-    const token = authHeader.replace("Bearer ", "");
-    const { data: claimsData, error: claimsError } = await supabaseUser.auth.getClaims(token);
+    const { data: claimsData, error: claimsError } = await supabaseUser.auth.getClaims(authValidation.token!);
     
     if (claimsError || !claimsData?.claims) {
-      console.error("Auth error:", claimsError);
-      return new Response(
-        JSON.stringify({ error: "Unauthorized: Invalid token" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      console.error("Token validation failed:", claimsError);
+      return safeErrorResponse("Invalid token", corsHeaders, 401);
     }
 
     const userId = claimsData.claims.sub;
+    if (!isValidUUID(userId)) {
+      return safeErrorResponse("Invalid user ID", corsHeaders, 401);
+    }
 
-    // ===== ADMIN ROLE CHECK =====
+    // ===== VERIFY ADMIN ROLE =====
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
     
     const { data: roleData, error: roleError } = await supabase
@@ -73,26 +77,35 @@ serve(async (req) => {
 
     if (roleError) {
       console.error("Role check error:", roleError);
-      return new Response(
-        JSON.stringify({ error: "Failed to verify permissions" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return safeErrorResponse("Permission check failed", corsHeaders, 500);
     }
 
     if (!roleData) {
-      console.warn(`Unauthorized access attempt by user ${userId}`);
-      return new Response(
-        JSON.stringify({ error: "Forbidden: Admin access required" }),
-        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      console.warn(`Unauthorized admin access attempt by user ${userId}`);
+      return safeErrorResponse("Admin access required", corsHeaders, 403);
     }
 
     console.log(`Admin ${userId} authorized for push notification operation`);
 
-    // ===== PROCESS NOTIFICATIONS =====
-    const body = await req.json();
-    const { notification_id, process_pending } = body;
+    // ===== VALIDATE REQUEST BODY =====
+    let requestBody: unknown;
+    try {
+      requestBody = await req.json();
+    } catch {
+      return safeErrorResponse("Invalid JSON body", corsHeaders, 400);
+    }
 
+    const payloadValidation = validateNotificationPayload(requestBody);
+    if (!payloadValidation.valid) {
+      return new Response(
+        JSON.stringify({ error: payloadValidation.error }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const { notification_id, process_pending } = payloadValidation.data!;
+
+    // ===== PROCESS NOTIFICATIONS =====
     let notificationsToProcess: Array<{
       id: string;
       title: string;
@@ -109,7 +122,8 @@ serve(async (req) => {
         .lte("scheduled_at", new Date().toISOString());
 
       if (pendingError) {
-        throw new Error(`Failed to fetch pending notifications: ${pendingError.message}`);
+        console.error("Failed to fetch pending notifications:", pendingError);
+        return safeErrorResponse("Failed to fetch notifications", corsHeaders, 500);
       }
 
       notificationsToProcess = pendingNotifications || [];
@@ -121,15 +135,16 @@ serve(async (req) => {
         .single();
 
       if (notifError || !notification) {
-        throw new Error("Notification not found");
+        return new Response(
+          JSON.stringify({ error: "Notification not found" }),
+          { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
       }
 
       notificationsToProcess = [notification];
-    } else {
-      throw new Error("Must provide notification_id or process_pending=true");
     }
 
-    const results: Array<{ id: string; sent: number; failed: number; errors: string[] }> = [];
+    const results: Array<{ id: string; sent: number; failed: number }> = [];
 
     for (const notification of notificationsToProcess) {
       let subscriptions: Array<{ id: string; endpoint: string; p256dh: string; auth: string; user_id: string }> = [];
@@ -138,6 +153,11 @@ serve(async (req) => {
         const { data } = await supabase.from("push_subscriptions").select("*");
         subscriptions = data || [];
       } else if (notification.target_type === "neighborhood" && notification.target_id) {
+        if (!isValidUUID(notification.target_id)) {
+          console.warn(`Invalid target_id in notification ${notification.id}`);
+          continue;
+        }
+
         const { data: profiles } = await supabase
           .from("profiles")
           .select("user_id")
@@ -153,6 +173,11 @@ serve(async (req) => {
           subscriptions = data || [];
         }
       } else if (notification.target_type === "user" && notification.target_id) {
+        if (!isValidUUID(notification.target_id)) {
+          console.warn(`Invalid target_id in notification ${notification.id}`);
+          continue;
+        }
+
         const { data } = await supabase
           .from("push_subscriptions")
           .select("*")
@@ -160,7 +185,7 @@ serve(async (req) => {
         subscriptions = data || [];
       }
 
-      console.log(`Processing notification ${notification.id}: ${subscriptions.length} subscriptions found`);
+      console.log(`Processing notification ${notification.id}: ${subscriptions.length} subscriptions`);
 
       const payload: PushPayload = {
         title: notification.title,
@@ -171,35 +196,22 @@ serve(async (req) => {
 
       let successCount = 0;
       let failCount = 0;
-      const errors: string[] = [];
 
       for (const sub of subscriptions) {
         try {
-          const result = await sendWebPush(
-            sub,
-            payload,
-            vapidPublicKey,
-            vapidPrivateKey
-          );
+          const result = await sendWebPush(sub, payload, vapidPublicKey, vapidPrivateKey);
 
           if (result.success) {
             successCount++;
-            console.log(`✓ Sent to subscription ${sub.id}`);
           } else {
             failCount++;
-            errors.push(`Sub ${sub.id}: ${result.error}`);
-            console.error(`✗ Failed to send to ${sub.id}: ${result.error}`);
-
             if (result.status === 410 || result.status === 404) {
               await supabase.from("push_subscriptions").delete().eq("id", sub.id);
-              console.log(`Removed invalid subscription ${sub.id}`);
             }
           }
         } catch (err) {
           failCount++;
-          const errMsg = err instanceof Error ? err.message : String(err);
-          errors.push(`Sub ${sub.id}: ${errMsg}`);
-          console.error(`✗ Error sending to ${sub.id}:`, err);
+          console.error(`Error sending to ${sub.id}:`, err);
         }
       }
 
@@ -208,28 +220,19 @@ serve(async (req) => {
         .update({ sent_at: new Date().toISOString() })
         .eq("id", notification.id);
 
-      results.push({ id: notification.id, sent: successCount, failed: failCount, errors });
+      results.push({ id: notification.id, sent: successCount, failed: failCount });
     }
 
     return new Response(
-      JSON.stringify({ 
-        success: true, 
-        processed: results.length,
-        results 
-      }),
+      JSON.stringify({ success: true, processed: results.length, results }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {
-    console.error("Error:", error);
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    return new Response(
-      JSON.stringify({ error: errorMessage }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return safeErrorResponse(error, corsHeaders, 500);
   }
 });
 
-// Helper functions for Web Push
+// ===== WEB PUSH HELPERS =====
 
 function base64UrlToUint8Array(base64url: string): Uint8Array {
   const base64 = base64url.replace(/-/g, "+").replace(/_/g, "/");
@@ -251,16 +254,11 @@ async function sendWebPush(
 ): Promise<{ success: boolean; status?: number; error?: string }> {
   try {
     const payloadString = JSON.stringify(payload);
-    
-    const vapidHeaders = await createVapidAuthHeader(
-      subscription.endpoint,
-      vapidPublicKey,
-      vapidPrivateKey
-    );
+    const vapidHeaders = await createVapidAuthHeader(subscription.endpoint, vapidPublicKey, vapidPrivateKey);
 
     const isFCM = subscription.endpoint.includes("fcm.googleapis.com") || 
                   subscription.endpoint.includes("android.googleapis.com");
-    
+
     const headers: Record<string, string> = {
       "TTL": "86400",
       "Urgency": "high",
@@ -268,7 +266,6 @@ async function sendWebPush(
     };
 
     let bodyToSend: BodyInit;
-    
     if (isFCM) {
       headers["Content-Type"] = "application/json";
       bodyToSend = payloadString;
@@ -288,17 +285,9 @@ async function sendWebPush(
       return { success: true, status: response.status };
     }
 
-    const errorText = await response.text();
-    return { 
-      success: false, 
-      status: response.status, 
-      error: `HTTP ${response.status}: ${errorText.substring(0, 200)}` 
-    };
+    return { success: false, status: response.status };
   } catch (error) {
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : String(error) 
-    };
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
   }
 }
 
@@ -309,7 +298,7 @@ async function createVapidAuthHeader(
 ): Promise<Record<string, string>> {
   const now = Math.floor(Date.now() / 1000);
   const exp = now + 12 * 60 * 60;
-  
+
   const header = { alg: "ES256", typ: "JWT" };
   const claims = {
     aud: new URL(endpoint).origin,
@@ -350,49 +339,26 @@ async function createVapidAuthHeader(
   );
 
   const signatureBytes = new Uint8Array(signatureBuffer);
-  let rawSignature: Uint8Array;
-  
-  if (signatureBytes.length === 64) {
-    rawSignature = signatureBytes;
-  } else {
-    rawSignature = derToRaw(signatureBytes);
-  }
-
+  const rawSignature = signatureBytes.length === 64 ? signatureBytes : derToRaw(signatureBytes);
   const jwt = `${unsignedToken}.${uint8ArrayToBase64Url(rawSignature)}`;
 
-  return {
-    "Authorization": `vapid t=${jwt}, k=${vapidPublicKey}`,
-  };
+  return { "Authorization": `vapid t=${jwt}, k=${vapidPublicKey}` };
 }
 
 function derToRaw(derSignature: Uint8Array): Uint8Array {
   const raw = new Uint8Array(64);
-  
-  let offset = 2;
-  
-  offset += 1;
-  const rLen = derSignature[offset];
-  offset += 1;
-  
+  let offset = 3;
+  const rLen = derSignature[offset - 1];
   let rStart = offset;
-  if (derSignature[rStart] === 0 && rLen === 33) {
-    rStart += 1;
-  }
-  const rBytes = derSignature.slice(rStart, offset + rLen);
-  raw.set(rBytes.slice(-32), 32 - Math.min(rBytes.length, 32));
+  if (derSignature[rStart] === 0 && rLen === 33) rStart++;
+  raw.set(derSignature.slice(rStart, offset + rLen - (rStart - offset)).slice(-32), 0);
   
-  offset += rLen;
-  
-  offset += 1;
+  offset += rLen + 1;
   const sLen = derSignature[offset];
-  offset += 1;
-  
+  offset++;
   let sStart = offset;
-  if (derSignature[sStart] === 0 && sLen === 33) {
-    sStart += 1;
-  }
-  const sBytes = derSignature.slice(sStart, offset + sLen);
-  raw.set(sBytes.slice(-32), 64 - Math.min(sBytes.length, 32));
+  if (derSignature[sStart] === 0 && sLen === 33) sStart++;
+  raw.set(derSignature.slice(sStart, offset + sLen - (sStart - offset)).slice(-32), 32);
   
   return raw;
 }
