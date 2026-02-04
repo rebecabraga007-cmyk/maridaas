@@ -2,15 +2,18 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
   validateAuthHeader,
-  validateNotificationPayload,
   safeErrorResponse,
+  safeJsonResponse,
   isValidUUID,
-} from "../_shared/validation.ts";
+  sanitizeInput,
+  sanitizeNumber,
+  sanitizeBoolean,
+  handleCorsOptions,
+  safeParseJson,
+  DEFAULT_CORS_HEADERS,
+} from "../_shared/security.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+const corsHeaders = DEFAULT_CORS_HEADERS;
 
 interface PushPayload {
   title: string;
@@ -20,9 +23,53 @@ interface PushPayload {
   data?: Record<string, unknown>;
 }
 
+interface NotificationRequest {
+  notification_id?: string;
+  process_pending?: boolean;
+}
+
+/**
+ * Validates and sanitizes notification request payload
+ */
+function validateNotificationPayload(body: unknown): {
+  valid: boolean;
+  data?: NotificationRequest;
+  error?: string;
+} {
+  if (!body || typeof body !== "object") {
+    return { valid: false, error: "Invalid request body" };
+  }
+
+  const payload = body as Record<string, unknown>;
+
+  // Validate notification_id if provided
+  if (payload.notification_id !== undefined) {
+    if (!isValidUUID(payload.notification_id)) {
+      return { valid: false, error: "Invalid notification_id format" };
+    }
+  }
+
+  // Validate process_pending if provided
+  const processPending = sanitizeBoolean(payload.process_pending, false);
+
+  // At least one must be provided
+  if (!payload.notification_id && !processPending) {
+    return { valid: false, error: "Must provide notification_id or process_pending" };
+  }
+
+  return {
+    valid: true,
+    data: {
+      notification_id: payload.notification_id as string | undefined,
+      process_pending: processPending,
+    },
+  };
+}
+
 serve(async (req) => {
+  // Handle CORS preflight
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return handleCorsOptions(corsHeaders);
   }
 
   try {
@@ -87,20 +134,15 @@ serve(async (req) => {
 
     console.log(`Admin ${userId} authorized for push notification operation`);
 
-    // ===== VALIDATE REQUEST BODY =====
-    let requestBody: unknown;
-    try {
-      requestBody = await req.json();
-    } catch {
-      return safeErrorResponse("Invalid JSON body", corsHeaders, 400);
+    // ===== VALIDATE REQUEST BODY (with size limit) =====
+    const parseResult = await safeParseJson<NotificationRequest>(req, 10_000);
+    if (!parseResult.success) {
+      return safeErrorResponse(parseResult.error, corsHeaders, 400);
     }
 
-    const payloadValidation = validateNotificationPayload(requestBody);
+    const payloadValidation = validateNotificationPayload(parseResult.data);
     if (!payloadValidation.valid) {
-      return new Response(
-        JSON.stringify({ error: payloadValidation.error }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return safeErrorResponse(payloadValidation.error, corsHeaders, 400);
     }
 
     const { notification_id, process_pending } = payloadValidation.data!;
@@ -187,9 +229,10 @@ serve(async (req) => {
 
       console.log(`Processing notification ${notification.id}: ${subscriptions.length} subscriptions`);
 
+      // Sanitize notification content before sending
       const payload: PushPayload = {
-        title: notification.title,
-        body: notification.body,
+        title: sanitizeInput(notification.title, 200),
+        body: sanitizeInput(notification.body, 500),
         url: "/feed",
         icon: "/logo.png",
       };
@@ -223,9 +266,11 @@ serve(async (req) => {
       results.push({ id: notification.id, sent: successCount, failed: failCount });
     }
 
-    return new Response(
-      JSON.stringify({ success: true, processed: results.length, results }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    // Return sanitized response
+    return safeJsonResponse(
+      { success: true, processed: results.length, results },
+      corsHeaders,
+      { stripSensitive: false }
     );
   } catch (error) {
     return safeErrorResponse(error, corsHeaders, 500);
