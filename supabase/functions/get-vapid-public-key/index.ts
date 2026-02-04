@@ -1,15 +1,19 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { validateAuthHeader, safeErrorResponse } from "../_shared/validation.ts";
+import { 
+  validateAuthHeader, 
+  safeErrorResponse,
+  safeJsonResponse,
+  handleCorsOptions,
+  DEFAULT_CORS_HEADERS,
+} from "../_shared/security.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+const corsHeaders = DEFAULT_CORS_HEADERS;
 
 serve(async (req) => {
+  // Handle CORS preflight
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return handleCorsOptions(corsHeaders);
   }
 
   try {
@@ -50,9 +54,11 @@ serve(async (req) => {
     // Log access (without exposing user ID in response)
     console.log(`VAPID key requested by authenticated user`);
 
-    return new Response(
-      JSON.stringify({ vapidPublicKey }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    // Return sanitized response
+    return safeJsonResponse(
+      { vapidPublicKey },
+      corsHeaders,
+      { stripSensitive: false }
     );
   } catch (error) {
     return safeErrorResponse(error, corsHeaders, 500);
