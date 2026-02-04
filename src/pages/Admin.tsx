@@ -1246,6 +1246,7 @@ const Admin = () => {
       <MetricDetailModal
         type={selectedMetric}
         onClose={() => setSelectedMetric(null)}
+        onDataChanged={loadAllData}
       />
     </div>
   );
