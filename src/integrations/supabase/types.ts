@@ -21,7 +21,9 @@ export type Database = {
           created_by: string
           ends_at: string | null
           id: string
+          image_url: string | null
           is_global: boolean
+          link_url: string | null
           neighborhood_id: string | null
           starts_at: string
           target_user_id: string | null
@@ -33,7 +35,9 @@ export type Database = {
           created_by: string
           ends_at?: string | null
           id?: string
+          image_url?: string | null
           is_global?: boolean
+          link_url?: string | null
           neighborhood_id?: string | null
           starts_at?: string
           target_user_id?: string | null
@@ -45,7 +49,9 @@ export type Database = {
           created_by?: string
           ends_at?: string | null
           id?: string
+          image_url?: string | null
           is_global?: boolean
+          link_url?: string | null
           neighborhood_id?: string | null
           starts_at?: string
           target_user_id?: string | null

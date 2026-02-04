@@ -1,4 +1,4 @@
-import { Megaphone, X } from "lucide-react";
+import { Megaphone, X, ExternalLink } from "lucide-react";
 import { useState } from "react";
 
 interface AnnouncementBannerProps {
@@ -6,6 +6,8 @@ interface AnnouncementBannerProps {
     id: string;
     title: string;
     content: string;
+    image_url?: string | null;
+    link_url?: string | null;
   };
 }
 
@@ -13,6 +15,12 @@ const AnnouncementBanner = ({ announcement }: AnnouncementBannerProps) => {
   const [dismissed, setDismissed] = useState(false);
 
   if (dismissed) return null;
+
+  const handleLinkClick = () => {
+    if (announcement.link_url) {
+      window.open(announcement.link_url, "_blank", "noopener,noreferrer");
+    }
+  };
 
   return (
     <div className="mb-6 card-maridaas p-4 bg-gold-light border-secondary">
@@ -30,7 +38,27 @@ const AnnouncementBanner = ({ announcement }: AnnouncementBannerProps) => {
               <X className="w-4 h-4" />
             </button>
           </div>
-          <p className="text-sm text-muted-foreground">{announcement.content}</p>
+          <p className="text-sm text-muted-foreground whitespace-pre-wrap">{announcement.content}</p>
+          
+          {announcement.image_url && (
+            <div className="mt-3 rounded-xl overflow-hidden">
+              <img 
+                src={announcement.image_url} 
+                alt={announcement.title}
+                className="w-full max-h-48 object-cover"
+              />
+            </div>
+          )}
+          
+          {announcement.link_url && (
+            <button
+              onClick={handleLinkClick}
+              className="mt-3 flex items-center gap-2 text-sm text-primary hover:underline font-medium"
+            >
+              <ExternalLink className="w-4 h-4" />
+              Acessar link
+            </button>
+          )}
         </div>
       </div>
     </div>
