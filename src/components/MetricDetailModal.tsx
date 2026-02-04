@@ -1,10 +1,22 @@
 import { useState, useEffect } from "react";
-import { X, User, MapPin, Star, Calendar, Eye, Briefcase, MessageSquare } from "lucide-react";
+import { X, User, MapPin, Star, Calendar, Eye, Briefcase, MessageSquare, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export type MetricType = 
   | "totalUsers" 
@@ -76,6 +88,8 @@ const MetricDetailModal = ({ type, onClose }: MetricDetailModalProps) => {
   const [posts, setPosts] = useState<PostItem[]>([]);
   const [users, setUsers] = useState<UserItem[]>([]);
   const [visits, setVisits] = useState<VisitItem[]>([]);
+  const [userToDelete, setUserToDelete] = useState<UserItem | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (type) {
@@ -396,11 +410,21 @@ const MetricDetailModal = ({ type, onClose }: MetricDetailModalProps) => {
                     </span>
                   </div>
                 </div>
-                <div className="text-right text-xs text-muted-foreground">
-                  {type === "activeUsers" && user.session_count && (
-                    <p className="font-semibold text-primary">{user.session_count} sessões</p>
-                  )}
-                  <p>{format(new Date(user.created_at), "dd/MM/yyyy", { locale: ptBR })}</p>
+                <div className="flex items-center gap-3">
+                  <div className="text-right text-xs text-muted-foreground">
+                    {type === "activeUsers" && user.session_count && (
+                      <p className="font-semibold text-primary">{user.session_count} sessões</p>
+                    )}
+                    <p>{format(new Date(user.created_at), "dd/MM/yyyy", { locale: ptBR })}</p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                    onClick={() => setUserToDelete(user)}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
                 </div>
               </div>
             </div>
@@ -465,42 +489,95 @@ const MetricDetailModal = ({ type, onClose }: MetricDetailModalProps) => {
     }
   };
 
+  const handleDeleteUser = async () => {
+    if (!userToDelete) return;
+    
+    setDeleting(true);
+    try {
+      const { data, error } = await supabase.rpc("admin_delete_user", {
+        target_user_id: userToDelete.user_id,
+      });
+
+      if (error) throw error;
+
+      if (data) {
+        toast.success("Usuário deletado com sucesso");
+        setUsers((prev) => prev.filter((u) => u.user_id !== userToDelete.user_id));
+      } else {
+        toast.error("Não foi possível deletar o usuário");
+      }
+    } catch (error) {
+      console.error("Error deleting user:", error);
+      toast.error("Erro ao deletar usuário");
+    } finally {
+      setDeleting(false);
+      setUserToDelete(null);
+    }
+  };
+
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-      <div className="bg-background rounded-2xl w-full max-w-2xl max-h-[85vh] flex flex-col shadow-elevated">
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-border">
-          <div>
-            <h2 className="font-display font-bold text-lg text-foreground">
-              {METRIC_LABELS[type]}
-            </h2>
-            {!loading && (
-              <p className="text-sm text-muted-foreground">{getItemCount()} item(s)</p>
-            )}
+    <>
+      <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+        <div className="bg-background rounded-2xl w-full max-w-2xl max-h-[85vh] flex flex-col shadow-elevated">
+          {/* Header */}
+          <div className="flex items-center justify-between p-4 border-b border-border">
+            <div>
+              <h2 className="font-display font-bold text-lg text-foreground">
+                {METRIC_LABELS[type]}
+              </h2>
+              {!loading && (
+                <p className="text-sm text-muted-foreground">{getItemCount()} item(s)</p>
+              )}
+            </div>
+            <button
+              onClick={onClose}
+              className="p-2 hover:bg-muted rounded-full transition-colors"
+            >
+              <X className="w-5 h-5 text-muted-foreground" />
+            </button>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-muted rounded-full transition-colors"
-          >
-            <X className="w-5 h-5 text-muted-foreground" />
-          </button>
-        </div>
 
-        {/* Search */}
-        <div className="p-4 border-b border-border">
-          <Input
-            placeholder="Buscar..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-        </div>
+          {/* Search */}
+          <div className="p-4 border-b border-border">
+            <Input
+              placeholder="Buscar..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
 
-        {/* Content */}
-        <ScrollArea className="flex-1 p-4">
-          {renderContent()}
-        </ScrollArea>
+          {/* Content */}
+          <ScrollArea className="flex-1 min-h-0">
+            <div className="p-4">
+              {renderContent()}
+            </div>
+          </ScrollArea>
+        </div>
       </div>
-    </div>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!userToDelete} onOpenChange={() => setUserToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja deletar a conta de <strong>{userToDelete?.full_name}</strong>?
+              Esta ação não pode ser desfeita e todos os dados do usuário serão removidos.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteUser}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? "Deletando..." : "Deletar"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 };
 
