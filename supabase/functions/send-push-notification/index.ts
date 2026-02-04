@@ -22,10 +22,11 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
     const vapidPublicKey = Deno.env.get("VAPID_PUBLIC_KEY");
     const vapidPrivateKey = Deno.env.get("VAPID_PRIVATE_KEY");
 
-    if (!supabaseUrl || !supabaseServiceKey) {
+    if (!supabaseUrl || !supabaseServiceKey || !supabaseAnonKey) {
       throw new Error("Missing Supabase credentials");
     }
 
@@ -33,7 +34,62 @@ serve(async (req) => {
       throw new Error("Missing VAPID keys. Please configure VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY secrets.");
     }
 
+    // ===== AUTHENTICATION CHECK =====
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+      return new Response(
+        JSON.stringify({ error: "Unauthorized: Missing or invalid authorization header" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Create client with user's token to validate
+    const supabaseUser = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } }
+    });
+
+    const token = authHeader.replace("Bearer ", "");
+    const { data: claimsData, error: claimsError } = await supabaseUser.auth.getClaims(token);
+    
+    if (claimsError || !claimsData?.claims) {
+      console.error("Auth error:", claimsError);
+      return new Response(
+        JSON.stringify({ error: "Unauthorized: Invalid token" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const userId = claimsData.claims.sub;
+
+    // ===== ADMIN ROLE CHECK =====
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    
+    const { data: roleData, error: roleError } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", userId)
+      .eq("role", "admin")
+      .maybeSingle();
+
+    if (roleError) {
+      console.error("Role check error:", roleError);
+      return new Response(
+        JSON.stringify({ error: "Failed to verify permissions" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    if (!roleData) {
+      console.warn(`Unauthorized access attempt by user ${userId}`);
+      return new Response(
+        JSON.stringify({ error: "Forbidden: Admin access required" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    console.log(`Admin ${userId} authorized for push notification operation`);
+
+    // ===== PROCESS NOTIFICATIONS =====
     const body = await req.json();
     const { notification_id, process_pending } = body;
 
@@ -46,7 +102,6 @@ serve(async (req) => {
     }> = [];
 
     if (process_pending) {
-      // Process all pending notifications that are past their scheduled time
       const { data: pendingNotifications, error: pendingError } = await supabase
         .from("scheduled_notifications")
         .select("*")
@@ -59,7 +114,6 @@ serve(async (req) => {
 
       notificationsToProcess = pendingNotifications || [];
     } else if (notification_id) {
-      // Process a specific notification
       const { data: notification, error: notifError } = await supabase
         .from("scheduled_notifications")
         .select("*")
@@ -78,14 +132,12 @@ serve(async (req) => {
     const results: Array<{ id: string; sent: number; failed: number; errors: string[] }> = [];
 
     for (const notification of notificationsToProcess) {
-      // Get target subscriptions based on target_type
       let subscriptions: Array<{ id: string; endpoint: string; p256dh: string; auth: string; user_id: string }> = [];
 
       if (notification.target_type === "all") {
         const { data } = await supabase.from("push_subscriptions").select("*");
         subscriptions = data || [];
       } else if (notification.target_type === "neighborhood" && notification.target_id) {
-        // Get users in the neighborhood
         const { data: profiles } = await supabase
           .from("profiles")
           .select("user_id")
@@ -123,8 +175,6 @@ serve(async (req) => {
 
       for (const sub of subscriptions) {
         try {
-          // Use Web Push API with proper encryption
-          // The push service expects proper VAPID authentication and encrypted payload
           const result = await sendWebPush(
             sub,
             payload,
@@ -140,7 +190,6 @@ serve(async (req) => {
             errors.push(`Sub ${sub.id}: ${result.error}`);
             console.error(`✗ Failed to send to ${sub.id}: ${result.error}`);
 
-            // Remove invalid subscription (410 Gone or 404 Not Found)
             if (result.status === 410 || result.status === 404) {
               await supabase.from("push_subscriptions").delete().eq("id", sub.id);
               console.log(`Removed invalid subscription ${sub.id}`);
@@ -154,7 +203,6 @@ serve(async (req) => {
         }
       }
 
-      // Mark notification as sent
       await supabase
         .from("scheduled_notifications")
         .update({ sent_at: new Date().toISOString() })
@@ -204,15 +252,12 @@ async function sendWebPush(
   try {
     const payloadString = JSON.stringify(payload);
     
-    // Create VAPID authorization header
     const vapidHeaders = await createVapidAuthHeader(
       subscription.endpoint,
       vapidPublicKey,
       vapidPrivateKey
     );
 
-    // For FCM/GCM endpoints, we can send unencrypted JSON payload
-    // For other push services, encryption would be required
     const isFCM = subscription.endpoint.includes("fcm.googleapis.com") || 
                   subscription.endpoint.includes("android.googleapis.com");
     
@@ -225,11 +270,9 @@ async function sendWebPush(
     let bodyToSend: BodyInit;
     
     if (isFCM) {
-      // FCM accepts JSON directly
       headers["Content-Type"] = "application/json";
       bodyToSend = payloadString;
     } else {
-      // For other services, we need encryption - but for now, try without
       headers["Content-Type"] = "application/octet-stream";
       headers["Content-Encoding"] = "aes128gcm";
       bodyToSend = new TextEncoder().encode(payloadString);
@@ -265,7 +308,7 @@ async function createVapidAuthHeader(
   vapidPrivateKey: string
 ): Promise<Record<string, string>> {
   const now = Math.floor(Date.now() / 1000);
-  const exp = now + 12 * 60 * 60; // 12 hours
+  const exp = now + 12 * 60 * 60;
   
   const header = { alg: "ES256", typ: "JWT" };
   const claims = {
@@ -278,11 +321,9 @@ async function createVapidAuthHeader(
   const claimsB64 = uint8ArrayToBase64Url(new TextEncoder().encode(JSON.stringify(claims)));
   const unsignedToken = `${headerB64}.${claimsB64}`;
 
-  // Parse the VAPID keys
   const privateKeyBytes = base64UrlToUint8Array(vapidPrivateKey);
   const publicKeyBytes = base64UrlToUint8Array(vapidPublicKey);
 
-  // Public key is 65 bytes: 0x04 + 32 bytes X + 32 bytes Y
   const x = publicKeyBytes.slice(1, 33);
   const y = publicKeyBytes.slice(33, 65);
 
@@ -308,14 +349,12 @@ async function createVapidAuthHeader(
     new TextEncoder().encode(unsignedToken)
   );
 
-  // Convert from DER format to raw 64-byte format if needed
   const signatureBytes = new Uint8Array(signatureBuffer);
   let rawSignature: Uint8Array;
   
   if (signatureBytes.length === 64) {
     rawSignature = signatureBytes;
   } else {
-    // DER format - need to extract r and s values
     rawSignature = derToRaw(signatureBytes);
   }
 
@@ -326,19 +365,15 @@ async function createVapidAuthHeader(
   };
 }
 
-// Convert DER signature to raw 64-byte format
 function derToRaw(derSignature: Uint8Array): Uint8Array {
   const raw = new Uint8Array(64);
   
-  // DER format: 0x30 [len] 0x02 [r-len] [r] 0x02 [s-len] [s]
-  let offset = 2; // Skip 0x30 and total length
+  let offset = 2;
   
-  // Skip 0x02 tag for r
   offset += 1;
   const rLen = derSignature[offset];
   offset += 1;
   
-  // Extract r (may have leading zero)
   let rStart = offset;
   if (derSignature[rStart] === 0 && rLen === 33) {
     rStart += 1;
@@ -348,12 +383,10 @@ function derToRaw(derSignature: Uint8Array): Uint8Array {
   
   offset += rLen;
   
-  // Skip 0x02 tag for s
   offset += 1;
   const sLen = derSignature[offset];
   offset += 1;
   
-  // Extract s (may have leading zero)
   let sStart = offset;
   if (derSignature[sStart] === 0 && sLen === 33) {
     sStart += 1;

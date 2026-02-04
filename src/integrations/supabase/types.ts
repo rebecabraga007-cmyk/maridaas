@@ -589,6 +589,26 @@ export type Database = {
           user_id: string
         }[]
       }
+      admin_get_full_profile: {
+        Args: { target_user_id: string }
+        Returns: {
+          address: string
+          avatar_url: string
+          bio: string
+          birth_date: string
+          cep: string
+          city: string
+          cpf: string
+          created_at: string
+          full_name: string
+          instagram: string
+          neighborhood: string
+          primary_neighborhood_id: string
+          secondary_neighborhood_id: string
+          user_id: string
+          whatsapp: string
+        }[]
+      }
       can_interact_in_neighborhood: {
         Args: { _neighborhood_id: string; _user_id: string }
         Returns: boolean
