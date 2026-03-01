@@ -14,6 +14,7 @@ import NeighborhoodView from "./pages/NeighborhoodView";
 import Admin from "./pages/Admin";
 import Messages from "./pages/Messages";
 import Inbox from "./pages/Inbox";
+import Premium from "./pages/Premium";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -36,6 +37,7 @@ const App = () => (
           <Route path="/admin" element={<Admin />} />
           <Route path="/messages/:userId" element={<Messages />} />
           <Route path="/inbox" element={<Inbox />} />
+          <Route path="/premium" element={<Premium />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
