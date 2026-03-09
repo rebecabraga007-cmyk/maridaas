@@ -14,6 +14,8 @@ import {
   Home,
   Briefcase,
   Star,
+  Sparkles,
+  Crown,
 } from "lucide-react";
 import ServiceDetailModal from "@/components/ServiceDetailModal";
 import CreateServiceModal from "@/components/CreateServiceModal";
@@ -51,6 +53,8 @@ const Services = () => {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isModerator, setIsModerator] = useState(false);
+  const [isPremium, setIsPremium] = useState(false);
+  const [checkingPremium, setCheckingPremium] = useState(true);
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
@@ -74,8 +78,26 @@ const Services = () => {
     if (user) {
       loadUserProfile();
       checkUserRoles();
+      checkPremiumStatus();
     }
   }, [user]);
+
+  const checkPremiumStatus = async () => {
+    if (!user) return;
+    
+    setCheckingPremium(true);
+    const { data } = await supabase
+      .from("subscriptions")
+      .select("status, expires_at")
+      .eq("user_id", user.id)
+      .single();
+    
+    const isPremiumUser = data?.status === 'active' && 
+      (!data?.expires_at || new Date(data.expires_at) > new Date());
+    
+    setIsPremium(isPremiumUser);
+    setCheckingPremium(false);
+  };
 
   const checkUserRoles = async () => {
     if (!user) return;
@@ -195,9 +217,19 @@ const Services = () => {
               </p>
             </div>
             <div className="flex-1" />
-            <Button size="sm" className="btn-maridaas" onClick={() => setShowCreateModal(true)}>
-              <Plus className="w-4 h-4 mr-1" /> Cadastrar
-            </Button>
+            {checkingPremium ? (
+              <Button size="sm" disabled className="btn-maridaas">
+                <Plus className="w-4 h-4 mr-1" /> Cadastrar
+              </Button>
+            ) : isPremium ? (
+              <Button size="sm" className="btn-maridaas" onClick={() => setShowCreateModal(true)}>
+                <Plus className="w-4 h-4 mr-1" /> Cadastrar
+              </Button>
+            ) : (
+              <Button size="sm" className="bg-gradient-to-r from-secondary to-primary text-white" onClick={() => navigate("/premium")}>
+                <Sparkles className="w-4 h-4 mr-1" /> Premium
+              </Button>
+            )}
           </div>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -212,15 +244,47 @@ const Services = () => {
       </header>
 
       <main className="container mx-auto px-4 pt-36">
+        {/* Premium Upgrade Card for Non-Premium Users */}
+        {!checkingPremium && !isPremium && (
+          <div className="mb-6 card-maridaas p-6 bg-gradient-to-br from-primary/10 to-secondary/10 border-2 border-primary/20">
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 rounded-full bg-gradient-to-r from-secondary to-primary flex items-center justify-center flex-shrink-0">
+                <Crown className="w-6 h-6 text-white" />
+              </div>
+              <div className="flex-1">
+                <h3 className="font-display font-bold text-lg text-foreground mb-1">
+                  Ofereça seus serviços
+                </h3>
+                <p className="text-sm text-muted-foreground mb-3">
+                  Assine o Maridaas Premium por apenas R$ 29,90/mês e cadastre seus serviços para toda a vizinhança!
+                </p>
+                <Button 
+                  className="bg-gradient-to-r from-secondary to-primary text-white"
+                  onClick={() => navigate("/premium")}
+                >
+                  <Sparkles className="w-4 h-4 mr-2" />
+                  Assinar Premium
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {filteredServices.length === 0 ? (
           <div className="text-center py-12">
             <Briefcase className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
             <p className="text-muted-foreground">
               {searchQuery ? "Nenhum serviço encontrado" : "Nenhum serviço cadastrado no bairro ainda."}
             </p>
-            <Button className="btn-maridaas mt-4" onClick={() => setShowCreateModal(true)}>
-              <Plus className="w-4 h-4 mr-2" /> Seja a primeira!
-            </Button>
+            {isPremium ? (
+              <Button className="btn-maridaas mt-4" onClick={() => setShowCreateModal(true)}>
+                <Plus className="w-4 h-4 mr-2" /> Seja a primeira!
+              </Button>
+            ) : (
+              <Button className="bg-gradient-to-r from-secondary to-primary text-white mt-4" onClick={() => navigate("/premium")}>
+                <Sparkles className="w-4 h-4 mr-2" /> Assinar Premium
+              </Button>
+            )}
           </div>
         ) : (
           <div className="grid gap-4">
