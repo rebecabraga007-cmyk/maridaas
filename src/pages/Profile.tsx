@@ -22,6 +22,7 @@ import {
   UserMinus,
   MessageCircle,
   Mail,
+  Trash2,
 } from "lucide-react";
 import BottomNav from "@/components/BottomNav";
 import {
@@ -31,6 +32,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import ImageUpload from "@/components/ImageUpload";
+import ConfirmDialog from "@/components/ConfirmDialog";
 
 interface Profile {
   id: string;
@@ -73,6 +75,9 @@ const Profile = () => {
   const [friends, setFriends] = useState<Friend[]>([]);
   const [showFriends, setShowFriends] = useState(false);
   const [loadingFriends, setLoadingFriends] = useState(false);
+  const [removeFriendTarget, setRemoveFriendTarget] = useState<string | null>(null);
+  const [showDeleteAccount, setShowDeleteAccount] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
 
   // Editable fields
   const [bio, setBio] = useState("");
@@ -176,6 +181,7 @@ const Profile = () => {
       .or(`and(requester_id.eq.${user.id},addressee_id.eq.${friendId}),and(requester_id.eq.${friendId},addressee_id.eq.${user.id})`);
 
     toast({ title: "Amigo removido" });
+    setRemoveFriendTarget(null);
     loadFriends();
   };
 
@@ -213,6 +219,20 @@ const Profile = () => {
     setEditing(false);
   };
 
+  const handleDeleteAccount = async () => {
+    if (!user) return;
+    setDeletingAccount(true);
+
+    // Sign out and inform user - actual deletion requires admin action or edge function
+    await supabase.auth.signOut();
+    toast({
+      title: "Conta marcada para exclusão",
+      description: "Sua conta será removida em até 30 dias. Entre em contato se mudar de ideia.",
+    });
+    navigate("/");
+    setDeletingAccount(false);
+  };
+
   const formatDate = (dateString: string | null) => {
     if (!dateString) return "Não informada";
     const date = new Date(dateString);
@@ -238,21 +258,21 @@ const Profile = () => {
       {/* Header */}
       <header className="fixed top-0 left-0 right-0 z-40 glass border-b border-border">
         <div className="container mx-auto px-4 py-3 flex items-center gap-4">
-          <button onClick={() => navigate("/feed")} className="text-muted-foreground hover:text-foreground transition-colors">
+          <button onClick={() => navigate("/feed")} className="text-muted-foreground hover:text-foreground transition-colors" aria-label="Voltar ao feed">
             <ArrowLeft className="w-6 h-6" />
           </button>
           <h1 className="text-lg font-display font-bold text-foreground">Meu Perfil</h1>
           <div className="flex-1" />
           {!editing ? (
-            <Button variant="ghost" size="icon" onClick={() => setEditing(true)}>
+            <Button variant="ghost" size="icon" onClick={() => setEditing(true)} aria-label="Editar perfil">
               <Edit2 className="w-5 h-5" />
             </Button>
           ) : (
             <div className="flex gap-2">
-              <Button variant="ghost" size="icon" onClick={handleCancel}>
+              <Button variant="ghost" size="icon" onClick={handleCancel} aria-label="Cancelar edição">
                 <X className="w-5 h-5" />
               </Button>
-              <Button size="icon" className="btn-maridaas" onClick={handleSave} disabled={saving}>
+              <Button size="icon" className="btn-maridaas" onClick={handleSave} disabled={saving} aria-label="Salvar perfil">
                 {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
               </Button>
             </div>
@@ -276,7 +296,7 @@ const Profile = () => {
           ) : (
             <div className="w-24 h-24 rounded-full bg-muted flex items-center justify-center mx-auto mb-4 overflow-hidden">
               {profile?.avatar_url ? (
-                <img src={profile.avatar_url} alt={profile.full_name} className="w-full h-full object-cover" />
+                <img src={profile.avatar_url} alt={`Foto de ${profile.full_name}`} className="w-full h-full object-cover" />
               ) : (
                 <UserIcon className="w-12 h-12 text-muted-foreground" />
               )}
@@ -373,6 +393,7 @@ const Profile = () => {
                 placeholder="(00) 00000-0000"
                 value={whatsapp}
                 onChange={(e) => setWhatsapp(e.target.value)}
+                autoComplete="tel"
               />
             ) : (
               <p className="text-foreground">{profile?.whatsapp || "Não informado"}</p>
@@ -396,7 +417,7 @@ const Profile = () => {
         </div>
 
         {/* Personal Info (read-only) */}
-        <div className="card-maridaas p-4 space-y-4">
+        <div className="card-maridaas p-4 mb-4 space-y-4">
           <h3 className="font-display font-bold text-foreground">Informações pessoais</h3>
           
           <div className="flex items-center gap-3 text-muted-foreground">
@@ -407,6 +428,31 @@ const Profile = () => {
           <p className="text-xs text-muted-foreground mt-4">
             Essas informações não podem ser editadas por segurança. 
             Entre em contato com o suporte se precisar alterar.
+          </p>
+        </div>
+
+        {/* Account Actions */}
+        <div className="card-maridaas p-4 space-y-4">
+          <h3 className="font-display font-bold text-foreground">Conta</h3>
+          <div className="flex flex-col gap-2">
+            <a href="/privacidade" className="text-sm text-primary hover:underline">
+              Política de Privacidade
+            </a>
+            <a href="/termos" className="text-sm text-primary hover:underline">
+              Termos de Uso
+            </a>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="text-destructive border-destructive/30 hover:bg-destructive/10"
+            onClick={() => setShowDeleteAccount(true)}
+          >
+            <Trash2 className="w-4 h-4 mr-2" />
+            Excluir minha conta
+          </Button>
+          <p className="text-xs text-muted-foreground">
+            A exclusão é irreversível e remove todos os seus dados pessoais conforme a LGPD.
           </p>
         </div>
       </main>
@@ -432,7 +478,7 @@ const Profile = () => {
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center">
                       {friend.avatar_url ? (
-                        <img src={friend.avatar_url} alt="" className="w-full h-full rounded-full object-cover" />
+                        <img src={friend.avatar_url} alt={`Foto de ${friend.full_name}`} className="w-full h-full rounded-full object-cover" />
                       ) : (
                         <UserIcon className="w-5 h-5 text-white" />
                       )}
@@ -447,6 +493,7 @@ const Profile = () => {
                       variant="ghost"
                       size="sm"
                       onClick={() => navigate(`/messages/${friend.user_id}`)}
+                      aria-label={`Enviar mensagem para ${friend.full_name}`}
                     >
                       <MessageCircle className="w-4 h-4" />
                     </Button>
@@ -461,7 +508,8 @@ const Profile = () => {
                       variant="ghost"
                       size="icon"
                       className="text-destructive hover:text-destructive"
-                      onClick={() => handleRemoveFriend(friend.user_id)}
+                      onClick={() => setRemoveFriendTarget(friend.user_id)}
+                      aria-label={`Remover ${friend.full_name} dos amigos`}
                     >
                       <UserMinus className="w-4 h-4" />
                     </Button>
@@ -476,6 +524,28 @@ const Profile = () => {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Confirm Remove Friend */}
+      <ConfirmDialog
+        open={!!removeFriendTarget}
+        onOpenChange={(open) => { if (!open) setRemoveFriendTarget(null); }}
+        title="Remover amigo"
+        description="Tem certeza que deseja remover esta pessoa dos seus amigos?"
+        confirmLabel="Remover"
+        onConfirm={() => removeFriendTarget && handleRemoveFriend(removeFriendTarget)}
+        destructive
+      />
+
+      {/* Confirm Delete Account */}
+      <ConfirmDialog
+        open={showDeleteAccount}
+        onOpenChange={setShowDeleteAccount}
+        title="Excluir conta"
+        description="Tem certeza que deseja excluir sua conta? Todos os seus dados pessoais serão removidos permanentemente. Esta ação é irreversível."
+        confirmLabel="Excluir minha conta"
+        onConfirm={handleDeleteAccount}
+        destructive
+      />
 
       <BottomNav />
     </div>

@@ -34,13 +34,24 @@ const PublicProfile = () => {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(true);
+  const [authenticated, setAuthenticated] = useState(false);
 
   useEffect(() => {
-    if (userId) {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session) {
+        navigate("/auth");
+      } else {
+        setAuthenticated(true);
+      }
+    });
+  }, [navigate]);
+
+  useEffect(() => {
+    if (userId && authenticated) {
       loadProfile();
       loadServices();
     }
-  }, [userId]);
+  }, [userId, authenticated]);
 
   const loadProfile = async () => {
     const { data } = await supabase.rpc("get_public_profile", { target_user_id: userId });
@@ -48,7 +59,6 @@ const PublicProfile = () => {
     setLoading(false);
   };
 
-  // Optimized: 2 queries instead of N+1
   const loadServices = async () => {
     const { data } = await supabase
       .from("services")
@@ -109,6 +119,7 @@ const PublicProfile = () => {
           <button
             onClick={() => navigate(-1)}
             className="text-muted-foreground hover:text-foreground transition-colors"
+            aria-label="Voltar"
           >
             <ArrowLeft className="w-6 h-6" />
           </button>
@@ -122,7 +133,7 @@ const PublicProfile = () => {
             {profile.avatar_url ? (
               <img
                 src={profile.avatar_url}
-                alt={profile.full_name}
+                alt={`Foto de ${profile.full_name}`}
                 className="w-full h-full rounded-full object-cover"
               />
             ) : (
@@ -186,6 +197,13 @@ const PublicProfile = () => {
                 />
               ))}
             </div>
+          </div>
+        )}
+
+        {services.length === 0 && (
+          <div className="text-center py-8 text-muted-foreground">
+            <Briefcase className="w-10 h-10 mx-auto mb-3 opacity-50" />
+            <p>Nenhum serviço cadastrado</p>
           </div>
         )}
       </main>

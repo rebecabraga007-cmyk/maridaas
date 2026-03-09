@@ -3,6 +3,11 @@ import { Users, MapPin, Heart, MessageCircle, ShieldCheck, Sparkles } from "luci
 import { Button } from "@/components/ui/button";
 
 const Landing = () => {
+  const handleScrollTo = (e: React.MouseEvent<HTMLAnchorElement>, id: string) => {
+    e.preventDefault();
+    document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
+  };
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -49,11 +54,11 @@ const Landing = () => {
                   Começar agora
                 </Button>
               </Link>
-              <Link to="#como-funciona">
+              <a href="#como-funciona" onClick={(e) => handleScrollTo(e, "como-funciona")}>
                 <Button variant="outline" size="lg" className="text-lg px-8">
                   Como funciona
                 </Button>
-              </Link>
+              </a>
             </div>
           </div>
 
@@ -141,8 +146,12 @@ const Landing = () => {
               <img src="/logo.png" alt="Maridaas" className="h-8 w-8" />
               <span className="font-display font-bold text-foreground">Maridaas</span>
             </div>
+            <div className="flex items-center gap-4 text-sm text-muted-foreground">
+              <a href="/termos" className="hover:text-primary transition-colors">Termos de Uso</a>
+              <a href="/privacidade" className="hover:text-primary transition-colors">Privacidade</a>
+            </div>
             <p className="text-sm text-muted-foreground">
-              © 2024 Maridaas. Conectando comunidades.
+              © {new Date().getFullYear()} Maridaas. Conectando comunidades.
             </p>
           </div>
         </div>

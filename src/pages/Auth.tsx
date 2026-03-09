@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { Eye, EyeOff, ArrowLeft, Loader2 } from "lucide-react";
 import { z } from "zod";
@@ -34,6 +35,10 @@ const Auth = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState(1);
+  const [showResetPassword, setShowResetPassword] = useState(false);
+  const [resetEmail, setResetEmail] = useState("");
+  const [resetLoading, setResetLoading] = useState(false);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
 
   // Form states
   const [email, setEmail] = useState("");
@@ -80,7 +85,7 @@ const Auth = () => {
           setNeighborhood(data.bairro || "");
           setAddress(data.logradouro || "");
         }
-      } catch (error) {
+      } catch {
         // Silently fail - user can fill manually
       }
     }
@@ -99,7 +104,13 @@ const Auth = () => {
       });
 
       if (error) {
-        if (error.message.includes("Invalid login credentials")) {
+        if (error.message.includes("Email not confirmed")) {
+          toast({
+            title: "Email não confirmado",
+            description: "Verifique sua caixa de entrada e clique no link de confirmação enviado ao criar sua conta.",
+            variant: "destructive",
+          });
+        } else if (error.message.includes("Invalid login credentials")) {
           toast({
             title: "Erro ao entrar",
             description: "Email ou senha incorretos.",
@@ -126,6 +137,29 @@ const Auth = () => {
     }
   };
 
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!resetEmail.trim()) {
+      toast({ title: "Informe seu email", variant: "destructive" });
+      return;
+    }
+    setResetLoading(true);
+    const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
+      redirectTo: `${window.location.origin}/auth`,
+    });
+    if (error) {
+      toast({ title: "Erro", description: error.message, variant: "destructive" });
+    } else {
+      toast({
+        title: "Email enviado!",
+        description: "Verifique sua caixa de entrada para redefinir sua senha.",
+      });
+      setShowResetPassword(false);
+      setResetEmail("");
+    }
+    setResetLoading(false);
+  };
+
   const handleSignupStep1 = (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -148,6 +182,16 @@ const Auth = () => {
 
   const handleSignupStep2 = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!acceptedTerms) {
+      toast({
+        title: "Termos obrigatórios",
+        description: "Você precisa aceitar os termos de uso e política de privacidade.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -199,8 +243,10 @@ const Auth = () => {
       } else {
         toast({
           title: "Conta criada!",
-          description: "Bem-vinda à Maridaas!",
+          description: "Verifique seu email para confirmar sua conta antes de fazer login.",
         });
+        setIsSignup(false);
+        setStep(1);
       }
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -236,212 +282,290 @@ const Auth = () => {
           </div>
 
           <div className="card-maridaas p-8">
-            {/* Toggle */}
-            <div className="flex gap-2 p-1 bg-muted rounded-xl mb-8">
-              <button
-                onClick={() => { setIsSignup(false); setStep(1); }}
-                className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-all ${
-                  !isSignup ? "bg-card shadow-sm text-foreground" : "text-muted-foreground"
-                }`}
-              >
-                Entrar
-              </button>
-              <button
-                onClick={() => setIsSignup(true)}
-                className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-all ${
-                  isSignup ? "bg-card shadow-sm text-foreground" : "text-muted-foreground"
-                }`}
-              >
-                Criar conta
-              </button>
-            </div>
-
-            {!isSignup ? (
-              /* Login Form */
-              <form onSubmit={handleLogin} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="seu@email.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="input-maridaas"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="password">Senha</Label>
-                  <div className="relative">
-                    <Input
-                      id="password"
-                      type={showPassword ? "text" : "password"}
-                      placeholder="••••••••"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className="input-maridaas pr-10"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
-                    >
-                      {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-                    </button>
+            {showResetPassword ? (
+              /* Reset Password Form */
+              <form onSubmit={handleResetPassword} className="space-y-4">
+                <div className="flex items-center gap-4 mb-6">
+                  <button type="button" onClick={() => setShowResetPassword(false)} className="text-muted-foreground">
+                    <ArrowLeft className="h-5 w-5" />
+                  </button>
+                  <div>
+                    <h2 className="text-xl font-display font-bold text-foreground">Recuperar senha</h2>
+                    <p className="text-sm text-muted-foreground">Enviaremos um link para seu email</p>
                   </div>
                 </div>
 
-                <Button type="submit" className="w-full btn-maridaas" disabled={loading}>
-                  {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : "Entrar"}
+                <div className="space-y-2">
+                  <Label htmlFor="resetEmail">Email</Label>
+                  <Input
+                    id="resetEmail"
+                    type="email"
+                    placeholder="seu@email.com"
+                    value={resetEmail}
+                    onChange={(e) => setResetEmail(e.target.value)}
+                    className="input-maridaas"
+                    autoComplete="email"
+                  />
+                </div>
+
+                <Button type="submit" className="w-full btn-maridaas" disabled={resetLoading}>
+                  {resetLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : "Enviar link de recuperação"}
                 </Button>
               </form>
             ) : (
-              /* Signup Form */
               <>
-                {step === 1 ? (
-                  <form onSubmit={handleSignupStep1} className="space-y-4">
-                    <div className="text-center mb-6">
-                      <h2 className="text-xl font-display font-bold text-foreground">Dados da conta</h2>
-                      <p className="text-sm text-muted-foreground">Etapa 1 de 2</p>
-                    </div>
+                {/* Toggle */}
+                <div className="flex gap-2 p-1 bg-muted rounded-xl mb-8" role="tablist">
+                  <button
+                    role="tab"
+                    aria-selected={!isSignup}
+                    onClick={() => { setIsSignup(false); setStep(1); }}
+                    className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-all ${
+                      !isSignup ? "bg-card shadow-sm text-foreground" : "text-muted-foreground"
+                    }`}
+                  >
+                    Entrar
+                  </button>
+                  <button
+                    role="tab"
+                    aria-selected={isSignup}
+                    onClick={() => setIsSignup(true)}
+                    className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-all ${
+                      isSignup ? "bg-card shadow-sm text-foreground" : "text-muted-foreground"
+                    }`}
+                  >
+                    Criar conta
+                  </button>
+                </div>
 
+                {!isSignup ? (
+                  /* Login Form */
+                  <form onSubmit={handleLogin} className="space-y-4">
                     <div className="space-y-2">
-                      <Label htmlFor="fullName">Nome completo</Label>
+                      <Label htmlFor="email">Email</Label>
                       <Input
-                        id="fullName"
-                        placeholder="Maria Silva"
-                        value={fullName}
-                        onChange={(e) => setFullName(e.target.value)}
-                        className="input-maridaas"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="signupEmail">Email</Label>
-                      <Input
-                        id="signupEmail"
+                        id="email"
                         type="email"
                         placeholder="seu@email.com"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         className="input-maridaas"
+                        autoComplete="email"
                       />
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="signupPassword">Senha</Label>
+                      <Label htmlFor="password">Senha</Label>
                       <div className="relative">
                         <Input
-                          id="signupPassword"
+                          id="password"
                           type={showPassword ? "text" : "password"}
-                          placeholder="Mínimo 6 caracteres"
+                          placeholder="••••••••"
                           value={password}
                           onChange={(e) => setPassword(e.target.value)}
                           className="input-maridaas pr-10"
+                          autoComplete="current-password"
                         />
                         <button
                           type="button"
                           onClick={() => setShowPassword(!showPassword)}
                           className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+                          aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
                         >
                           {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                         </button>
                       </div>
                     </div>
 
-                    <Button type="submit" className="w-full btn-maridaas">
-                      Continuar
+                    <button
+                      type="button"
+                      onClick={() => { setShowResetPassword(true); setResetEmail(email); }}
+                      className="text-sm text-primary hover:underline"
+                    >
+                      Esqueceu a senha?
+                    </button>
+
+                    <Button type="submit" className="w-full btn-maridaas" disabled={loading}>
+                      {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : "Entrar"}
                     </Button>
                   </form>
                 ) : (
-                  <form onSubmit={handleSignupStep2} className="space-y-4">
-                    <div className="flex items-center gap-4 mb-6">
-                      <button type="button" onClick={() => setStep(1)} className="text-muted-foreground">
-                        <ArrowLeft className="h-5 w-5" />
-                      </button>
-                      <div>
-                        <h2 className="text-xl font-display font-bold text-foreground">Seus dados</h2>
-                        <p className="text-sm text-muted-foreground">Etapa 2 de 2</p>
-                      </div>
-                    </div>
+                  /* Signup Form */
+                  <>
+                    {step === 1 ? (
+                      <form onSubmit={handleSignupStep1} className="space-y-4">
+                        <div className="text-center mb-6">
+                          <h2 className="text-xl font-display font-bold text-foreground">Dados da conta</h2>
+                          <p className="text-sm text-muted-foreground">Etapa 1 de 2</p>
+                        </div>
 
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="cpf">CPF</Label>
-                        <Input
-                          id="cpf"
-                          placeholder="00000000000"
-                          value={cpf}
-                          onChange={(e) => setCpf(formatCPF(e.target.value))}
-                          className="input-maridaas"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="birthDate">Nascimento</Label>
-                        <Input
-                          id="birthDate"
-                          type="date"
-                          value={birthDate}
-                          onChange={(e) => setBirthDate(e.target.value)}
-                          className="input-maridaas"
-                        />
-                      </div>
-                    </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="fullName">Nome completo</Label>
+                          <Input
+                            id="fullName"
+                            placeholder="Maria Silva"
+                            value={fullName}
+                            onChange={(e) => setFullName(e.target.value)}
+                            className="input-maridaas"
+                            autoComplete="name"
+                          />
+                        </div>
 
-                    <div className="space-y-2">
-                      <Label htmlFor="cep">CEP</Label>
-                      <Input
-                        id="cep"
-                        placeholder="00000000"
-                        value={cep}
-                        onChange={(e) => {
-                          const value = formatCEP(e.target.value);
-                          setCep(value);
-                          fetchAddressByCEP(value);
-                        }}
-                        className="input-maridaas"
-                      />
-                    </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="signupEmail">Email</Label>
+                          <Input
+                            id="signupEmail"
+                            type="email"
+                            placeholder="seu@email.com"
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                            className="input-maridaas"
+                            autoComplete="email"
+                          />
+                        </div>
 
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="city">Cidade</Label>
-                        <Input
-                          id="city"
-                          placeholder="São Paulo"
-                          value={city}
-                          onChange={(e) => setCity(e.target.value)}
-                          className="input-maridaas"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="neighborhood">Bairro</Label>
-                        <Input
-                          id="neighborhood"
-                          placeholder="Centro"
-                          value={neighborhood}
-                          onChange={(e) => setNeighborhood(e.target.value)}
-                          className="input-maridaas"
-                        />
-                      </div>
-                    </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="signupPassword">Senha</Label>
+                          <div className="relative">
+                            <Input
+                              id="signupPassword"
+                              type={showPassword ? "text" : "password"}
+                              placeholder="Mínimo 6 caracteres"
+                              value={password}
+                              onChange={(e) => setPassword(e.target.value)}
+                              className="input-maridaas pr-10"
+                              autoComplete="new-password"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowPassword(!showPassword)}
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+                              aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
+                            >
+                              {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                            </button>
+                          </div>
+                        </div>
 
-                    <div className="space-y-2">
-                      <Label htmlFor="address">Endereço completo</Label>
-                      <Input
-                        id="address"
-                        placeholder="Rua, número, complemento"
-                        value={address}
-                        onChange={(e) => setAddress(e.target.value)}
-                        className="input-maridaas"
-                      />
-                    </div>
+                        <Button type="submit" className="w-full btn-maridaas">
+                          Continuar
+                        </Button>
+                      </form>
+                    ) : (
+                      <form onSubmit={handleSignupStep2} className="space-y-4">
+                        <div className="flex items-center gap-4 mb-6">
+                          <button type="button" onClick={() => setStep(1)} className="text-muted-foreground" aria-label="Voltar à etapa 1">
+                            <ArrowLeft className="h-5 w-5" />
+                          </button>
+                          <div>
+                            <h2 className="text-xl font-display font-bold text-foreground">Seus dados</h2>
+                            <p className="text-sm text-muted-foreground">Etapa 2 de 2</p>
+                          </div>
+                        </div>
 
-                    <Button type="submit" className="w-full btn-maridaas" disabled={loading}>
-                      {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : "Criar minha conta"}
-                    </Button>
-                  </form>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="cpf">CPF</Label>
+                            <Input
+                              id="cpf"
+                              placeholder="00000000000"
+                              value={cpf}
+                              onChange={(e) => setCpf(formatCPF(e.target.value))}
+                              className="input-maridaas"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="birthDate">Nascimento</Label>
+                            <Input
+                              id="birthDate"
+                              type="date"
+                              value={birthDate}
+                              onChange={(e) => setBirthDate(e.target.value)}
+                              className="input-maridaas"
+                              autoComplete="bday"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="cep">CEP</Label>
+                          <Input
+                            id="cep"
+                            placeholder="00000000"
+                            value={cep}
+                            onChange={(e) => {
+                              const value = formatCEP(e.target.value);
+                              setCep(value);
+                              fetchAddressByCEP(value);
+                            }}
+                            className="input-maridaas"
+                            autoComplete="postal-code"
+                          />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="city">Cidade</Label>
+                            <Input
+                              id="city"
+                              placeholder="São Paulo"
+                              value={city}
+                              onChange={(e) => setCity(e.target.value)}
+                              className="input-maridaas"
+                              autoComplete="address-level2"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="neighborhood">Bairro</Label>
+                            <Input
+                              id="neighborhood"
+                              placeholder="Centro"
+                              value={neighborhood}
+                              onChange={(e) => setNeighborhood(e.target.value)}
+                              className="input-maridaas"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="address">Endereço completo</Label>
+                          <Input
+                            id="address"
+                            placeholder="Rua, número, complemento"
+                            value={address}
+                            onChange={(e) => setAddress(e.target.value)}
+                            className="input-maridaas"
+                            autoComplete="street-address"
+                          />
+                        </div>
+
+                        {/* LGPD Consent */}
+                        <div className="flex items-start gap-3 p-3 rounded-xl bg-muted/50">
+                          <Checkbox
+                            id="terms"
+                            checked={acceptedTerms}
+                            onCheckedChange={(checked) => setAcceptedTerms(checked === true)}
+                            className="mt-0.5"
+                          />
+                          <label htmlFor="terms" className="text-sm text-muted-foreground leading-relaxed cursor-pointer">
+                            Eu li e concordo com os{" "}
+                            <a href="/termos" target="_blank" className="text-primary underline">
+                              Termos de Uso
+                            </a>{" "}
+                            e a{" "}
+                            <a href="/privacidade" target="_blank" className="text-primary underline">
+                              Política de Privacidade
+                            </a>
+                            . Autorizo o tratamento dos meus dados pessoais conforme descrito.
+                          </label>
+                        </div>
+
+                        <Button type="submit" className="w-full btn-maridaas" disabled={loading || !acceptedTerms}>
+                          {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : "Criar minha conta"}
+                        </Button>
+                      </form>
+                    )}
+                  </>
                 )}
               </>
             )}

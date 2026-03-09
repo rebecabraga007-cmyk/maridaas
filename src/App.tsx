@@ -18,6 +18,8 @@ const Admin = lazy(() => import("./pages/Admin"));
 const Messages = lazy(() => import("./pages/Messages"));
 const Inbox = lazy(() => import("./pages/Inbox"));
 const Premium = lazy(() => import("./pages/Premium"));
+const PrivacyPolicy = lazy(() => import("./pages/PrivacyPolicy"));
+const TermsOfService = lazy(() => import("./pages/TermsOfService"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient();
@@ -42,6 +44,8 @@ const App = () => (
             <Route path="/messages/:userId" element={<Messages />} />
             <Route path="/inbox" element={<Inbox />} />
             <Route path="/premium" element={<Premium />} />
+            <Route path="/privacidade" element={<PrivacyPolicy />} />
+            <Route path="/termos" element={<TermsOfService />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
