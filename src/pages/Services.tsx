@@ -14,6 +14,8 @@ import {
   Home,
   Briefcase,
   Star,
+  Sparkles,
+  Crown,
 } from "lucide-react";
 import ServiceDetailModal from "@/components/ServiceDetailModal";
 import CreateServiceModal from "@/components/CreateServiceModal";
