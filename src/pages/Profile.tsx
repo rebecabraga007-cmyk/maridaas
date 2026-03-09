@@ -119,8 +119,7 @@ const NotificationSection = () => {
   );
 };
 
-
-  const navigate = useNavigate();
+const Profile = () => {
   const { toast } = useToast();
 
   const [user, setUser] = useState<User | null>(null);
