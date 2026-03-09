@@ -14,6 +14,7 @@ import FeedHeader from "@/components/feed/FeedHeader";
 import FeedPostComposer from "@/components/feed/FeedPostComposer";
 import FeedPostList from "@/components/feed/FeedPostList";
 import FeedServiceCarousel from "@/components/feed/FeedServiceCarousel";
+import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 
 interface Profile {
   full_name: string;
