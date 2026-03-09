@@ -1,14 +1,14 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Bell, Check, X, Loader2 } from "lucide-react";
-import { usePushNotifications } from "@/hooks/usePushNotifications";
+import { Bell, Check, X, Loader2, Smartphone } from "lucide-react";
+import { useOneSignalPush } from "@/hooks/useOneSignalPush";
 
 interface NotificationSettingsModalProps {
   onClose: () => void;
 }
 
 const NotificationSettingsModal = ({ onClose }: NotificationSettingsModalProps) => {
-  const { subscribe, unsubscribe, isSubscribed, isLoading, permission } = usePushNotifications();
+  const { subscribe, unsubscribe, isSubscribed, isLoading, permission, needsPWAInstall } = useOneSignalPush();
   const [actionLoading, setActionLoading] = useState(false);
 
   const handleToggleNotifications = async () => {
@@ -22,7 +22,7 @@ const NotificationSettingsModal = ({ onClose }: NotificationSettingsModalProps) 
   };
 
   const isBlocked = permission === "denied";
-  const isUnsupported = permission === "unsupported";
+  const isUnsupported = permission === "unsupported" && !needsPWAInstall;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
@@ -48,6 +48,36 @@ const NotificationSettingsModal = ({ onClose }: NotificationSettingsModalProps) 
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="w-8 h-8 animate-spin text-primary" />
               </div>
+            ) : needsPWAInstall ? (
+              <>
+                <div className="flex items-center justify-center gap-2 mb-4">
+                  <Smartphone className="w-5 h-5 text-primary" />
+                  <span className="text-primary font-medium">Instale o app primeiro</span>
+                </div>
+                <p className="text-muted-foreground mb-6">
+                  No iPhone, as notificações push só funcionam quando o app está instalado na tela inicial.
+                </p>
+                <div className="bg-muted/50 rounded-2xl p-4 mb-6 text-left">
+                  <p className="text-sm text-foreground font-medium mb-2">Como instalar:</p>
+                  <ol className="text-sm text-muted-foreground space-y-2">
+                    <li className="flex items-start gap-2">
+                      <span className="w-5 h-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center flex-shrink-0 text-xs">1</span>
+                      Toque no ícone de compartilhar (↑) no Safari
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="w-5 h-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center flex-shrink-0 text-xs">2</span>
+                      Selecione "Adicionar à Tela de Início"
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="w-5 h-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center flex-shrink-0 text-xs">3</span>
+                      Abra o app pela tela inicial e ative as notificações
+                    </li>
+                  </ol>
+                </div>
+                <Button onClick={onClose} variant="outline" className="w-full">
+                  Entendi
+                </Button>
+              </>
             ) : isUnsupported ? (
               <>
                 <p className="text-muted-foreground mb-6">
