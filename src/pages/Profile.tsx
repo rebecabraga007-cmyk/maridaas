@@ -36,6 +36,7 @@ import ImageUpload from "@/components/ImageUpload";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import { Switch } from "@/components/ui/switch";
 import { useOneSignalPush } from "@/hooks/useOneSignalPush";
+import SEOHead from "@/components/SEOHead";
 
 interface Profile {
   id: string;
