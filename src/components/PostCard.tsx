@@ -315,4 +315,4 @@ const PostCard = ({ post, currentUserId, onLikeChange, onPostDeleted, onPostUpda
   );
 };
 
-export default PostCard;
+export default React.memo(PostCard);
