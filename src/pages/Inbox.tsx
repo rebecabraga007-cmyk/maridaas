@@ -13,7 +13,6 @@ import {
   Check,
   X,
   Trash2,
-  Bell,
 } from "lucide-react";
 import BottomNav from "@/components/BottomNav";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -21,6 +20,7 @@ import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import ProfilePreviewPopup from "@/components/ProfilePreviewPopup";
 import UserBadge from "@/components/UserBadge";
+import ConfirmDialog from "@/components/ConfirmDialog";
 
 interface Conversation {
   userId: string;
@@ -50,6 +50,7 @@ const Inbox = () => {
   const [friendRequests, setFriendRequests] = useState<FriendRequest[]>([]);
   const [processingRequest, setProcessingRequest] = useState<string | null>(null);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
@@ -182,16 +183,22 @@ const Inbox = () => {
     setProcessingRequest(null);
   };
 
+  // FIX: Properly delete only messages between current user and specific other user
   const handleDeleteConversation = async (otherUserId: string) => {
     if (!user) return;
 
+    // Delete messages sent BY current user TO other user
     await supabase
       .from("user_messages")
       .delete()
-      .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`)
-      .or(`sender_id.eq.${otherUserId},receiver_id.eq.${otherUserId}`);
+      .eq("sender_id", user.id)
+      .eq("receiver_id", otherUserId);
 
-    toast({ title: "Conversa excluída" });
+    // Note: RLS only allows deleting own sent messages, 
+    // so received messages from the other user remain (they own those)
+
+    toast({ title: "Suas mensagens foram excluídas" });
+    setDeleteTarget(null);
     loadConversations();
   };
 
@@ -205,10 +212,13 @@ const Inbox = () => {
 
   return (
     <div className="min-h-screen bg-background pb-24">
-      {/* Header */}
       <header className="fixed top-0 left-0 right-0 z-40 glass border-b border-border">
         <div className="container mx-auto px-4 py-3 flex items-center gap-4">
-          <button onClick={() => navigate("/feed")} className="text-muted-foreground hover:text-foreground transition-colors">
+          <button
+            onClick={() => navigate("/feed")}
+            className="text-muted-foreground hover:text-foreground transition-colors"
+            aria-label="Voltar ao feed"
+          >
             <ArrowLeft className="w-6 h-6" />
           </button>
           <h1 className="text-lg font-display font-bold text-foreground">Caixa de Entrada</h1>
@@ -243,10 +253,11 @@ const Inbox = () => {
                   <button
                     onClick={() => setSelectedUserId(conv.userId)}
                     className="relative"
+                    aria-label={`Ver perfil de ${conv.fullName}`}
                   >
                     <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center hover:ring-2 hover:ring-primary transition-all">
                       {conv.avatarUrl ? (
-                        <img src={conv.avatarUrl} alt="" className="w-full h-full rounded-full object-cover" />
+                        <img src={conv.avatarUrl} alt={`Foto de ${conv.fullName}`} className="w-full h-full rounded-full object-cover" />
                       ) : (
                         <UserIcon className="w-6 h-6 text-white" />
                       )}
@@ -274,7 +285,8 @@ const Inbox = () => {
                     variant="ghost"
                     size="icon"
                     className="text-destructive hover:text-destructive"
-                    onClick={() => handleDeleteConversation(conv.userId)}
+                    onClick={() => setDeleteTarget(conv.userId)}
+                    aria-label={`Excluir conversa com ${conv.fullName}`}
                   >
                     <Trash2 className="w-4 h-4" />
                   </Button>
@@ -298,9 +310,10 @@ const Inbox = () => {
                     <button
                       onClick={() => setSelectedUserId(req.requesterId)}
                       className="w-12 h-12 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center hover:ring-2 hover:ring-primary transition-all"
+                      aria-label={`Ver perfil de ${req.requesterName}`}
                     >
                       {req.requesterAvatar ? (
-                        <img src={req.requesterAvatar} alt="" className="w-full h-full rounded-full object-cover" />
+                        <img src={req.requesterAvatar} alt={`Foto de ${req.requesterName}`} className="w-full h-full rounded-full object-cover" />
                       ) : (
                         <UserIcon className="w-6 h-6 text-white" />
                       )}
@@ -326,6 +339,7 @@ const Inbox = () => {
                         className="btn-maridaas"
                         onClick={() => handleAcceptRequest(req.id)}
                         disabled={processingRequest === req.id}
+                        aria-label="Aceitar solicitação"
                       >
                         {processingRequest === req.id ? (
                           <Loader2 className="w-4 h-4 animate-spin" />
@@ -338,6 +352,7 @@ const Inbox = () => {
                         variant="outline"
                         onClick={() => handleDeclineRequest(req.id)}
                         disabled={processingRequest === req.id}
+                        aria-label="Recusar solicitação"
                       >
                         <X className="w-4 h-4" />
                       </Button>
@@ -356,6 +371,17 @@ const Inbox = () => {
           </TabsContent>
         </Tabs>
       </main>
+
+      {/* Confirm delete dialog */}
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}
+        title="Excluir conversa"
+        description="Tem certeza que deseja excluir suas mensagens desta conversa? Esta ação não pode ser desfeita."
+        confirmLabel="Excluir"
+        onConfirm={() => deleteTarget && handleDeleteConversation(deleteTarget)}
+        destructive
+      />
 
       {/* Profile Popup */}
       {selectedUserId && (
