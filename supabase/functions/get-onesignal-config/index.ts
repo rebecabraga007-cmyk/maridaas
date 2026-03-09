@@ -14,16 +14,9 @@ serve(async (req) => {
   }
 
   try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL");
-    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const appId = Deno.env.get("ONESIGNAL_APP_ID");
-
-    if (!supabaseUrl || !supabaseAnonKey) {
-      return new Response(JSON.stringify({ error: "Configuration error" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
 
     if (!appId) {
       console.error("ONESIGNAL_APP_ID not configured");
@@ -33,10 +26,9 @@ serve(async (req) => {
       });
     }
 
-    // Validate auth via getUser (NOT getClaims which doesn't exist)
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: "Missing authorization" }), {
+    if (!authHeader?.startsWith("Bearer ")) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -46,8 +38,9 @@ serve(async (req) => {
       global: { headers: { Authorization: authHeader } },
     });
 
-    const { data: userData, error: userError } = await supabase.auth.getUser();
-    if (userError || !userData?.user) {
+    const token = authHeader.replace("Bearer ", "");
+    const { data, error } = await supabase.auth.getClaims(token);
+    if (error || !data?.claims) {
       return new Response(JSON.stringify({ error: "Invalid token" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },

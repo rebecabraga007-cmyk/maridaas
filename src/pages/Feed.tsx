@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { User, Session } from "@supabase/supabase-js";
@@ -20,6 +20,7 @@ import {
   ImagePlus,
   X,
   Star,
+  Loader2,
 } from "lucide-react";
 import ServiceCard from "@/components/ServiceCard";
 import PostCard from "@/components/PostCard";
@@ -30,6 +31,8 @@ import UserSearchModal from "@/components/UserSearchModal";
 import ImageUpload from "@/components/ImageUpload";
 import NotificationSettingsModal from "@/components/NotificationSettingsModal";
 import BottomNav from "@/components/BottomNav";
+import SEOHead from "@/components/SEOHead";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 interface Profile {
   full_name: string;
@@ -64,6 +67,12 @@ const Feed = () => {
   const [postImageUrl, setPostImageUrl] = useState<string>("");
   const [showImageUpload, setShowImageUpload] = useState(false);
   const [posts, setPosts] = useState<any[]>([]);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const [cursor, setCursor] = useState<string | null>(null);
+  const observerRef = useRef<IntersectionObserver | null>(null);
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
+  const PAGE_SIZE = 20;
   const [services, setServices] = useState<any[]>([]);
   const [userProfile, setUserProfile] = useState<Profile | null>(null);
   const [announcements, setAnnouncements] = useState<any[]>([]);
@@ -143,11 +152,35 @@ const Feed = () => {
 
   useEffect(() => {
     if (currentNeighborhoodId) {
-      loadPosts();
+      // Reset pagination when neighborhood changes
+      setPosts([]);
+      setCursor(null);
+      setHasMore(true);
+      loadPosts(null);
       loadServices();
       loadAnnouncements();
     }
   }, [currentNeighborhoodId]);
+
+  // Infinite scroll observer
+  useEffect(() => {
+    if (observerRef.current) observerRef.current.disconnect();
+    
+    observerRef.current = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !loadingMore) {
+          loadPosts(cursor);
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    if (loadMoreRef.current) {
+      observerRef.current.observe(loadMoreRef.current);
+    }
+
+    return () => observerRef.current?.disconnect();
+  }, [cursor, hasMore, loadingMore]);
 
   const loadAnnouncements = async () => {
     if (!user || !currentNeighborhoodId) return;
@@ -230,26 +263,42 @@ const Feed = () => {
     });
   };
 
-  // Optimized: batch profile lookups + single bulk queries for likes/comments
-  const loadPosts = async () => {
-    if (!currentNeighborhoodId) return;
+  const loadPosts = async (afterCursor: string | null = null) => {
+    if (!currentNeighborhoodId || loadingMore) return;
 
-    const { data, error } = await supabase
+    setLoadingMore(true);
+
+    let query = supabase
       .from("posts")
       .select("id, content, created_at, user_id, image_url")
       .eq("neighborhood_id", currentNeighborhoodId)
       .order("created_at", { ascending: false })
-      .limit(50);
+      .limit(PAGE_SIZE);
+
+    if (afterCursor) {
+      query = query.lt("created_at", afterCursor);
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       toast({ title: "Erro", description: "Não foi possível carregar as postagens.", variant: "destructive" });
+      setLoadingMore(false);
       return;
     }
 
     if (!data || data.length === 0) {
-      setPosts([]);
+      setHasMore(false);
+      setLoadingMore(false);
       return;
     }
+
+    if (data.length < PAGE_SIZE) {
+      setHasMore(false);
+    }
+
+    // Set cursor to last item's created_at
+    setCursor(data[data.length - 1].created_at);
 
     const postIds = data.map((p) => p.id);
     const uniqueUserIds = [...new Set(data.map((p) => p.user_id))];
@@ -278,18 +327,24 @@ const Feed = () => {
       commentsMap.set(comment.post_id, (commentsMap.get(comment.post_id) || 0) + 1);
     }
 
-    setPosts(
-      data.map((post) => {
-        const profile = profilesMap.get(post.user_id) as any;
-        return {
-          ...post,
-          author: profile?.full_name || "Usuária",
-          avatar_url: profile?.avatar_url || null,
-          likes_count: likesMap.get(post.id) || 0,
-          comments_count: commentsMap.get(post.id) || 0,
-        };
-      })
-    );
+    const newPosts = data.map((post) => {
+      const profile = profilesMap.get(post.user_id) as any;
+      return {
+        ...post,
+        author: profile?.full_name || "Usuária",
+        avatar_url: profile?.avatar_url || null,
+        likes_count: likesMap.get(post.id) || 0,
+        comments_count: commentsMap.get(post.id) || 0,
+      };
+    });
+
+    if (afterCursor) {
+      setPosts((prev) => [...prev, ...newPosts]);
+    } else {
+      setPosts(newPosts);
+    }
+
+    setLoadingMore(false);
   };
 
   // Optimized: single RPC replaces N+1 profile+review calls
@@ -323,7 +378,10 @@ const Feed = () => {
       setPostImageUrl("");
       setShowImageUpload(false);
       toast({ title: "Publicado!", description: "Sua postagem foi compartilhada." });
-      loadPosts();
+      setPosts([]);
+      setCursor(null);
+      setHasMore(true);
+      loadPosts(null);
     }
     setPosting(false);
   };
@@ -341,8 +399,20 @@ const Feed = () => {
     );
   }
 
+  const reloadPosts = () => {
+    setPosts([]);
+    setCursor(null);
+    setHasMore(true);
+    loadPosts(null);
+  };
+
   return (
     <div className="min-h-screen bg-background pb-20">
+      <SEOHead
+        title="Feed — Maridaas"
+        description="Veja as últimas novidades do seu bairro, publique e interaja com suas vizinhas."
+        noindex
+      />
       {showOnboarding && (
         <OnboardingModal
           onClose={() => {
@@ -423,10 +493,11 @@ const Feed = () => {
                 <Shield className="h-5 w-5" />
               </Button>
             )}
-            <Button variant="ghost" size="icon" onClick={() => setShowNotificationSettings(true)}>
+            <ThemeToggle />
+            <Button variant="ghost" size="icon" onClick={() => setShowNotificationSettings(true)} aria-label="Configurações de notificação">
               <Bell className="h-5 w-5" />
             </Button>
-            <Button variant="ghost" size="icon" onClick={handleLogout}>
+            <Button variant="ghost" size="icon" onClick={handleLogout} aria-label="Sair">
               <LogOut className="h-5 w-5" />
             </Button>
           </div>
@@ -576,17 +647,26 @@ const Feed = () => {
                   imageUrl: p.image_url,
                 }}
                 currentUserId={user?.id}
-                onLikeChange={loadPosts}
-                onPostDeleted={loadPosts}
-                onPostUpdated={loadPosts}
+                onLikeChange={reloadPosts}
+                onPostDeleted={reloadPosts}
+                onPostUpdated={reloadPosts}
                 canModerate={isAdmin || isModerator}
               />
             ))}
-            {posts.length === 0 && (
+            {posts.length === 0 && !loadingMore && (
               <div className="text-center py-12 text-muted-foreground">
                 <p>Nenhuma postagem ainda. Seja a primeira!</p>
               </div>
             )}
+            {/* Infinite scroll sentinel */}
+            <div ref={loadMoreRef} className="h-10 flex items-center justify-center">
+              {loadingMore && (
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              )}
+              {!hasMore && posts.length > 0 && (
+                <p className="text-sm text-muted-foreground">Você viu todas as postagens 🎉</p>
+              )}
+            </div>
           </div>
         </section>
       </main>

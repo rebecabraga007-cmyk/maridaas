@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { Users, MapPin, Heart, MessageCircle, ShieldCheck, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import SEOHead from "@/components/SEOHead";
 
 const Landing = () => {
   const handleScrollTo = (e: React.MouseEvent<HTMLAnchorElement>, id: string) => {
@@ -10,34 +11,62 @@ const Landing = () => {
 
   return (
     <div className="min-h-screen bg-background">
+      <SEOHead
+        title="Maridaas — Sua comunidade de bairro"
+        description="Conecte-se com vizinhas do seu bairro. Descubra serviços de confiança, faça amizades e fortaleça sua comunidade local."
+        canonical="https://maridaas.lovable.app/"
+      />
+
+      {/* JSON-LD structured data */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "WebApplication",
+            name: "Maridaas",
+            url: "https://maridaas.lovable.app",
+            description:
+              "Rede social de bairro para conectar vizinhas, descobrir serviços e fortalecer comunidades locais.",
+            applicationCategory: "SocialNetworkingApplication",
+            operatingSystem: "Web",
+            offers: {
+              "@type": "Offer",
+              price: "0",
+              priceCurrency: "BRL",
+            },
+          }),
+        }}
+      />
+
       {/* Header */}
       <header className="fixed top-0 left-0 right-0 z-50 glass border-b border-border">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <img src="/logo.png" alt="Maridaas" className="h-10 w-10" />
+            <img src="/logo.png" alt="Maridaas - Logo" className="h-10 w-10" loading="eager" />
             <span className="text-xl font-display font-bold text-foreground">Maridaas</span>
           </div>
-          <div className="flex items-center gap-3">
+          <nav className="flex items-center gap-3" aria-label="Navegação principal">
             <Link to="/auth">
               <Button variant="ghost" size="sm">Entrar</Button>
             </Link>
             <Link to="/auth?mode=signup">
               <Button size="sm" className="btn-maridaas">Criar conta</Button>
             </Link>
-          </div>
+          </nav>
         </div>
       </header>
 
       {/* Hero Section */}
-      <section className="pt-32 pb-20 px-4">
+      <section className="pt-32 pb-20 px-4" aria-labelledby="hero-title">
         <div className="container mx-auto max-w-4xl text-center">
           <div className="animate-fade-in">
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-teal-light text-primary mb-6">
-              <Sparkles className="w-4 h-4" />
+              <Sparkles className="w-4 h-4" aria-hidden="true" />
               <span className="text-sm font-medium">Sua vizinhança mais conectada</span>
             </div>
             
-            <h1 className="text-4xl md:text-6xl font-display font-bold text-foreground mb-6 leading-tight">
+            <h1 id="hero-title" className="text-4xl md:text-6xl font-display font-bold text-foreground mb-6 leading-tight">
               Conecte-se com sua{" "}
               <span className="text-primary">comunidade</span>{" "}
               de bairro
@@ -64,13 +93,13 @@ const Landing = () => {
 
           {/* Hero Illustration */}
           <div className="mt-16 relative">
-            <div className="absolute inset-0 gradient-hero opacity-10 rounded-3xl blur-3xl"></div>
+            <div className="absolute inset-0 gradient-hero opacity-10 rounded-3xl blur-3xl" aria-hidden="true"></div>
             <div className="relative bg-card rounded-3xl shadow-elevated p-8 border border-border">
               <div className="grid grid-cols-3 gap-4">
                 {[1, 2, 3].map((i) => (
                   <div key={i} className="card-maridaas p-4 animate-float" style={{ animationDelay: `${i * 0.2}s` }}>
                     <div className="avatar-maridaas mb-3 mx-auto">
-                      <Users className="w-6 h-6" />
+                      <Users className="w-6 h-6" aria-hidden="true" />
                     </div>
                     <div className="h-2 bg-muted rounded-full w-3/4 mx-auto mb-2"></div>
                     <div className="h-2 bg-muted rounded-full w-1/2 mx-auto"></div>
@@ -83,10 +112,10 @@ const Landing = () => {
       </section>
 
       {/* Features Section */}
-      <section id="como-funciona" className="py-20 px-4 bg-muted/50">
+      <section id="como-funciona" className="py-20 px-4 bg-muted/50" aria-labelledby="features-title">
         <div className="container mx-auto max-w-6xl">
           <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-display font-bold text-foreground mb-4">
+            <h2 id="features-title" className="text-3xl md:text-4xl font-display font-bold text-foreground mb-4">
               Como funciona a Maridaas
             </h2>
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
@@ -118,11 +147,11 @@ const Landing = () => {
       </section>
 
       {/* Trust Section */}
-      <section className="py-20 px-4">
+      <section className="py-20 px-4" aria-labelledby="trust-title">
         <div className="container mx-auto max-w-4xl">
           <div className="card-maridaas p-8 md:p-12 text-center gradient-primary text-primary-foreground">
-            <ShieldCheck className="w-16 h-16 mx-auto mb-6 opacity-90" />
-            <h2 className="text-2xl md:text-3xl font-display font-bold mb-4">
+            <ShieldCheck className="w-16 h-16 mx-auto mb-6 opacity-90" aria-hidden="true" />
+            <h2 id="trust-title" className="text-2xl md:text-3xl font-display font-bold mb-4">
               Segurança e Confiança
             </h2>
             <p className="text-lg opacity-90 max-w-2xl mx-auto mb-8">
@@ -139,17 +168,17 @@ const Landing = () => {
       </section>
 
       {/* Footer */}
-      <footer className="py-12 px-4 border-t border-border">
+      <footer className="py-12 px-4 border-t border-border" role="contentinfo">
         <div className="container mx-auto max-w-6xl">
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="flex items-center gap-3">
-              <img src="/logo.png" alt="Maridaas" className="h-8 w-8" />
+              <img src="/logo.png" alt="Maridaas" className="h-8 w-8" loading="lazy" />
               <span className="font-display font-bold text-foreground">Maridaas</span>
             </div>
-            <div className="flex items-center gap-4 text-sm text-muted-foreground">
-              <a href="/termos" className="hover:text-primary transition-colors">Termos de Uso</a>
-              <a href="/privacidade" className="hover:text-primary transition-colors">Privacidade</a>
-            </div>
+            <nav className="flex items-center gap-4 text-sm text-muted-foreground" aria-label="Links do rodapé">
+              <Link to="/termos" className="hover:text-primary transition-colors">Termos de Uso</Link>
+              <Link to="/privacidade" className="hover:text-primary transition-colors">Privacidade</Link>
+            </nav>
             <p className="text-sm text-muted-foreground">
               © {new Date().getFullYear()} Maridaas. Conectando comunidades.
             </p>
@@ -175,13 +204,13 @@ const FeatureCard = ({ icon, title, description, color }: FeatureCardProps) => {
   };
 
   return (
-    <div className="card-maridaas text-center">
+    <article className="card-maridaas text-center">
       <div className={`w-16 h-16 rounded-2xl ${colorClasses[color]} flex items-center justify-center mx-auto mb-6`}>
         {icon}
       </div>
       <h3 className="text-xl font-display font-bold text-foreground mb-3">{title}</h3>
       <p className="text-muted-foreground">{description}</p>
-    </div>
+    </article>
   );
 };
 

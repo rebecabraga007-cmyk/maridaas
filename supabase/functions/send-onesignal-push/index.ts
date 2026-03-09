@@ -48,22 +48,26 @@ serve(async (req) => {
       return errorResponse("Configuration error", 500);
     }
 
-    // Auth — use getUser instead of non-existent getClaims
+    // Auth via getClaims
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
-      return errorResponse("Missing authorization", 401);
+    if (!authHeader?.startsWith("Bearer ")) {
+      return errorResponse("Unauthorized", 401);
     }
 
     const supabaseUser = createClient(supabaseUrl, supabaseAnonKey, {
       global: { headers: { Authorization: authHeader } },
     });
 
-    const { data: userData, error: userError } = await supabaseUser.auth.getUser();
-    if (userError || !userData?.user) {
+    const token = authHeader.replace("Bearer ", "");
+    const { data: claimsData, error: claimsError } = await supabaseUser.auth.getClaims(token);
+    if (claimsError || !claimsData?.claims) {
       return errorResponse("Invalid token", 401);
     }
 
-    const userId = userData.user.id;
+    const userId = claimsData.claims.sub;
+    if (!isValidUUID(userId)) {
+      return errorResponse("Invalid user ID", 401);
+    }
 
     // Admin check
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
@@ -116,7 +120,6 @@ serve(async (req) => {
         return errorResponse("Invalid target_id", 400);
       }
 
-      // Check notification preferences before sending
       const { data: profiles } = await supabase
         .from("profiles")
         .select("user_id")
@@ -166,30 +169,21 @@ serve(async (req) => {
           console.log("[push] Sent successfully:", responseData);
         } else {
           lastError = responseText;
-          console.error(
-            `[push] Attempt ${retries + 1} failed (${response.status}):`,
-            lastError
-          );
+          console.error(`[push] Attempt ${retries + 1} failed (${response.status}):`, lastError);
           retries++;
-          // Don't retry on 4xx (client errors) — only 5xx
           if (response.status >= 400 && response.status < 500) break;
-          if (retries < 3)
-            await new Promise((r) => setTimeout(r, 1000 * retries));
+          if (retries < 3) await new Promise((r) => setTimeout(r, 1000 * retries));
         }
       } catch (err) {
         lastError = err instanceof Error ? err.message : String(err);
         console.error(`[push] Attempt ${retries + 1} error:`, lastError);
         retries++;
-        if (retries < 3)
-          await new Promise((r) => setTimeout(r, 1000 * retries));
+        if (retries < 3) await new Promise((r) => setTimeout(r, 1000 * retries));
       }
     }
 
     if (!success) {
-      return errorResponse(
-        `Push failed after ${retries} attempts`,
-        502
-      );
+      return errorResponse(`Push failed after ${retries} attempts`, 502);
     }
 
     return jsonResponse({ success: true, data: responseData });

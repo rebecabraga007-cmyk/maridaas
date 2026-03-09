@@ -359,33 +359,24 @@ export type Database = {
           },
         ]
       }
-      push_subscriptions: {
+      rate_limits: {
         Row: {
-          auth: string
-          created_at: string
-          endpoint: string
           id: string
-          p256dh: string
-          updated_at: string
-          user_id: string
+          key: string
+          requests: number
+          window_start: string
         }
         Insert: {
-          auth: string
-          created_at?: string
-          endpoint: string
           id?: string
-          p256dh: string
-          updated_at?: string
-          user_id: string
+          key: string
+          requests?: number
+          window_start?: string
         }
         Update: {
-          auth?: string
-          created_at?: string
-          endpoint?: string
           id?: string
-          p256dh?: string
-          updated_at?: string
-          user_id?: string
+          key?: string
+          requests?: number
+          window_start?: string
         }
         Relationships: []
       }
@@ -686,6 +677,8 @@ export type Database = {
         Args: { _neighborhood_id: string; _user_id: string }
         Returns: boolean
       }
+      cleanup_old_sessions: { Args: never; Returns: undefined }
+      cleanup_rate_limits: { Args: never; Returns: undefined }
       count_neighborhood_members: {
         Args: { _neighborhood_id: string }
         Returns: number

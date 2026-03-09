@@ -1,11 +1,18 @@
 import { ArrowLeft } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import SEOHead from "@/components/SEOHead";
 
 const PrivacyPolicy = () => {
   const navigate = useNavigate();
 
   return (
     <div className="min-h-screen bg-background">
+      <SEOHead
+        title="Política de Privacidade — Maridaas"
+        description="Saiba como a Maridaas coleta, usa e protege seus dados pessoais de acordo com a LGPD."
+        canonical="https://maridaas.lovable.app/privacidade"
+      />
+
       <header className="sticky top-0 z-10 glass border-b border-border px-4 py-3">
         <div className="max-w-3xl mx-auto flex items-center gap-3">
           <button onClick={() => navigate(-1)} className="text-muted-foreground hover:text-foreground" aria-label="Voltar">
