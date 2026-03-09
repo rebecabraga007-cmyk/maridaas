@@ -4,6 +4,7 @@ import {
   isValidUUID,
   sanitizeInput,
 } from "../_shared/security.ts";
+import { checkRateLimit, rateLimitKey } from "../_shared/rateLimit.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
