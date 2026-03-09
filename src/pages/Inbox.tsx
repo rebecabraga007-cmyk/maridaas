@@ -9,15 +9,13 @@ import {
   MessageCircle,
   User as UserIcon,
   Loader2,
-  Home,
-  Briefcase,
-  MapPin,
   Users,
   Check,
   X,
   Trash2,
   Bell,
 } from "lucide-react";
+import BottomNav from "@/components/BottomNav";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";

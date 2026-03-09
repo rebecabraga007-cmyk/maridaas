@@ -9,14 +9,12 @@ import {
   ArrowLeft,
   Search,
   MapPin,
-  Home,
-  Briefcase,
-  User as UserIcon,
   Users,
   Lock,
   Star,
   X,
 } from "lucide-react";
+import BottomNav from "@/components/BottomNav";
 import { differenceInDays } from "date-fns";
 
 interface Neighborhood {

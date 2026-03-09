@@ -18,13 +18,12 @@ import {
   X,
   Loader2,
   Calendar,
-  Home,
-  Briefcase,
   Users,
   UserMinus,
   MessageCircle,
   Mail,
 } from "lucide-react";
+import BottomNav from "@/components/BottomNav";
 import {
   Dialog,
   DialogContent,
