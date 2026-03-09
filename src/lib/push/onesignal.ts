@@ -1,6 +1,13 @@
 /**
  * OneSignal Web SDK v16 wrapper
  * Idempotent initialization, race-condition safe, diagnostics-ready.
+ *
+ * AUDIT FIXES:
+ * - getOneSignal() now returns window.OneSignal (SDK object), not the deferred array
+ * - Service worker scope set to "/" for site-wide push control
+ * - Removed double permission request (native + OneSignal) — only OneSignal handles it
+ * - Added subscription polling with timeout
+ * - unsubscribe properly opts out via PushSubscription.optOut()
  */
 
 let initPromise: Promise<void> | null = null;
@@ -25,8 +32,18 @@ export const canUsePush = () => {
   return "Notification" in window && "serviceWorker" in navigator;
 };
 
+/**
+ * Get the initialized OneSignal SDK object.
+ * IMPORTANT: window.OneSignal is the SDK after init.
+ * window.OneSignalDeferred is the init queue array — NOT the SDK.
+ */
 function getOneSignal(): any {
-  return (window as any).OneSignalDeferred || (window as any).OneSignal;
+  const os = (window as any).OneSignal;
+  // OneSignalDeferred is an array, the real SDK is an object with .Notifications etc.
+  if (os && typeof os === "object" && !Array.isArray(os)) {
+    return os;
+  }
+  return null;
 }
 
 /**
@@ -34,7 +51,7 @@ function getOneSignal(): any {
  */
 function loadSDKScript(): Promise<void> {
   return new Promise((resolve, reject) => {
-    if (document.querySelector('script[src*="OneSignalSDK"]')) {
+    if (document.querySelector('script[src*="OneSignalSDK.page"]')) {
       resolve();
       return;
     }
@@ -46,6 +63,11 @@ function loadSDKScript(): Promise<void> {
     document.head.appendChild(script);
   });
 }
+
+/**
+ * Sleep utility for polling
+ */
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /**
  * Initialize OneSignal SDK — idempotent, safe to call multiple times.
@@ -60,19 +82,27 @@ export async function initOneSignal(config: OneSignalConfig): Promise<void> {
       await loadSDKScript();
 
       // Wait for SDK to be ready via OneSignalDeferred pattern
-      await new Promise<void>((resolve) => {
+      await new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => reject(new Error("onesignal_init_timeout")), 15000);
+
         (window as any).OneSignalDeferred = (window as any).OneSignalDeferred || [];
         (window as any).OneSignalDeferred.push(async (OneSignal: any) => {
-          await OneSignal.init({
-            appId: config.appId,
-            allowLocalhostAsSecureOrigin: true,
-            serviceWorkerPath: "/push/onesignal/OneSignalSDKWorker.js",
-            serviceWorkerParam: { scope: "/push/onesignal/" },
-            notifyButton: { enable: false },
-            promptOptions: { autoPrompt: false },
-          });
-          console.log("[push] OneSignal initialized successfully");
-          resolve();
+          try {
+            await OneSignal.init({
+              appId: config.appId,
+              allowLocalhostAsSecureOrigin: true,
+              serviceWorkerPath: "/push/onesignal/OneSignalSDKWorker.js",
+              serviceWorkerParam: { scope: "/" },
+              notifyButton: { enable: false },
+              promptOptions: { autoPrompt: false },
+            });
+            clearTimeout(timeout);
+            console.log("[push] OneSignal initialized successfully");
+            resolve();
+          } catch (err) {
+            clearTimeout(timeout);
+            reject(err);
+          }
         });
       });
 
@@ -89,30 +119,50 @@ export async function initOneSignal(config: OneSignalConfig): Promise<void> {
 
 /**
  * Request push permission — must be called from user gesture.
- * Uses native Notification API first (Safari compatible), then OneSignal opt-in.
+ * Uses OneSignal's Notifications.requestPermission() which handles
+ * the native prompt internally. Do NOT call Notification.requestPermission()
+ * separately — it breaks Safari and iOS PWA.
  */
 export async function requestPushPermission(): Promise<NotificationPermission> {
   if (!canUsePush()) return "denied";
 
-  // Use native API first for Safari/iOS compatibility
-  const permission = await Notification.requestPermission();
-  if (permission !== "granted") return permission;
-
-  // Then opt-in via OneSignal
   try {
     const OS = getOneSignal();
-    if (OS?.Notifications) {
+    if (OS?.Notifications?.requestPermission) {
       await OS.Notifications.requestPermission();
+    } else {
+      // Fallback: native API only if OneSignal not ready
+      console.warn("[push] OneSignal not ready, using native permission request");
+      await Notification.requestPermission();
     }
   } catch (err) {
-    console.warn("[push] OneSignal opt-in fallback:", err);
+    console.error("[push] Permission request failed:", err);
   }
 
-  return permission;
+  return "Notification" in window ? Notification.permission : "denied";
 }
 
 /**
- * Associate push subscription with authenticated user
+ * Wait for push subscription to be created (polling with timeout).
+ * After permission is granted, OneSignal takes a moment to create the subscription.
+ */
+export async function waitForSubscription(maxWaitMs = 10000): Promise<string | null> {
+  const maxAttempts = Math.ceil(maxWaitMs / 500);
+  for (let i = 0; i < maxAttempts; i++) {
+    const id = getSubscriptionId();
+    if (id) {
+      console.log("[push] Subscription ready:", id);
+      return id;
+    }
+    await sleep(500);
+  }
+  console.warn("[push] Subscription not ready after", maxWaitMs, "ms");
+  return null;
+}
+
+/**
+ * Associate push subscription with authenticated user.
+ * IMPORTANT: Call AFTER subscription exists (use waitForSubscription first).
  */
 export async function loginUser(userId: string): Promise<void> {
   try {
@@ -120,6 +170,8 @@ export async function loginUser(userId: string): Promise<void> {
     if (OS?.login) {
       await OS.login(userId);
       console.log("[push] User logged in:", userId);
+    } else {
+      console.warn("[push] OneSignal SDK not ready for login");
     }
   } catch (err) {
     console.error("[push] Login failed:", err);
@@ -142,12 +194,48 @@ export async function logoutUser(): Promise<void> {
 }
 
 /**
+ * Opt out of push notifications (removes subscription).
+ * This is different from logout — it actually disables push delivery.
+ */
+export async function optOutPush(): Promise<void> {
+  try {
+    const OS = getOneSignal();
+    if (OS?.User?.PushSubscription?.optOut) {
+      await OS.User.PushSubscription.optOut();
+      console.log("[push] User opted out of push");
+    }
+  } catch (err) {
+    console.error("[push] Opt-out failed:", err);
+  }
+}
+
+/**
+ * Opt back in to push notifications.
+ */
+export async function optInPush(): Promise<void> {
+  try {
+    const OS = getOneSignal();
+    if (OS?.User?.PushSubscription?.optIn) {
+      await OS.User.PushSubscription.optIn();
+      console.log("[push] User opted in to push");
+    }
+  } catch (err) {
+    console.error("[push] Opt-in failed:", err);
+  }
+}
+
+/**
  * Check if user is opted in to push
  */
 export function isOptedIn(): boolean {
   try {
     const OS = getOneSignal();
-    return OS?.Notifications?.permission === true || OS?.User?.PushSubscription?.optedIn === true;
+    if (!OS) return false;
+    // Check PushSubscription.optedIn first (most reliable)
+    if (OS.User?.PushSubscription?.optedIn === true) return true;
+    if (OS.User?.PushSubscription?.optedIn === false) return false;
+    // Fallback to permission check
+    return OS.Notifications?.permission === true;
   } catch {
     return false;
   }

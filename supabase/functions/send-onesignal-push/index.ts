@@ -85,11 +85,13 @@ serve(async (req) => {
       return safeErrorResponse("Title and message required", corsHeaders, 400);
     }
 
-    // Build OneSignal payload
+    // Build OneSignal payload — using v16 API format
+    // AUDIT FIX: include_external_user_ids is deprecated, use include_aliases
     const onesignalPayload: Record<string, unknown> = {
       app_id: onesignalAppId,
       headings: { en: title },
       contents: { en: message },
+      target_channel: "push",
       url: body.url || "/feed",
     };
 
@@ -99,25 +101,34 @@ serve(async (req) => {
       if (!isValidUUID(body.target_id)) {
         return safeErrorResponse("Invalid target_id", corsHeaders, 400);
       }
-      onesignalPayload.include_external_user_ids = [body.target_id];
+      // v16 API: use include_aliases with external_id
+      onesignalPayload.include_aliases = {
+        external_id: [body.target_id],
+      };
     } else if (body.target_type === "neighborhood" && body.target_id) {
       if (!isValidUUID(body.target_id)) {
         return safeErrorResponse("Invalid target_id", corsHeaders, 400);
       }
-      // Get user IDs in neighborhood
+
+      // Check notification preferences before sending
       const { data: profiles } = await supabase
         .from("profiles")
         .select("user_id")
+        .eq("notifications_enabled", true)
         .or(`primary_neighborhood_id.eq.${body.target_id},secondary_neighborhood_id.eq.${body.target_id}`);
 
-      const userIds = profiles?.map((p) => p.user_id) || [];
+      const userIds = profiles?.map((p: { user_id: string }) => p.user_id) || [];
       if (userIds.length === 0) {
         return safeJsonResponse({ success: true, sent: 0 }, corsHeaders, { stripSensitive: false });
       }
-      onesignalPayload.include_external_user_ids = userIds;
+
+      // v16 API: use include_aliases
+      onesignalPayload.include_aliases = {
+        external_id: userIds,
+      };
     }
 
-    // Send via OneSignal REST API
+    // Send via OneSignal REST API with retry logic
     console.log(`[push] Sending to ${body.target_type}:`, body.target_id || "all");
 
     let retries = 0;
@@ -127,24 +138,31 @@ serve(async (req) => {
 
     while (retries < 3 && !success) {
       try {
-        const response = await fetch("https://onesignal.com/api/v1/notifications", {
+        const response = await fetch("https://api.onesignal.com/notifications", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Basic ${onesignalApiKey}`,
+            Authorization: `Key ${onesignalApiKey}`,
           },
           body: JSON.stringify(onesignalPayload),
         });
 
-        responseData = await response.json();
+        const responseText = await response.text();
+        try {
+          responseData = JSON.parse(responseText);
+        } catch {
+          responseData = { raw: responseText };
+        }
 
         if (response.ok) {
           success = true;
           console.log("[push] Sent successfully:", responseData);
         } else {
-          lastError = JSON.stringify(responseData);
-          console.error(`[push] Attempt ${retries + 1} failed:`, lastError);
+          lastError = responseText;
+          console.error(`[push] Attempt ${retries + 1} failed (${response.status}):`, lastError);
           retries++;
+          // Don't retry on 4xx (client errors) — only 5xx
+          if (response.status >= 400 && response.status < 500) break;
           if (retries < 3) await new Promise((r) => setTimeout(r, 1000 * retries));
         }
       } catch (err) {
@@ -156,7 +174,7 @@ serve(async (req) => {
     }
 
     if (!success) {
-      return safeErrorResponse(`Push failed after ${retries} retries: ${lastError}`, corsHeaders, 502);
+      return safeErrorResponse(`Push failed after ${retries} attempts: ${lastError}`, corsHeaders, 502);
     }
 
     return safeJsonResponse(

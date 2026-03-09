@@ -3,10 +3,12 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   initOneSignal,
   requestPushPermission,
+  waitForSubscription,
   loginUser,
   logoutUser,
+  optOutPush,
+  optInPush,
   isOptedIn,
-  canUsePush,
   isIOSDevice,
   isPWAInstalled,
   getDiagnostics,
@@ -64,19 +66,23 @@ export const useOneSignalPush = () => {
           return;
         }
 
-        // Initialize OneSignal
+        // Initialize OneSignal SDK
         await initOneSignal({ appId: data.appId });
 
-        // Associate with logged-in user
-        const { data: authData } = await supabase.auth.getUser();
-        if (authData?.user) {
-          await loginUser(authData.user.id);
+        // If already subscribed, associate with user
+        const subscribed = isOptedIn();
+        if (subscribed) {
+          const { data: authData } = await supabase.auth.getUser();
+          if (authData?.user) {
+            // Login only after confirming subscription exists
+            await loginUser(authData.user.id);
+          }
         }
 
         setState({
           permission: Notification.permission,
           isSupported: true,
-          isSubscribed: isOptedIn(),
+          isSubscribed: subscribed,
           isLoading: false,
           needsPWAInstall: false,
         });
@@ -95,13 +101,21 @@ export const useOneSignalPush = () => {
     setState((prev) => ({ ...prev, isLoading: true }));
 
     try {
+      // 1. Request permission (via OneSignal — handles native prompt internally)
       const permission = await requestPushPermission();
       if (permission !== "granted") {
         setState((prev) => ({ ...prev, permission, isLoading: false }));
         return false;
       }
 
-      // Associate user
+      // 2. Opt in (in case previously opted out)
+      await optInPush();
+
+      // 3. Wait for subscription to be created
+      const subscriptionId = await waitForSubscription(10000);
+      console.log("[push] Subscription after permission:", subscriptionId);
+
+      // 4. Associate user AFTER subscription exists
       const { data: authData } = await supabase.auth.getUser();
       if (authData?.user) {
         await loginUser(authData.user.id);
@@ -129,6 +143,9 @@ export const useOneSignalPush = () => {
     setState((prev) => ({ ...prev, isLoading: true }));
 
     try {
+      // Opt out of push (actually stops notifications)
+      await optOutPush();
+      // Disassociate user
       await logoutUser();
 
       const { data: authData } = await supabase.auth.getUser();
