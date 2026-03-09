@@ -1,18 +1,16 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import {
-  validateAuthHeader,
-  safeErrorResponse,
-  safeJsonResponse,
-  handleCorsOptions,
-  DEFAULT_CORS_HEADERS,
-} from "../_shared/security.ts";
 
-const corsHeaders = DEFAULT_CORS_HEADERS;
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+};
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return handleCorsOptions(corsHeaders);
+    return new Response(null, { status: 204, headers: corsHeaders });
   }
 
   try {
@@ -21,33 +19,52 @@ serve(async (req) => {
     const appId = Deno.env.get("ONESIGNAL_APP_ID");
 
     if (!supabaseUrl || !supabaseAnonKey) {
-      return safeErrorResponse("Configuration error", corsHeaders, 500);
+      return new Response(JSON.stringify({ error: "Configuration error" }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     if (!appId) {
       console.error("ONESIGNAL_APP_ID not configured");
-      return safeErrorResponse("Configuration error", corsHeaders, 500);
+      return new Response(JSON.stringify({ error: "Configuration error" }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
-    // Validate auth
-    const authValidation = validateAuthHeader(req.headers.get("Authorization"));
-    if (!authValidation.valid) {
-      return safeErrorResponse(authValidation.error, corsHeaders, 401);
+    // Validate auth via getUser (NOT getClaims which doesn't exist)
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: "Missing authorization" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: `Bearer ${authValidation.token}` } },
+      global: { headers: { Authorization: authHeader } },
     });
 
-    const { data: claimsData, error: claimsError } = await supabase.auth.getClaims(authValidation.token!);
-    if (claimsError || !claimsData?.claims) {
-      return safeErrorResponse("Invalid token", corsHeaders, 401);
+    const { data: userData, error: userError } = await supabase.auth.getUser();
+    if (userError || !userData?.user) {
+      return new Response(JSON.stringify({ error: "Invalid token" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     console.log("OneSignal config requested by authenticated user");
 
-    return safeJsonResponse({ appId }, corsHeaders, { stripSensitive: false });
+    return new Response(JSON.stringify({ appId }), {
+      status: 200,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   } catch (error) {
-    return safeErrorResponse(error, corsHeaders, 500);
+    console.error("Internal error:", error);
+    return new Response(JSON.stringify({ error: "An error occurred" }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 });

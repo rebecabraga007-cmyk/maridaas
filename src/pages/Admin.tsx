@@ -388,8 +388,13 @@ const Admin = () => {
     // Se for para enviar agora, chama a edge function
     if (sendNow && insertedNotification) {
       try {
-        const { data, error: funcError } = await supabase.functions.invoke("send-push-notification", {
-          body: { notification_id: insertedNotification.id },
+        const { data, error: funcError } = await supabase.functions.invoke("send-onesignal-push", {
+          body: {
+            title: insertedNotification.title,
+            message: insertedNotification.body,
+            target_type: insertedNotification.target_type,
+            target_id: insertedNotification.target_id,
+          },
         });
 
         if (funcError) {
@@ -424,8 +429,25 @@ const Admin = () => {
     try {
       toast({ title: "Enviando notificação..." });
 
-      const { data, error } = await supabase.functions.invoke("send-push-notification", {
-        body: { notification_id: notificationId },
+      // Fetch notification details first, then send via OneSignal
+      const { data: notif } = await supabase
+        .from("scheduled_notifications")
+        .select("title, body, target_type, target_id")
+        .eq("id", notificationId)
+        .single();
+
+      if (!notif) {
+        toast({ title: "Notificação não encontrada", variant: "destructive" });
+        return;
+      }
+
+      const { data, error } = await supabase.functions.invoke("send-onesignal-push", {
+        body: {
+          title: notif.title,
+          message: notif.body,
+          target_type: notif.target_type,
+          target_id: notif.target_id,
+        },
       });
 
       if (error) {

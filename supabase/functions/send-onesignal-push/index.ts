@@ -1,17 +1,27 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
-  validateAuthHeader,
-  safeErrorResponse,
-  safeJsonResponse,
   isValidUUID,
   sanitizeInput,
-  handleCorsOptions,
-  safeParseJson,
-  DEFAULT_CORS_HEADERS,
 } from "../_shared/security.ts";
 
-const corsHeaders = DEFAULT_CORS_HEADERS;
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
+function jsonResponse(data: unknown, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+function errorResponse(message: string, status: number) {
+  return jsonResponse({ error: message }, status);
+}
 
 interface PushRequest {
   title: string;
@@ -23,7 +33,7 @@ interface PushRequest {
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return handleCorsOptions(corsHeaders);
+    return new Response(null, { status: 204, headers: corsHeaders });
   }
 
   try {
@@ -35,28 +45,25 @@ serve(async (req) => {
 
     if (!onesignalAppId || !onesignalApiKey) {
       console.error("Missing OneSignal credentials");
-      return safeErrorResponse("Configuration error", corsHeaders, 500);
+      return errorResponse("Configuration error", 500);
     }
 
-    // Auth
-    const authValidation = validateAuthHeader(req.headers.get("Authorization"));
-    if (!authValidation.valid) {
-      return safeErrorResponse(authValidation.error, corsHeaders, 401);
+    // Auth — use getUser instead of non-existent getClaims
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      return errorResponse("Missing authorization", 401);
     }
 
     const supabaseUser = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: `Bearer ${authValidation.token}` } },
+      global: { headers: { Authorization: authHeader } },
     });
 
-    const { data: claimsData, error: claimsError } = await supabaseUser.auth.getClaims(authValidation.token!);
-    if (claimsError || !claimsData?.claims) {
-      return safeErrorResponse("Invalid token", corsHeaders, 401);
+    const { data: userData, error: userError } = await supabaseUser.auth.getUser();
+    if (userError || !userData?.user) {
+      return errorResponse("Invalid token", 401);
     }
 
-    const userId = claimsData.claims.sub;
-    if (!isValidUUID(userId)) {
-      return safeErrorResponse("Invalid user ID", corsHeaders, 401);
-    }
+    const userId = userData.user.id;
 
     // Admin check
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
@@ -68,25 +75,25 @@ serve(async (req) => {
       .maybeSingle();
 
     if (!roleData) {
-      return safeErrorResponse("Admin access required", corsHeaders, 403);
+      return errorResponse("Admin access required", 403);
     }
 
     // Parse body
-    const parseResult = await safeParseJson<PushRequest>(req, 10_000);
-    if (!parseResult.success) {
-      return safeErrorResponse(parseResult.error, corsHeaders, 400);
+    let body: PushRequest;
+    try {
+      body = await req.json();
+    } catch {
+      return errorResponse("Invalid JSON body", 400);
     }
 
-    const body = parseResult.data!;
     const title = sanitizeInput(body.title, 200);
     const message = sanitizeInput(body.message, 500);
 
     if (!title || !message) {
-      return safeErrorResponse("Title and message required", corsHeaders, 400);
+      return errorResponse("Title and message required", 400);
     }
 
-    // Build OneSignal payload — using v16 API format
-    // AUDIT FIX: include_external_user_ids is deprecated, use include_aliases
+    // Build OneSignal payload — v16 API format
     const onesignalPayload: Record<string, unknown> = {
       app_id: onesignalAppId,
       headings: { en: title },
@@ -99,15 +106,14 @@ serve(async (req) => {
       onesignalPayload.included_segments = ["All"];
     } else if (body.target_type === "user" && body.target_id) {
       if (!isValidUUID(body.target_id)) {
-        return safeErrorResponse("Invalid target_id", corsHeaders, 400);
+        return errorResponse("Invalid target_id", 400);
       }
-      // v16 API: use include_aliases with external_id
       onesignalPayload.include_aliases = {
         external_id: [body.target_id],
       };
     } else if (body.target_type === "neighborhood" && body.target_id) {
       if (!isValidUUID(body.target_id)) {
-        return safeErrorResponse("Invalid target_id", corsHeaders, 400);
+        return errorResponse("Invalid target_id", 400);
       }
 
       // Check notification preferences before sending
@@ -115,14 +121,15 @@ serve(async (req) => {
         .from("profiles")
         .select("user_id")
         .eq("notifications_enabled", true)
-        .or(`primary_neighborhood_id.eq.${body.target_id},secondary_neighborhood_id.eq.${body.target_id}`);
+        .or(
+          `primary_neighborhood_id.eq.${body.target_id},secondary_neighborhood_id.eq.${body.target_id}`
+        );
 
       const userIds = profiles?.map((p: { user_id: string }) => p.user_id) || [];
       if (userIds.length === 0) {
-        return safeJsonResponse({ success: true, sent: 0 }, corsHeaders, { stripSensitive: false });
+        return jsonResponse({ success: true, sent: 0 });
       }
 
-      // v16 API: use include_aliases
       onesignalPayload.include_aliases = {
         external_id: userIds,
       };
@@ -159,30 +166,35 @@ serve(async (req) => {
           console.log("[push] Sent successfully:", responseData);
         } else {
           lastError = responseText;
-          console.error(`[push] Attempt ${retries + 1} failed (${response.status}):`, lastError);
+          console.error(
+            `[push] Attempt ${retries + 1} failed (${response.status}):`,
+            lastError
+          );
           retries++;
           // Don't retry on 4xx (client errors) — only 5xx
           if (response.status >= 400 && response.status < 500) break;
-          if (retries < 3) await new Promise((r) => setTimeout(r, 1000 * retries));
+          if (retries < 3)
+            await new Promise((r) => setTimeout(r, 1000 * retries));
         }
       } catch (err) {
         lastError = err instanceof Error ? err.message : String(err);
         console.error(`[push] Attempt ${retries + 1} error:`, lastError);
         retries++;
-        if (retries < 3) await new Promise((r) => setTimeout(r, 1000 * retries));
+        if (retries < 3)
+          await new Promise((r) => setTimeout(r, 1000 * retries));
       }
     }
 
     if (!success) {
-      return safeErrorResponse(`Push failed after ${retries} attempts: ${lastError}`, corsHeaders, 502);
+      return errorResponse(
+        `Push failed after ${retries} attempts`,
+        502
+      );
     }
 
-    return safeJsonResponse(
-      { success: true, data: responseData },
-      corsHeaders,
-      { stripSensitive: false }
-    );
+    return jsonResponse({ success: true, data: responseData });
   } catch (error) {
-    return safeErrorResponse(error, corsHeaders, 500);
+    console.error("Internal error:", error);
+    return errorResponse("An error occurred", 500);
   }
 });
