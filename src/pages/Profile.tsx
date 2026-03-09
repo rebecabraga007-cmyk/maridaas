@@ -23,6 +23,7 @@ import {
   MessageCircle,
   Mail,
   Trash2,
+  Bell,
 } from "lucide-react";
 import BottomNav from "@/components/BottomNav";
 import {
@@ -33,6 +34,8 @@ import {
 } from "@/components/ui/dialog";
 import ImageUpload from "@/components/ImageUpload";
 import ConfirmDialog from "@/components/ConfirmDialog";
+import { Switch } from "@/components/ui/switch";
+import { useOneSignalPush } from "@/hooks/useOneSignalPush";
 
 interface Profile {
   id: string;
@@ -61,6 +64,60 @@ interface Neighborhood {
   name: string;
   city: string;
 }
+
+const NotificationSection = () => {
+  const { isSubscribed, isLoading, subscribe, unsubscribe, isSupported, needsPWAInstall, permission } = useOneSignalPush();
+  const [toggling, setToggling] = useState(false);
+
+  const handleToggle = async () => {
+    setToggling(true);
+    if (isSubscribed) {
+      await unsubscribe();
+    } else {
+      await subscribe();
+    }
+    setToggling(false);
+  };
+
+  const isBlocked = permission === "denied";
+
+  return (
+    <div className="card-maridaas p-4 mb-4 space-y-3">
+      <h3 className="font-display font-bold text-foreground flex items-center gap-2">
+        <Bell className="w-4 h-4" />
+        Notificações
+      </h3>
+
+      {needsPWAInstall ? (
+        <p className="text-sm text-muted-foreground">
+          Instale o app na tela inicial do iPhone para ativar notificações push.
+        </p>
+      ) : isBlocked ? (
+        <p className="text-sm text-muted-foreground">
+          Notificações bloqueadas pelo navegador. Acesse as configurações do navegador para desbloquear.
+        </p>
+      ) : !isSupported ? (
+        <p className="text-sm text-muted-foreground">
+          Seu navegador não suporta notificações push.
+        </p>
+      ) : (
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm text-foreground">Notificações push</p>
+            <p className="text-xs text-muted-foreground">
+              {isSubscribed ? "Ativas — você receberá avisos do bairro" : "Desativadas"}
+            </p>
+          </div>
+          <Switch
+            checked={isSubscribed}
+            onCheckedChange={handleToggle}
+            disabled={toggling || isLoading}
+          />
+        </div>
+      )}
+    </div>
+  );
+};
 
 const Profile = () => {
   const navigate = useNavigate();
@@ -430,6 +487,9 @@ const Profile = () => {
             Entre em contato com o suporte se precisar alterar.
           </p>
         </div>
+
+        {/* Notifications */}
+        <NotificationSection />
 
         {/* Account Actions */}
         <div className="card-maridaas p-4 space-y-4">
