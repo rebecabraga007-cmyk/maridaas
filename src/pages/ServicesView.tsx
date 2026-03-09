@@ -54,6 +54,7 @@ export default function ServicesView() {
   } = useServices();
 
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("Todas");
   const [selectedService, setSelectedService] = useState<Service | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
 
