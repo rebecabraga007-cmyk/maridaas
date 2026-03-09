@@ -217,9 +217,19 @@ const Services = () => {
               </p>
             </div>
             <div className="flex-1" />
-            <Button size="sm" className="btn-maridaas" onClick={() => setShowCreateModal(true)}>
-              <Plus className="w-4 h-4 mr-1" /> Cadastrar
-            </Button>
+            {checkingPremium ? (
+              <Button size="sm" disabled className="btn-maridaas">
+                <Plus className="w-4 h-4 mr-1" /> Cadastrar
+              </Button>
+            ) : isPremium ? (
+              <Button size="sm" className="btn-maridaas" onClick={() => setShowCreateModal(true)}>
+                <Plus className="w-4 h-4 mr-1" /> Cadastrar
+              </Button>
+            ) : (
+              <Button size="sm" className="bg-gradient-to-r from-secondary to-primary text-white" onClick={() => navigate("/premium")}>
+                <Sparkles className="w-4 h-4 mr-1" /> Premium
+              </Button>
+            )}
           </div>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
