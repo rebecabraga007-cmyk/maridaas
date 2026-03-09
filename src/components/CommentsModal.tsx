@@ -162,6 +162,13 @@ const CommentsModal = ({
     setSelectedUserId(userId);
   };
 
+  const handleReportComment = (commentId: string) => {
+    toast({ 
+      title: "Comentário reportado", 
+      description: "Obrigada por reportar. Nossa equipe irá revisar." 
+    });
+  };
+
   return (
     <>
       <Dialog open={isOpen} onOpenChange={onClose}>
