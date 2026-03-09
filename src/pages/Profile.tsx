@@ -120,6 +120,7 @@ const NotificationSection = () => {
 };
 
 const Profile = () => {
+  const navigate = useNavigate();
   const { toast } = useToast();
 
   const [user, setUser] = useState<User | null>(null);
