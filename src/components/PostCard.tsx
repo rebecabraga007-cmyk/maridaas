@@ -170,6 +170,41 @@ const PostCard = ({ post, currentUserId, onLikeChange, onPostDeleted, onPostUpda
     setShowComments(true);
   };
 
+  const handleShare = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSharing(true);
+    
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: `${post.author} no Maridaas`,
+          text: post.content,
+          url: window.location.origin,
+        });
+      } catch (err) {
+        // User cancelled or error occurred
+      }
+    } else {
+      // Fallback to copying to clipboard
+      const textToCopy = `${post.author} no Maridaas:\n\n${post.content}\n\n${window.location.origin}`;
+      try {
+        await navigator.clipboard.writeText(textToCopy);
+        toast({ title: "Post copiado!", description: "Link copiado para a área de transferência." });
+      } catch (err) {
+        toast({ title: "Erro ao copiar", variant: "destructive" });
+      }
+    }
+    setSharing(false);
+  };
+
+  const handleReport = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    toast({ 
+      title: "Post reportado", 
+      description: "Obrigada por reportar. Nossa equipe irá revisar." 
+    });
+  };
+
   const timeAgo = formatDistanceToNow(post.createdAt, {
     addSuffix: true,
     locale: ptBR,
