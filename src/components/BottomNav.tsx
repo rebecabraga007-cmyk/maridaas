@@ -1,7 +1,9 @@
 import * as React from "react";
+import { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Briefcase, Home, MapPin, User as UserIcon } from "lucide-react";
+import { Briefcase, Home, MapPin, User as UserIcon, Mail } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
 
 type BottomNavItemProps = React.ComponentPropsWithoutRef<"button"> & {
   icon: React.ReactNode;
