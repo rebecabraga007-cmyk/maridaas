@@ -122,4 +122,4 @@ const ServiceCard = ({ service, clickable = true }: ServiceCardProps) => {
   );
 };
 
-export default ServiceCard;
+export default React.memo(ServiceCard);
