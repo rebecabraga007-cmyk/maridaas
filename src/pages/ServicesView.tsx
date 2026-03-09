@@ -136,14 +136,19 @@ export default function ServicesView() {
           <div className="mb-6 card-maridaas p-6 bg-gradient-to-br from-primary/10 to-secondary/10 border-2 border-primary/20">
             <div className="flex items-start gap-4">
               <div className="w-12 h-12 rounded-full bg-gradient-to-r from-secondary to-primary flex items-center justify-center flex-shrink-0">
-                <Crown className="w-6 h-6 text-white" />
+                <Crown className="w-6 h-6 text-primary-foreground" />
               </div>
               <div className="flex-1">
                 <h3 className="font-display font-bold text-lg text-foreground mb-1">Ofereça seus serviços</h3>
                 <p className="text-sm text-muted-foreground mb-3">
                   Assine o Maridaas Premium por apenas R$ 29,90/mês e cadastre seus serviços para toda a vizinhança!
                 </p>
-                <Button className="bg-gradient-to-r from-secondary to-primary text-white" onClick={() => navigate("/premium")}>
+                <Button
+                  className="bg-gradient-to-r from-secondary to-primary text-primary-foreground"
+                  onClick={() => navigate("/premium")}
+                >
+                  <Sparkles className="w-4 h-4 mr-2" /> Assinar Premium
+                </Button>
                   <Sparkles className="w-4 h-4 mr-2" /> Assinar Premium
                 </Button>
               </div>
