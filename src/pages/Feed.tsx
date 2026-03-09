@@ -152,11 +152,35 @@ const Feed = () => {
 
   useEffect(() => {
     if (currentNeighborhoodId) {
-      loadPosts();
+      // Reset pagination when neighborhood changes
+      setPosts([]);
+      setCursor(null);
+      setHasMore(true);
+      loadPosts(null);
       loadServices();
       loadAnnouncements();
     }
   }, [currentNeighborhoodId]);
+
+  // Infinite scroll observer
+  useEffect(() => {
+    if (observerRef.current) observerRef.current.disconnect();
+    
+    observerRef.current = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !loadingMore) {
+          loadPosts(cursor);
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    if (loadMoreRef.current) {
+      observerRef.current.observe(loadMoreRef.current);
+    }
+
+    return () => observerRef.current?.disconnect();
+  }, [cursor, hasMore, loadingMore]);
 
   const loadAnnouncements = async () => {
     if (!user || !currentNeighborhoodId) return;
