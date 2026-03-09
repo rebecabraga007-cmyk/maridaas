@@ -244,15 +244,47 @@ const Services = () => {
       </header>
 
       <main className="container mx-auto px-4 pt-36">
+        {/* Premium Upgrade Card for Non-Premium Users */}
+        {!checkingPremium && !isPremium && (
+          <div className="mb-6 card-maridaas p-6 bg-gradient-to-br from-primary/10 to-secondary/10 border-2 border-primary/20">
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 rounded-full bg-gradient-to-r from-secondary to-primary flex items-center justify-center flex-shrink-0">
+                <Crown className="w-6 h-6 text-white" />
+              </div>
+              <div className="flex-1">
+                <h3 className="font-display font-bold text-lg text-foreground mb-1">
+                  Ofereça seus serviços
+                </h3>
+                <p className="text-sm text-muted-foreground mb-3">
+                  Assine o Maridaas Premium por apenas R$ 29,90/mês e cadastre seus serviços para toda a vizinhança!
+                </p>
+                <Button 
+                  className="bg-gradient-to-r from-secondary to-primary text-white"
+                  onClick={() => navigate("/premium")}
+                >
+                  <Sparkles className="w-4 h-4 mr-2" />
+                  Assinar Premium
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {filteredServices.length === 0 ? (
           <div className="text-center py-12">
             <Briefcase className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
             <p className="text-muted-foreground">
               {searchQuery ? "Nenhum serviço encontrado" : "Nenhum serviço cadastrado no bairro ainda."}
             </p>
-            <Button className="btn-maridaas mt-4" onClick={() => setShowCreateModal(true)}>
-              <Plus className="w-4 h-4 mr-2" /> Seja a primeira!
-            </Button>
+            {isPremium ? (
+              <Button className="btn-maridaas mt-4" onClick={() => setShowCreateModal(true)}>
+                <Plus className="w-4 h-4 mr-2" /> Seja a primeira!
+              </Button>
+            ) : (
+              <Button className="bg-gradient-to-r from-secondary to-primary text-white mt-4" onClick={() => navigate("/premium")}>
+                <Sparkles className="w-4 h-4 mr-2" /> Assinar Premium
+              </Button>
+            )}
           </div>
         ) : (
           <div className="grid gap-4">
