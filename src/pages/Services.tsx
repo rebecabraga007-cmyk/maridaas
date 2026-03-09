@@ -1,174 +1,42 @@
-import { useState, useEffect } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
-import { User } from "@supabase/supabase-js";
+import { ArrowLeft, Plus, Search, User as UserIcon, MapPin, Briefcase, Star, Sparkles, Crown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import {
-  ArrowLeft,
-  Plus,
-  Search,
-  User as UserIcon,
-  MapPin,
-  Home,
-  Briefcase,
-  Star,
-  Sparkles,
-  Crown,
-} from "lucide-react";
-import ServiceDetailModal from "@/components/ServiceDetailModal";
+import BottomNav from "@/components/BottomNav";
 import CreateServiceModal from "@/components/CreateServiceModal";
+import ServiceDetailModal from "@/components/ServiceDetailModal";
+import { useServices, type Service } from "@/hooks/useServices";
 
-interface Service {
-  id: string;
-  title: string;
-  description: string | null;
-  user_id: string;
-  whatsapp: string | null;
-  instagram: string | null;
-  image_url: string | null;
-  owner_name: string;
-  owner_avatar: string | null;
-  avg_rating: number;
-  review_count: number;
-}
-
-interface Profile {
-  primary_neighborhood_id: string | null;
-  neighborhood: string;
-  city: string;
-}
-
-const Services = () => {
+export default function Services() {
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [services, setServices] = useState<Service[]>([]);
-  const [userProfile, setUserProfile] = useState<Profile | null>(null);
+  const {
+    user,
+    loading,
+    services,
+    userProfile,
+    locationLabel,
+    isAdmin,
+    isModerator,
+    isPremium,
+    checkingPremium,
+    reloadServices,
+  } = useServices();
+
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedService, setSelectedService] = useState<Service | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [isModerator, setIsModerator] = useState(false);
-  const [isPremium, setIsPremium] = useState(false);
-  const [checkingPremium, setCheckingPremium] = useState(true);
 
-  useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      setUser(session?.user ?? null);
-      if (!session) navigate("/auth");
-    });
-
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      if (!session) {
-        navigate("/auth");
-      } else {
-        setLoading(false);
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, [navigate]);
-
-  useEffect(() => {
-    if (user) {
-      loadUserProfile();
-      checkUserRoles();
-      checkPremiumStatus();
-    }
-  }, [user]);
-
-  const checkPremiumStatus = async () => {
-    if (!user) return;
-    
-    setCheckingPremium(true);
-    const { data } = await supabase
-      .from("subscriptions")
-      .select("status, expires_at")
-      .eq("user_id", user.id)
-      .single();
-    
-    const isPremiumUser = data?.status === 'active' && 
-      (!data?.expires_at || new Date(data.expires_at) > new Date());
-    
-    setIsPremium(isPremiumUser);
-    setCheckingPremium(false);
-  };
-
-  const checkUserRoles = async () => {
-    if (!user) return;
-    
-    const { data: roles } = await supabase
-      .from("user_roles")
-      .select("role, moderator_neighborhood_id")
-      .eq("user_id", user.id);
-    
-    if (roles) {
-      setIsAdmin(roles.some(r => r.role === "admin"));
-      // Check if user is moderator for any neighborhood (will check specific neighborhood in modal)
-      setIsModerator(roles.some(r => r.role === "moderator"));
-    }
-  };
-
-  useEffect(() => {
-    if (userProfile?.primary_neighborhood_id) loadServices();
-  }, [userProfile?.primary_neighborhood_id]);
-
-  const loadUserProfile = async () => {
-    if (!user) return;
-    const { data } = await supabase
-      .from("profiles")
-      .select("primary_neighborhood_id, neighborhood, city")
-      .eq("user_id", user.id)
-      .single();
-
-    if (data) setUserProfile(data);
-  };
-
-  const loadServices = async () => {
-    if (!userProfile?.primary_neighborhood_id) return;
-
-    const { data } = await supabase
-      .from("services")
-      .select("id, title, description, user_id, whatsapp, instagram, image_url")
-      .eq("neighborhood_id", userProfile.primary_neighborhood_id)
-      .eq("is_active", true)
-      .order("created_at", { ascending: false });
-
-    if (data) {
-      const servicesWithDetails = await Promise.all(
-        data.map(async (service) => {
-          const [profileRes, reviewsRes] = await Promise.all([
-            supabase.rpc("get_public_profile", { target_user_id: service.user_id }),
-            supabase.from("service_reviews").select("rating").eq("service_id", service.id),
-          ]);
-          const profileData = profileRes.data?.[0];
-          const reviews = reviewsRes.data || [];
-          const avgRating = reviews.length > 0
-            ? reviews.reduce((acc, r) => acc + (r.rating || 0), 0) / reviews.length
-            : 0;
-          return {
-            ...service,
-            owner_name: profileData?.full_name || "Prestadora",
-            owner_avatar: profileData?.avatar_url || null,
-            avg_rating: Math.round(avgRating * 10) / 10,
-            review_count: reviews.length,
-          };
-        })
-      );
-      setServices(servicesWithDetails);
-    }
-  };
-
-  const filteredServices = services.filter(
-    (s) =>
-      s.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      s.owner_name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredServices = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return services;
+    return services.filter(
+      (s) => s.title.toLowerCase().includes(q) || s.owner_name.toLowerCase().includes(q)
+    );
+  }, [services, searchQuery]);
 
   if (loading) {
     return (
@@ -186,7 +54,7 @@ const Services = () => {
           currentUserId={user?.id}
           userNeighborhoodId={userProfile?.primary_neighborhood_id}
           onClose={() => setSelectedService(null)}
-          onUpdate={loadServices}
+          onUpdate={reloadServices}
           isAdmin={isAdmin}
           isModerator={isModerator}
         />
@@ -197,23 +65,28 @@ const Services = () => {
           onClose={() => setShowCreateModal(false)}
           onCreated={() => {
             setShowCreateModal(false);
-            loadServices();
-            toast({ title: "Serviço cadastrado!", description: "Seu serviço está disponível para vizinhas." });
+            reloadServices();
+            toast({
+              title: "Serviço cadastrado!",
+              description: "Seu serviço está disponível para vizinhas.",
+            });
           }}
         />
       )}
 
-      {/* Header */}
       <header className="fixed top-0 left-0 right-0 z-40 glass border-b border-border">
         <div className="container mx-auto px-4 py-3">
           <div className="flex items-center gap-4 mb-3">
-            <button onClick={() => navigate("/feed")} className="text-muted-foreground hover:text-foreground transition-colors">
+            <button
+              onClick={() => navigate("/feed")}
+              className="text-muted-foreground hover:text-foreground transition-colors"
+            >
               <ArrowLeft className="w-6 h-6" />
             </button>
             <div>
               <h1 className="text-lg font-display font-bold text-foreground">Serviços</h1>
               <p className="text-xs text-muted-foreground flex items-center gap-1">
-                <MapPin className="w-3 h-3" />{userProfile?.neighborhood}, {userProfile?.city}
+                <MapPin className="w-3 h-3" /> {locationLabel}
               </p>
             </div>
             <div className="flex-1" />
@@ -226,11 +99,16 @@ const Services = () => {
                 <Plus className="w-4 h-4 mr-1" /> Cadastrar
               </Button>
             ) : (
-              <Button size="sm" className="bg-gradient-to-r from-secondary to-primary text-white" onClick={() => navigate("/premium")}>
+              <Button
+                size="sm"
+                className="bg-gradient-to-r from-secondary to-primary text-white"
+                onClick={() => navigate("/premium")}
+              >
                 <Sparkles className="w-4 h-4 mr-1" /> Premium
               </Button>
             )}
           </div>
+
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
@@ -244,7 +122,6 @@ const Services = () => {
       </header>
 
       <main className="container mx-auto px-4 pt-36">
-        {/* Premium Upgrade Card for Non-Premium Users */}
         {!checkingPremium && !isPremium && (
           <div className="mb-6 card-maridaas p-6 bg-gradient-to-br from-primary/10 to-secondary/10 border-2 border-primary/20">
             <div className="flex items-start gap-4">
@@ -252,18 +129,12 @@ const Services = () => {
                 <Crown className="w-6 h-6 text-white" />
               </div>
               <div className="flex-1">
-                <h3 className="font-display font-bold text-lg text-foreground mb-1">
-                  Ofereça seus serviços
-                </h3>
+                <h3 className="font-display font-bold text-lg text-foreground mb-1">Ofereça seus serviços</h3>
                 <p className="text-sm text-muted-foreground mb-3">
                   Assine o Maridaas Premium por apenas R$ 29,90/mês e cadastre seus serviços para toda a vizinhança!
                 </p>
-                <Button 
-                  className="bg-gradient-to-r from-secondary to-primary text-white"
-                  onClick={() => navigate("/premium")}
-                >
-                  <Sparkles className="w-4 h-4 mr-2" />
-                  Assinar Premium
+                <Button className="bg-gradient-to-r from-secondary to-primary text-white" onClick={() => navigate("/premium")}>
+                  <Sparkles className="w-4 h-4 mr-2" /> Assinar Premium
                 </Button>
               </div>
             </div>
@@ -281,7 +152,10 @@ const Services = () => {
                 <Plus className="w-4 h-4 mr-2" /> Seja a primeira!
               </Button>
             ) : (
-              <Button className="bg-gradient-to-r from-secondary to-primary text-white mt-4" onClick={() => navigate("/premium")}>
+              <Button
+                className="bg-gradient-to-r from-secondary to-primary text-white mt-4"
+                onClick={() => navigate("/premium")}
+              >
                 <Sparkles className="w-4 h-4 mr-2" /> Assinar Premium
               </Button>
             )}
@@ -299,11 +173,7 @@ const Services = () => {
                   <div className="flex gap-4">
                     <div className="w-14 h-14 rounded-full bg-muted flex items-center justify-center flex-shrink-0 overflow-hidden">
                       {displayImage ? (
-                        <img
-                          src={displayImage}
-                          alt={service.title}
-                          className="w-full h-full object-cover"
-                        />
+                        <img src={displayImage} alt={service.title} className="w-full h-full object-cover" />
                       ) : (
                         <UserIcon className="w-7 h-7 text-muted-foreground" />
                       )}
@@ -327,26 +197,7 @@ const Services = () => {
         )}
       </main>
 
-      {/* Bottom Navigation */}
-      <nav className="fixed bottom-0 left-0 right-0 glass border-t border-border z-40">
-        <div className="container mx-auto px-4 flex items-center justify-around py-2">
-          <NavItem icon={<Home className="w-6 h-6" />} label="Início" onClick={() => navigate("/feed")} />
-          <NavItem icon={<Briefcase className="w-6 h-6" />} label="Serviços" active />
-          <NavItem icon={<MapPin className="w-6 h-6" />} label="Bairros" onClick={() => navigate("/neighborhoods")} />
-          <NavItem icon={<UserIcon className="w-6 h-6" />} label="Perfil" onClick={() => navigate("/profile")} />
-        </div>
-      </nav>
+      <BottomNav />
     </div>
   );
-};
-
-const NavItem = ({ icon, label, active, onClick }: { icon: React.ReactNode; label: string; active?: boolean; onClick?: () => void }) => (
-  <button
-    onClick={onClick}
-    className={`flex flex-col items-center gap-1 py-2 px-4 rounded-xl transition-colors ${active ? "text-primary" : "text-muted-foreground"}`}
-  >
-    {icon}<span className="text-xs font-medium">{label}</span>
-  </button>
-);
-
-export default Services;
+}
