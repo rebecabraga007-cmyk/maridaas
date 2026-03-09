@@ -36,6 +36,7 @@ import ImageUpload from "@/components/ImageUpload";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import { Switch } from "@/components/ui/switch";
 import { useOneSignalPush } from "@/hooks/useOneSignalPush";
+import SEOHead from "@/components/SEOHead";
 
 interface Profile {
   id: string;
@@ -323,6 +324,7 @@ const Profile = () => {
 
   return (
     <div className="min-h-screen bg-background pb-24">
+      <SEOHead title="Meu Perfil — Maridaas" description="Gerencie seu perfil e configurações." noindex />
       {/* Header */}
       <header className="fixed top-0 left-0 right-0 z-40 glass border-b border-border">
         <div className="container mx-auto px-4 py-3 flex items-center gap-4">

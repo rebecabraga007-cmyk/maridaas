@@ -17,6 +17,7 @@ import { useToast } from "@/hooks/use-toast";
 import BottomNav from "@/components/BottomNav";
 import CreateServiceModal from "@/components/CreateServiceModal";
 import ServiceDetailModal from "@/components/ServiceDetailModal";
+import SEOHead from "@/components/SEOHead";
 import { useServices, type Service } from "@/hooks/useServices";
 
 export default function ServicesView() {
@@ -58,6 +59,11 @@ export default function ServicesView() {
 
   return (
     <div className="min-h-screen bg-background pb-24">
+      <SEOHead
+        title="Serviços — Maridaas"
+        description="Encontre serviços de confiança no seu bairro. Diaristas, cuidadoras, costureiras e muito mais."
+        noindex
+      />
       {selectedService && (
         <ServiceDetailModal
           service={selectedService}

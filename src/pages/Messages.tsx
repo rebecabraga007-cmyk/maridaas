@@ -14,6 +14,7 @@ import {
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { sanitizeInput } from "@/lib/inputSanitization";
+import SEOHead from "@/components/SEOHead";
 
 interface Message {
   id: string;
@@ -186,6 +187,7 @@ const Messages = () => {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
+      <SEOHead title="Mensagens — Maridaas" description="Converse com suas vizinhas." noindex />
       {/* Header */}
       <header className="fixed top-0 left-0 right-0 z-40 glass border-b border-border">
         <div className="container mx-auto px-4 py-3 flex items-center gap-4">

@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import BottomNav from "@/components/BottomNav";
 import { differenceInDays } from "date-fns";
+import SEOHead from "@/components/SEOHead";
 
 interface Neighborhood {
   id: string;
@@ -217,6 +218,7 @@ const Neighborhoods = () => {
 
   return (
     <div className="min-h-screen bg-background pb-24">
+      <SEOHead title="Bairros — Maridaas" description="Explore e participe de outras comunidades de bairro." noindex />
       {/* Header */}
       <header className="fixed top-0 left-0 right-0 z-40 glass border-b border-border">
         <div className="container mx-auto px-4 py-3">
