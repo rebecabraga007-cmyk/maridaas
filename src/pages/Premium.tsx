@@ -104,6 +104,7 @@ const Premium = () => {
 
   return (
     <div className="min-h-screen bg-background">
+      <SEOHead title="Premium — Maridaas" description="Assine o Maridaas Premium e cadastre seus serviços para todo o bairro." noindex />
       {/* Header */}
       <header className="sticky top-0 z-10 glass border-b border-border px-4 py-3">
         <div className="max-w-lg mx-auto flex items-center gap-3">

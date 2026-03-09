@@ -213,6 +213,7 @@ const Inbox = () => {
 
   return (
     <div className="min-h-screen bg-background pb-24">
+      <SEOHead title="Recados — Maridaas" description="Veja suas mensagens e solicitações de amizade." noindex />
       <header className="fixed top-0 left-0 right-0 z-40 glass border-b border-border">
         <div className="container mx-auto px-4 py-3 flex items-center gap-4">
           <button
