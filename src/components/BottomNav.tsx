@@ -76,7 +76,7 @@ export default function BottomNav() {
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 glass border-t border-border z-40" aria-label="Navegação principal">
-      <div className="container mx-auto px-4 flex items-center justify-around py-2">
+      <div className="container mx-auto px-2 flex items-center justify-around py-2">
         <BottomNavItem
           icon={<Home className="w-6 h-6" />}
           label="Início"
@@ -90,6 +90,22 @@ export default function BottomNav() {
           active={isPathActive(pathname, "/services")}
           onClick={() => navigate("/services")}
           aria-label="Ver serviços"
+        />
+        <BottomNavItem
+          icon={
+            <div className="relative">
+              <Mail className="w-6 h-6" />
+              {unreadCount > 0 && (
+                <span className="absolute -top-2 -right-2 w-5 h-5 bg-primary text-primary-foreground text-xs rounded-full flex items-center justify-center">
+                  {unreadCount > 99 ? "99+" : unreadCount}
+                </span>
+              )}
+            </div>
+          }
+          label="Recados"
+          active={isPathActive(pathname, "/inbox") || isPathActive(pathname, "/messages")}
+          onClick={() => navigate("/inbox")}
+          aria-label="Ver recados"
         />
         <BottomNavItem
           icon={<MapPin className="w-6 h-6" />}

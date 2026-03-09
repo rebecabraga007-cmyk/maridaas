@@ -208,13 +208,33 @@ export default function ServicesView() {
           </div>
         )}
 
-        {filteredServices.length === 0 ? (
+        {loading ? (
+          <div className="grid gap-4">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <ServiceSkeleton key={i} />
+            ))}
+          </div>
+        ) : filteredServices.length === 0 ? (
           <div className="text-center py-12">
             <Briefcase className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
             <p className="text-muted-foreground">
-              {searchQuery ? "Nenhum serviço encontrado" : "Nenhum serviço cadastrado no bairro ainda."}
+              {searchQuery || selectedCategory !== "Todas" 
+                ? "Nenhum serviço encontrado para os filtros selecionados" 
+                : "Nenhum serviço cadastrado no bairro ainda."
+              }
             </p>
-            {isPremium ? (
+            {searchQuery || selectedCategory !== "Todas" ? (
+              <Button 
+                variant="outline" 
+                className="mt-4" 
+                onClick={() => {
+                  setSearchQuery("");
+                  setSelectedCategory("Todas");
+                }}
+              >
+                Limpar filtros
+              </Button>
+            ) : isPremium ? (
               <Button className="btn-maridaas mt-4" onClick={() => setShowCreateModal(true)}>
                 <Plus className="w-4 h-4 mr-2" /> Seja a primeira!
               </Button>

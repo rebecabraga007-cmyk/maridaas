@@ -205,8 +205,15 @@ const ProfilePreviewPopup = ({ userId, isOpen, onClose, currentUserId }: Profile
                     Remover
                   </Button>
                 ) : friendshipStatus === "pending" ? (
-                  <Button variant="outline" size="sm" className="flex-1" disabled>
-                    Solicitação enviada
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="flex-1" 
+                    onClick={handleRemoveFriend}
+                    disabled={actionLoading}
+                  >
+                    <UserMinus className="w-4 h-4 mr-1" />
+                    Cancelar pedido
                   </Button>
                 ) : (
                   <Button

@@ -249,6 +249,12 @@ const CommentsModal = ({
                                   Editar
                                 </DropdownMenuItem>
                               )}
+                              {!isOwner && (
+                                <DropdownMenuItem onClick={() => handleReportComment(comment.id)}>
+                                  <Flag className="w-4 h-4 mr-2" />
+                                  Reportar
+                                </DropdownMenuItem>
+                              )}
                               {canDelete && (
                                 <DropdownMenuItem
                                   className="text-destructive"

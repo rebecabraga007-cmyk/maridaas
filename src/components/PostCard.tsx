@@ -253,6 +253,16 @@ const PostCard = ({ post, currentUserId, onLikeChange, onPostDeleted, onPostUpda
                         Editar
                       </DropdownMenuItem>
                     )}
+                    <DropdownMenuItem onClick={handleShare} disabled={sharing}>
+                      <Share className="w-4 h-4 mr-2" />
+                      {sharing ? "Compartilhando..." : "Compartilhar"}
+                    </DropdownMenuItem>
+                    {!isOwner && (
+                      <DropdownMenuItem onClick={handleReport}>
+                        <Flag className="w-4 h-4 mr-2" />
+                        Reportar
+                      </DropdownMenuItem>
+                    )}
                     {canDelete && (
                       <DropdownMenuItem
                         className="text-destructive"
