@@ -1,11 +1,18 @@
 import { ArrowLeft } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import SEOHead from "@/components/SEOHead";
 
 const TermsOfService = () => {
   const navigate = useNavigate();
 
   return (
     <div className="min-h-screen bg-background">
+      <SEOHead
+        title="Termos de Uso — Maridaas"
+        description="Leia os termos de uso da Maridaas, a rede social de bairro que conecta vizinhas e fortalece comunidades."
+        canonical="https://maridaas.lovable.app/termos"
+      />
+
       <header className="sticky top-0 z-10 glass border-b border-border px-4 py-3">
         <div className="max-w-3xl mx-auto flex items-center gap-3">
           <button onClick={() => navigate(-1)} className="text-muted-foreground hover:text-foreground" aria-label="Voltar">

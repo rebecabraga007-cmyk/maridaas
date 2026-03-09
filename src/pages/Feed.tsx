@@ -647,17 +647,26 @@ const Feed = () => {
                   imageUrl: p.image_url,
                 }}
                 currentUserId={user?.id}
-                onLikeChange={loadPosts}
-                onPostDeleted={loadPosts}
-                onPostUpdated={loadPosts}
+                onLikeChange={reloadPosts}
+                onPostDeleted={reloadPosts}
+                onPostUpdated={reloadPosts}
                 canModerate={isAdmin || isModerator}
               />
             ))}
-            {posts.length === 0 && (
+            {posts.length === 0 && !loadingMore && (
               <div className="text-center py-12 text-muted-foreground">
                 <p>Nenhuma postagem ainda. Seja a primeira!</p>
               </div>
             )}
+            {/* Infinite scroll sentinel */}
+            <div ref={loadMoreRef} className="h-10 flex items-center justify-center">
+              {loadingMore && (
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              )}
+              {!hasMore && posts.length > 0 && (
+                <p className="text-sm text-muted-foreground">Você viu todas as postagens 🎉</p>
+              )}
+            </div>
           </div>
         </section>
       </main>
