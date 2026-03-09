@@ -1,7 +1,13 @@
-import { useState, useEffect, useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { urlBase64ToUint8Array } from "@/lib/utils";
 import { deletePushSubscription, savePushSubscription } from "@/lib/pushHelpers";
+import {
+  createLocalNotification,
+  extractSubscriptionKeys,
+  getCurrentPushSubscription,
+  isPushSupported,
+  subscribeToPush,
+} from "@/lib/pushClient";
 
 declare global {
   interface ServiceWorkerRegistration {
@@ -27,7 +33,7 @@ export const usePushNotifications = () => {
   const [vapidPublicKey, setVapidPublicKey] = useState<string | null>(null);
 
   useEffect(() => {
-    const loadVapidKey = async () => {
+    const init = async () => {
       try {
         const { data, error } = await supabase.functions.invoke("get-vapid-public-key");
         if (error || !data?.vapidPublicKey) {
@@ -36,48 +42,26 @@ export const usePushNotifications = () => {
         }
 
         setVapidPublicKey(data.vapidPublicKey);
-        await checkSupport();
+
+        if (!isPushSupported()) {
+          setState({ permission: "unsupported", isSupported: false, isSubscribed: false, isLoading: false });
+          return;
+        }
+
+        const subscription = await getCurrentPushSubscription();
+        setState({
+          permission: Notification.permission,
+          isSupported: true,
+          isSubscribed: Boolean(subscription),
+          isLoading: false,
+        });
       } catch {
         setState((prev) => ({ ...prev, isLoading: false }));
       }
     };
 
-    loadVapidKey();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    init();
   }, []);
-
-  const checkSupport = async () => {
-    const isSupported =
-      "Notification" in window && "serviceWorker" in navigator && "PushManager" in window;
-
-    if (!isSupported) {
-      setState({
-        permission: "unsupported",
-        isSupported: false,
-        isSubscribed: false,
-        isLoading: false,
-      });
-      return;
-    }
-
-    const permission = Notification.permission;
-    let isSubscribed = false;
-
-    try {
-      const registration = await navigator.serviceWorker.ready;
-      const subscription = await registration.pushManager.getSubscription();
-      isSubscribed = Boolean(subscription);
-    } catch {
-      // silent
-    }
-
-    setState({
-      permission,
-      isSupported: true,
-      isSubscribed,
-      isLoading: false,
-    });
-  };
 
   const subscribe = useCallback(async (): Promise<boolean> => {
     if (!state.isSupported || !vapidPublicKey) return false;
@@ -91,25 +75,8 @@ export const usePushNotifications = () => {
         return false;
       }
 
-      const registration = await navigator.serviceWorker.ready;
-
-      const existingSubscription = await registration.pushManager.getSubscription();
-      if (existingSubscription) {
-        await existingSubscription.unsubscribe();
-      }
-
-      const applicationServerKey = urlBase64ToUint8Array(vapidPublicKey);
-      const subscription = await registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: applicationServerKey.buffer as ArrayBuffer,
-      });
-
-      const key = subscription.getKey("p256dh");
-      const auth = subscription.getKey("auth");
-      if (!key || !auth) throw new Error("missing_subscription_keys");
-
-      const p256dh = btoa(String.fromCharCode(...new Uint8Array(key)));
-      const authKey = btoa(String.fromCharCode(...new Uint8Array(auth)));
+      const subscription = await subscribeToPush(vapidPublicKey);
+      const keys = extractSubscriptionKeys(subscription);
 
       const {
         data: { user },
@@ -118,22 +85,13 @@ export const usePushNotifications = () => {
 
       await savePushSubscription(user.id, {
         endpoint: subscription.endpoint,
-        p256dh,
-        auth: authKey,
+        p256dh: keys.p256dh,
+        auth: keys.auth,
       });
 
-      await supabase
-        .from("profiles")
-        .update({ notifications_enabled: true })
-        .eq("user_id", user.id);
+      await supabase.from("profiles").update({ notifications_enabled: true }).eq("user_id", user.id);
 
-      setState((prev) => ({
-        ...prev,
-        permission: "granted",
-        isSubscribed: true,
-        isLoading: false,
-      }));
-
+      setState((prev) => ({ ...prev, permission: "granted", isSubscribed: true, isLoading: false }));
       return true;
     } catch {
       setState((prev) => ({ ...prev, isLoading: false }));
@@ -145,23 +103,16 @@ export const usePushNotifications = () => {
     setState((prev) => ({ ...prev, isLoading: true }));
 
     try {
-      const registration = await navigator.serviceWorker.ready;
-      const subscription = await registration.pushManager.getSubscription();
+      const subscription = await getCurrentPushSubscription();
+      if (subscription) await subscription.unsubscribe();
 
-      if (subscription) {
-        await subscription.unsubscribe();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
 
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-
-        if (user) {
-          await deletePushSubscription(user.id);
-          await supabase
-            .from("profiles")
-            .update({ notifications_enabled: false })
-            .eq("user_id", user.id);
-        }
+      if (user) {
+        await deletePushSubscription(user.id);
+        await supabase.from("profiles").update({ notifications_enabled: false }).eq("user_id", user.id);
       }
 
       setState((prev) => ({ ...prev, isSubscribed: false, isLoading: false }));
@@ -175,20 +126,8 @@ export const usePushNotifications = () => {
   const sendLocalNotification = useCallback(
     (title: string, options?: NotificationOptions) => {
       if (state.permission !== "granted") return;
-
       try {
-        const notification = new Notification(title, {
-          icon: "/logo.png",
-          badge: "/logo.png",
-          ...options,
-        });
-
-        notification.onclick = () => {
-          window.focus();
-          notification.close();
-        };
-
-        return notification;
+        return createLocalNotification(title, options);
       } catch {
         return;
       }
@@ -196,10 +135,5 @@ export const usePushNotifications = () => {
     [state.permission]
   );
 
-  return {
-    ...state,
-    subscribe,
-    unsubscribe,
-    sendLocalNotification,
-  };
+  return { ...state, subscribe, unsubscribe, sendLocalNotification };
 };

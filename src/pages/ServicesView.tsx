@@ -168,7 +168,7 @@ export default function ServicesView() {
               </Button>
             ) : (
               <Button
-                className="bg-gradient-to-r from-secondary to-primary text-white mt-4"
+                className="bg-gradient-to-r from-secondary to-primary text-primary-foreground mt-4"
                 onClick={() => navigate("/premium")}
               >
                 <Sparkles className="w-4 h-4 mr-2" /> Assinar Premium
