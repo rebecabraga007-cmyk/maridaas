@@ -369,26 +369,9 @@ const Inbox = () => {
         />
       )}
 
-      {/* Bottom Navigation */}
-      <nav className="fixed bottom-0 left-0 right-0 glass border-t border-border z-40">
-        <div className="container mx-auto px-4 flex items-center justify-around py-2">
-          <NavItem icon={<Home className="w-6 h-6" />} label="Início" onClick={() => navigate("/feed")} />
-          <NavItem icon={<Briefcase className="w-6 h-6" />} label="Serviços" onClick={() => navigate("/services")} />
-          <NavItem icon={<MapPin className="w-6 h-6" />} label="Bairros" onClick={() => navigate("/neighborhoods")} />
-          <NavItem icon={<UserIcon className="w-6 h-6" />} label="Perfil" onClick={() => navigate("/profile")} />
-        </div>
-      </nav>
+      <BottomNav />
     </div>
   );
 };
-
-const NavItem = ({ icon, label, active, onClick }: { icon: React.ReactNode; label: string; active?: boolean; onClick?: () => void }) => (
-  <button
-    onClick={onClick}
-    className={`flex flex-col items-center gap-1 py-2 px-4 rounded-xl transition-colors ${active ? "text-primary" : "text-muted-foreground"}`}
-  >
-    {icon}<span className="text-xs font-medium">{label}</span>
-  </button>
-);
 
 export default Inbox;
