@@ -399,8 +399,20 @@ const Feed = () => {
     );
   }
 
+  const reloadPosts = () => {
+    setPosts([]);
+    setCursor(null);
+    setHasMore(true);
+    loadPosts(null);
+  };
+
   return (
     <div className="min-h-screen bg-background pb-20">
+      <SEOHead
+        title="Feed — Maridaas"
+        description="Veja as últimas novidades do seu bairro, publique e interaja com suas vizinhas."
+        noindex
+      />
       {showOnboarding && (
         <OnboardingModal
           onClose={() => {
