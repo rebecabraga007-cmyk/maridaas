@@ -43,16 +43,12 @@ const PublicProfile = () => {
   }, [userId]);
 
   const loadProfile = async () => {
-    // Use the security definer function to get public profile data
-    const { data, error } = await supabase
-      .rpc("get_public_profile", { target_user_id: userId });
-
-    if (data && data.length > 0) {
-      setProfile(data[0]);
-    }
+    const { data } = await supabase.rpc("get_public_profile", { target_user_id: userId });
+    if (data && data.length > 0) setProfile(data[0]);
     setLoading(false);
   };
 
+  // Optimized: 2 queries instead of N+1
   const loadServices = async () => {
     const { data } = await supabase
       .from("services")
@@ -60,22 +56,31 @@ const PublicProfile = () => {
       .eq("user_id", userId)
       .eq("is_active", true);
 
-    if (data) {
-      const servicesWithRatings = await Promise.all(
-        data.map(async (service) => {
-          const { data: reviews } = await supabase
-            .from("service_reviews")
-            .select("rating")
-            .eq("service_id", service.id);
-          const avgRating =
-            reviews && reviews.length > 0
-              ? reviews.reduce((acc, r) => acc + (r.rating || 0), 0) / reviews.length
-              : 0;
-          return { ...service, avg_rating: Math.round(avgRating * 10) / 10 };
-        })
-      );
-      setServices(servicesWithRatings);
+    if (!data || data.length === 0) {
+      setServices([]);
+      return;
     }
+
+    const serviceIds = data.map((s) => s.id);
+    const { data: allReviews } = await supabase
+      .from("service_reviews")
+      .select("service_id, rating")
+      .in("service_id", serviceIds);
+
+    const reviewsMap = new Map<string, number[]>();
+    for (const review of allReviews || []) {
+      if (!reviewsMap.has(review.service_id)) reviewsMap.set(review.service_id, []);
+      reviewsMap.get(review.service_id)!.push(review.rating || 0);
+    }
+
+    setServices(
+      data.map((service) => {
+        const ratings = reviewsMap.get(service.id) || [];
+        const avgRating =
+          ratings.length > 0 ? ratings.reduce((a, b) => a + b, 0) / ratings.length : 0;
+        return { ...service, avg_rating: Math.round(avgRating * 10) / 10 };
+      })
+    );
   };
 
   if (loading) {
@@ -99,7 +104,6 @@ const PublicProfile = () => {
 
   return (
     <div className="min-h-screen bg-background pb-8">
-      {/* Header */}
       <header className="fixed top-0 left-0 right-0 z-40 glass border-b border-border">
         <div className="container mx-auto px-4 py-3 flex items-center gap-4">
           <button
@@ -113,7 +117,6 @@ const PublicProfile = () => {
       </header>
 
       <main className="container mx-auto px-4 pt-20">
-        {/* Avatar e Info */}
         <div className="flex flex-col items-center mb-6">
           <div className="w-24 h-24 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center mb-4">
             {profile.avatar_url ? (
@@ -126,9 +129,7 @@ const PublicProfile = () => {
               <User className="w-12 h-12 text-white" />
             )}
           </div>
-          <h2 className="text-xl font-display font-bold text-foreground">
-            {profile.full_name}
-          </h2>
+          <h2 className="text-xl font-display font-bold text-foreground">{profile.full_name}</h2>
           <div className="flex items-center gap-1 text-muted-foreground text-sm mt-1">
             <MapPin className="w-4 h-4" />
             <span>
@@ -137,14 +138,12 @@ const PublicProfile = () => {
           </div>
         </div>
 
-        {/* Bio */}
         {profile.bio && (
           <div className="card-maridaas p-4 mb-4">
             <p className="text-foreground">{profile.bio}</p>
           </div>
         )}
 
-        {/* Redes sociais */}
         <div className="flex gap-3 justify-center mb-6">
           {profile.instagram && (
             <a
@@ -170,7 +169,6 @@ const PublicProfile = () => {
           )}
         </div>
 
-        {/* Serviços */}
         {services.length > 0 && (
           <div>
             <h3 className="text-lg font-display font-bold text-foreground mb-4 flex items-center gap-2">

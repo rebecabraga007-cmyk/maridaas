@@ -7,7 +7,6 @@ import {
   MapPin,
   Eye,
   Lock,
-  User as UserIcon,
 } from "lucide-react";
 import ServiceClickableCard from "@/components/ServiceClickableCard";
 import PostCard from "@/components/PostCard";
@@ -52,9 +51,7 @@ const NeighborhoodView = () => {
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
-      if (!session) {
-        navigate("/auth");
-      }
+      if (!session) navigate("/auth");
     });
   }, [navigate]);
 
@@ -67,8 +64,7 @@ const NeighborhoodView = () => {
   const loadData = async () => {
     setLoading(true);
 
-    // Load user's primary and secondary neighborhoods + roles
-    const [profileRes, rolesRes] = await Promise.all([
+    const [profileRes, rolesRes, neighborhoodRes] = await Promise.all([
       supabase
         .from("profiles")
         .select("primary_neighborhood_id, secondary_neighborhood_id")
@@ -78,103 +74,109 @@ const NeighborhoodView = () => {
         .from("user_roles")
         .select("role, moderator_neighborhood_id")
         .eq("user_id", user!.id),
+      supabase
+        .from("neighborhoods")
+        .select("id, name, city")
+        .eq("id", neighborhoodId)
+        .single(),
     ]);
 
-    // Check admin/moderator roles first
+    // Roles
     let userIsAdmin = false;
     let userIsModerator = false;
     if (rolesRes.data) {
       const roles = rolesRes.data;
-      userIsAdmin = roles.some(r => r.role === "admin");
-      userIsModerator = roles.some(r => r.role === "moderator" && 
-        (r.moderator_neighborhood_id === neighborhoodId || r.moderator_neighborhood_id === null));
+      userIsAdmin = roles.some((r) => r.role === "admin");
+      userIsModerator = roles.some(
+        (r) =>
+          r.role === "moderator" &&
+          (r.moderator_neighborhood_id === neighborhoodId || r.moderator_neighborhood_id === null)
+      );
       setIsAdmin(userIsAdmin);
       setIsModerator(userIsModerator);
     }
 
     if (profileRes.data) {
       const profile = profileRes.data;
-      // Admin can interact in ALL neighborhoods
-      // Regular users can only interact in primary OR secondary neighborhood
-      const userCanInteract = userIsAdmin || 
-                              profile.primary_neighborhood_id === neighborhoodId || 
-                              profile.secondary_neighborhood_id === neighborhoodId;
+      const userCanInteract =
+        userIsAdmin ||
+        profile.primary_neighborhood_id === neighborhoodId ||
+        profile.secondary_neighborhood_id === neighborhoodId;
       setCanInteract(userCanInteract);
     } else if (userIsAdmin) {
-      // Admin without profile still can interact
       setCanInteract(true);
     }
 
-    // Load neighborhood info
-    const { data: neighborhoodData } = await supabase
-      .from("neighborhoods")
-      .select("id, name, city")
-      .eq("id", neighborhoodId)
-      .single();
-
-    if (neighborhoodData) {
-      setNeighborhood(neighborhoodData);
+    if (neighborhoodRes.data) {
+      setNeighborhood(neighborhoodRes.data);
     }
 
-    // Load posts with full details
-    const { data: postsData } = await supabase
-      .from("posts")
-      .select("id, content, created_at, user_id, image_url")
-      .eq("neighborhood_id", neighborhoodId)
-      .order("created_at", { ascending: false })
-      .limit(50);
+    // Load posts and services in parallel
+    const [postsRes, servicesRes] = await Promise.all([
+      supabase
+        .from("posts")
+        .select("id, content, created_at, user_id, image_url")
+        .eq("neighborhood_id", neighborhoodId)
+        .order("created_at", { ascending: false })
+        .limit(50),
+      supabase.rpc("get_services_with_details", { _neighborhood_id: neighborhoodId }),
+    ]);
 
-    if (postsData) {
-      const postsWithDetails = await Promise.all(
-        postsData.map(async (post) => {
-          const [profileRes, likesRes, commentsRes] = await Promise.all([
-            supabase.rpc("get_public_profile", { target_user_id: post.user_id }),
-            supabase.from("post_likes").select("id", { count: "exact", head: true }).eq("post_id", post.id),
-            supabase.from("post_comments").select("id", { count: "exact", head: true }).eq("post_id", post.id),
-          ]);
-          const profileData = profileRes.data?.[0];
+    // Services — single RPC, no N+1
+    if (servicesRes.data) {
+      setServices(
+        servicesRes.data.map((s: any) => ({
+          id: s.id,
+          title: s.title,
+          owner_name: s.owner_name,
+          avg_rating: s.avg_rating,
+        }))
+      );
+    }
+
+    // Posts — batch profile lookups + bulk likes/comments
+    if (postsRes.data && postsRes.data.length > 0) {
+      const postIds = postsRes.data.map((p) => p.id);
+      const uniqueUserIds = [...new Set(postsRes.data.map((p) => p.user_id))];
+
+      const [profileResults, likesRes, commentsRes] = await Promise.all([
+        Promise.all(
+          uniqueUserIds.map((uid) => supabase.rpc("get_public_profile", { target_user_id: uid }))
+        ),
+        supabase.from("post_likes").select("post_id").in("post_id", postIds),
+        supabase.from("post_comments").select("post_id").in("post_id", postIds),
+      ]);
+
+      const profilesMap = new Map(
+        profileResults.flatMap((r, i) =>
+          r.data?.[0] ? [[uniqueUserIds[i], r.data[0]]] : []
+        )
+      );
+
+      const likesMap = new Map<string, number>();
+      for (const like of likesRes.data || []) {
+        likesMap.set(like.post_id, (likesMap.get(like.post_id) || 0) + 1);
+      }
+
+      const commentsMap = new Map<string, number>();
+      for (const comment of commentsRes.data || []) {
+        commentsMap.set(comment.post_id, (commentsMap.get(comment.post_id) || 0) + 1);
+      }
+
+      setPosts(
+        postsRes.data.map((post) => {
+          const profile = profilesMap.get(post.user_id) as any;
           return {
             ...post,
-            author: profileData?.full_name || "Usuária",
-            avatar_url: profileData?.avatar_url || null,
-            image_url: post.image_url,
-            likes_count: likesRes.count || 0,
-            comments_count: commentsRes.count || 0,
+            author: profile?.full_name || "Usuária",
+            avatar_url: profile?.avatar_url || null,
+            likes_count: likesMap.get(post.id) || 0,
+            comments_count: commentsMap.get(post.id) || 0,
           };
         })
       );
-      setPosts(postsWithDetails);
-    }
-
-    // Load services
-    const { data: servicesData } = await supabase
-      .from("services")
-      .select("id, title, user_id")
-      .eq("neighborhood_id", neighborhoodId)
-      .eq("is_active", true)
-      .limit(20);
-
-    if (servicesData) {
-      const servicesWithDetails = await Promise.all(
-        servicesData.map(async (service) => {
-          const [profileRes, reviewsRes] = await Promise.all([
-            supabase.rpc("get_public_profile", { target_user_id: service.user_id }),
-            supabase.from("service_reviews").select("rating").eq("service_id", service.id),
-          ]);
-          const profileData = profileRes.data?.[0];
-          const reviews = reviewsRes.data || [];
-          const avgRating =
-            reviews.length > 0
-              ? reviews.reduce((acc, r) => acc + (r.rating || 0), 0) / reviews.length
-              : 0;
-          return {
-            ...service,
-            owner_name: profileData?.full_name || "Prestadora",
-            avg_rating: Math.round(avgRating * 10) / 10,
-          };
-        })
-      );
-      setServices(servicesWithDetails);
+    } else {
+      setPosts([]);
     }
 
     setLoading(false);
@@ -201,7 +203,6 @@ const NeighborhoodView = () => {
 
   return (
     <div className="min-h-screen bg-background pb-8">
-      {/* Header */}
       <header className="fixed top-0 left-0 right-0 z-40 glass border-b border-border">
         <div className="container mx-auto px-4 py-3">
           <div className="flex items-center gap-4">
@@ -213,9 +214,7 @@ const NeighborhoodView = () => {
             </button>
             <div className="flex-1">
               <div className="flex items-center gap-2">
-                <h1 className="text-lg font-display font-bold text-foreground">
-                  {neighborhood.name}
-                </h1>
+                <h1 className="text-lg font-display font-bold text-foreground">{neighborhood.name}</h1>
                 <span className="flex items-center gap-1 text-xs bg-accent/20 text-accent-foreground px-2 py-1 rounded-full">
                   <Eye className="w-3 h-3" />
                   Visualização
@@ -231,21 +230,18 @@ const NeighborhoodView = () => {
       </header>
 
       <main className="container mx-auto px-4 pt-20">
-        {/* Aviso de modo visualização */}
         {!canInteract && (
           <div className="bg-accent/10 border border-accent/30 rounded-xl p-4 mb-6 flex items-center gap-3">
             <Lock className="w-5 h-5 text-accent-foreground flex-shrink-0" />
             <p className="text-sm text-accent-foreground">
-              Você está visualizando este bairro. Para interagir, defina-o como seu bairro principal ou secundário.
+              Você está visualizando este bairro. Para interagir, defina-o como seu bairro principal ou
+              secundário.
             </p>
           </div>
         )}
 
-        {/* Serviços */}
         <section className="mb-8">
-          <h2 className="text-lg font-display font-bold text-foreground mb-4">
-            Serviços do bairro
-          </h2>
+          <h2 className="text-lg font-display font-bold text-foreground mb-4">Serviços do bairro</h2>
           {services.length === 0 ? (
             <p className="text-muted-foreground text-center py-8">
               Nenhum serviço cadastrado neste bairro
@@ -265,15 +261,10 @@ const NeighborhoodView = () => {
           )}
         </section>
 
-        {/* Posts */}
         <section>
-          <h2 className="text-lg font-display font-bold text-foreground mb-4">
-            Mural do bairro
-          </h2>
+          <h2 className="text-lg font-display font-bold text-foreground mb-4">Mural do bairro</h2>
           {posts.length === 0 ? (
-            <p className="text-muted-foreground text-center py-8">
-              Nenhuma postagem neste bairro
-            </p>
+            <p className="text-muted-foreground text-center py-8">Nenhuma postagem neste bairro</p>
           ) : (
             <div className="space-y-4">
               {posts.map((post) => (
