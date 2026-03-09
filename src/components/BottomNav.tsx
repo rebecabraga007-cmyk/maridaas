@@ -35,31 +35,35 @@ export default function BottomNav() {
   const { pathname } = useLocation();
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 glass border-t border-border z-40">
+    <nav className="fixed bottom-0 left-0 right-0 glass border-t border-border z-40" aria-label="Navegação principal">
       <div className="container mx-auto px-4 flex items-center justify-around py-2">
         <BottomNavItem
           icon={<Home className="w-6 h-6" />}
           label="Início"
           active={isPathActive(pathname, "/feed")}
           onClick={() => navigate("/feed")}
+          aria-label="Ir para o feed"
         />
         <BottomNavItem
           icon={<Briefcase className="w-6 h-6" />}
           label="Serviços"
           active={isPathActive(pathname, "/services")}
           onClick={() => navigate("/services")}
+          aria-label="Ver serviços"
         />
         <BottomNavItem
           icon={<MapPin className="w-6 h-6" />}
           label="Bairros"
           active={isPathActive(pathname, "/neighborhoods")}
           onClick={() => navigate("/neighborhoods")}
+          aria-label="Explorar bairros"
         />
         <BottomNavItem
           icon={<UserIcon className="w-6 h-6" />}
           label="Perfil"
           active={isPathActive(pathname, "/profile")}
           onClick={() => navigate("/profile")}
+          aria-label="Meu perfil"
         />
       </div>
     </nav>
