@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { sanitizeTextInput } from "@/lib/inputSanitization";
+import { sanitizeInput } from "@/lib/inputSanitization";
 
 interface Message {
   id: string;
