@@ -23,6 +23,7 @@ import {
   MessageCircle,
   Mail,
   Trash2,
+  Bell,
 } from "lucide-react";
 import BottomNav from "@/components/BottomNav";
 import {
