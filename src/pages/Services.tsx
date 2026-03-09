@@ -78,8 +78,26 @@ const Services = () => {
     if (user) {
       loadUserProfile();
       checkUserRoles();
+      checkPremiumStatus();
     }
   }, [user]);
+
+  const checkPremiumStatus = async () => {
+    if (!user) return;
+    
+    setCheckingPremium(true);
+    const { data } = await supabase
+      .from("subscriptions")
+      .select("status, expires_at")
+      .eq("user_id", user.id)
+      .single();
+    
+    const isPremiumUser = data?.status === 'active' && 
+      (!data?.expires_at || new Date(data.expires_at) > new Date());
+    
+    setIsPremium(isPremiumUser);
+    setCheckingPremium(false);
+  };
 
   const checkUserRoles = async () => {
     if (!user) return;
