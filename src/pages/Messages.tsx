@@ -150,7 +150,7 @@ const Messages = () => {
   const handleSend = async () => {
     if (!newMessage.trim() || !user || !userId) return;
 
-    const sanitized = sanitizeTextInput(newMessage.trim(), 1000);
+    const sanitized = sanitizeInput(newMessage.trim(), 1000);
     if (!sanitized) return;
 
     setSending(true);
