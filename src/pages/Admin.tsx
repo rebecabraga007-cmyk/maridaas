@@ -423,24 +423,21 @@ const Admin = () => {
   const handleSendNotificationNow = async (notificationId: string) => {
     try {
       toast({ title: "Enviando notificação..." });
-      
+
       const { data, error } = await supabase.functions.invoke("send-push-notification", {
         body: { notification_id: notificationId },
       });
 
       if (error) {
-        console.error("Error sending push:", error);
         toast({ title: "Erro ao enviar", description: error.message, variant: "destructive" });
       } else {
-        console.log("Push sent:", data);
-        toast({ 
-          title: "Notificação enviada!", 
-          description: `Enviada para ${data?.results?.[0]?.sent || 0} dispositivos.` 
+        toast({
+          title: "Notificação enviada!",
+          description: `Enviada para ${data?.results?.[0]?.sent || 0} dispositivos.`,
         });
         loadScheduledNotifications();
       }
-    } catch (e) {
-      console.error("Error:", e);
+    } catch {
       toast({ title: "Erro ao enviar notificação", variant: "destructive" });
     }
   };
