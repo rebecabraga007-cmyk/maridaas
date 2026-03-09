@@ -393,21 +393,18 @@ const Admin = () => {
         });
 
         if (funcError) {
-          console.error("Error sending push:", funcError);
-          toast({ 
-            title: "Notificação criada, mas erro ao enviar", 
-            description: funcError.message, 
-            variant: "destructive" 
+          toast({
+            title: "Notificação criada, mas erro ao enviar",
+            description: funcError.message,
+            variant: "destructive",
           });
         } else {
-          console.log("Push sent:", data);
-          toast({ 
-            title: "Notificação enviada!", 
-            description: `Enviada para ${data?.results?.[0]?.sent || 0} dispositivos.` 
+          toast({
+            title: "Notificação enviada!",
+            description: `Enviada para ${data?.results?.[0]?.sent || 0} dispositivos.`,
           });
         }
-      } catch (e) {
-        console.error("Error invoking function:", e);
+      } catch {
         toast({ title: "Erro ao enviar notificação", variant: "destructive" });
       }
     } else {
