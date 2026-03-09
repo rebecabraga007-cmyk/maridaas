@@ -378,7 +378,10 @@ const Feed = () => {
       setPostImageUrl("");
       setShowImageUpload(false);
       toast({ title: "Publicado!", description: "Sua postagem foi compartilhada." });
-      loadPosts();
+      setPosts([]);
+      setCursor(null);
+      setHasMore(true);
+      loadPosts(null);
     }
     setPosting(false);
   };
