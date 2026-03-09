@@ -71,8 +71,7 @@ const Premium = () => {
       if (data?.url) {
         window.open(data.url, "_blank");
       }
-    } catch (err) {
-      console.error("Checkout error:", err);
+    } catch {
       toast({ title: "Erro", description: "Não foi possível iniciar o checkout.", variant: "destructive" });
     } finally {
       setLoading(false);
