@@ -48,8 +48,12 @@ const Premium = () => {
       if (error) throw error;
       setSubscribed(data.subscribed);
       setSubscriptionEnd(data.subscription_end);
-    } catch (err) {
-      console.error("Error checking subscription:", err);
+    } catch {
+      toast({
+        title: "Erro",
+        description: "Não foi possível verificar sua assinatura agora.",
+        variant: "destructive",
+      });
     } finally {
       setChecking(false);
     }

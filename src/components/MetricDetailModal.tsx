@@ -99,7 +99,7 @@ const MetricDetailModal = ({ type, onClose }: MetricDetailModalProps) => {
 
   const loadData = async () => {
     setLoading(true);
-    
+
     const now = new Date();
     const today = now.toISOString().split("T")[0];
     const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
@@ -123,10 +123,10 @@ const MetricDetailModal = ({ type, onClose }: MetricDetailModalProps) => {
           await loadVisits(type === "visitsToday" ? today : undefined);
           break;
       }
-    } catch (error) {
-      console.error("Error loading data:", error);
+    } catch {
+      toast.error("Erro ao carregar dados");
     }
-    
+
     setLoading(false);
   };
 
