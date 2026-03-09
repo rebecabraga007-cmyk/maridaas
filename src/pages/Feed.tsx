@@ -263,26 +263,42 @@ const Feed = () => {
     });
   };
 
-  // Optimized: batch profile lookups + single bulk queries for likes/comments
-  const loadPosts = async () => {
-    if (!currentNeighborhoodId) return;
+  const loadPosts = async (afterCursor: string | null = null) => {
+    if (!currentNeighborhoodId || loadingMore) return;
 
-    const { data, error } = await supabase
+    setLoadingMore(true);
+
+    let query = supabase
       .from("posts")
       .select("id, content, created_at, user_id, image_url")
       .eq("neighborhood_id", currentNeighborhoodId)
       .order("created_at", { ascending: false })
-      .limit(50);
+      .limit(PAGE_SIZE);
+
+    if (afterCursor) {
+      query = query.lt("created_at", afterCursor);
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       toast({ title: "Erro", description: "Não foi possível carregar as postagens.", variant: "destructive" });
+      setLoadingMore(false);
       return;
     }
 
     if (!data || data.length === 0) {
-      setPosts([]);
+      setHasMore(false);
+      setLoadingMore(false);
       return;
     }
+
+    if (data.length < PAGE_SIZE) {
+      setHasMore(false);
+    }
+
+    // Set cursor to last item's created_at
+    setCursor(data[data.length - 1].created_at);
 
     const postIds = data.map((p) => p.id);
     const uniqueUserIds = [...new Set(data.map((p) => p.user_id))];
@@ -311,18 +327,24 @@ const Feed = () => {
       commentsMap.set(comment.post_id, (commentsMap.get(comment.post_id) || 0) + 1);
     }
 
-    setPosts(
-      data.map((post) => {
-        const profile = profilesMap.get(post.user_id) as any;
-        return {
-          ...post,
-          author: profile?.full_name || "Usuária",
-          avatar_url: profile?.avatar_url || null,
-          likes_count: likesMap.get(post.id) || 0,
-          comments_count: commentsMap.get(post.id) || 0,
-        };
-      })
-    );
+    const newPosts = data.map((post) => {
+      const profile = profilesMap.get(post.user_id) as any;
+      return {
+        ...post,
+        author: profile?.full_name || "Usuária",
+        avatar_url: profile?.avatar_url || null,
+        likes_count: likesMap.get(post.id) || 0,
+        comments_count: commentsMap.get(post.id) || 0,
+      };
+    });
+
+    if (afterCursor) {
+      setPosts((prev) => [...prev, ...newPosts]);
+    } else {
+      setPosts(newPosts);
+    }
+
+    setLoadingMore(false);
   };
 
   // Optimized: single RPC replaces N+1 profile+review calls
