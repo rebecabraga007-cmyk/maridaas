@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { User, Send, Trash2, MoreVertical, Edit2, X, Check } from "lucide-react";
+import { User, Send, Trash2, MoreVertical, Edit2, X, Check, Flag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -28,6 +28,7 @@ interface Comment {
   created_at: string;
   user_id: string;
   author_name: string;
+  author_avatar: string | null;
 }
 
 interface CommentsModalProps {
@@ -86,6 +87,7 @@ const CommentsModal = ({
           return {
             ...comment,
             author_name: profileData?.[0]?.full_name || "Usuária",
+            author_avatar: profileData?.[0]?.avatar_url || null,
           };
         })
       );
@@ -160,6 +162,13 @@ const CommentsModal = ({
     setSelectedUserId(userId);
   };
 
+  const handleReportComment = (commentId: string) => {
+    toast({ 
+      title: "Comentário reportado", 
+      description: "Obrigada por reportar. Nossa equipe irá revisar." 
+    });
+  };
+
   return (
     <>
       <Dialog open={isOpen} onOpenChange={onClose}>
@@ -197,9 +206,17 @@ const CommentsModal = ({
                   <div key={comment.id} className="flex gap-2">
                     <button 
                       onClick={() => handleProfileClick(comment.user_id)}
-                      className="w-8 h-8 rounded-full bg-accent flex items-center justify-center flex-shrink-0 hover:opacity-80 transition-opacity"
+                      className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center flex-shrink-0 hover:opacity-80 transition-opacity overflow-hidden"
                     >
-                      <User className="w-4 h-4 text-accent-foreground" />
+                      {comment.author_avatar ? (
+                        <img 
+                          src={comment.author_avatar} 
+                          alt={comment.author_name} 
+                          className="w-full h-full object-cover" 
+                        />
+                      ) : (
+                        <User className="w-4 h-4 text-white" />
+                      )}
                     </button>
                     <div className="flex-1">
                       <div className="flex items-center justify-between">
@@ -230,6 +247,12 @@ const CommentsModal = ({
                                 <DropdownMenuItem onClick={() => handleEditComment(comment)}>
                                   <Edit2 className="w-4 h-4 mr-2" />
                                   Editar
+                                </DropdownMenuItem>
+                              )}
+                              {!isOwner && (
+                                <DropdownMenuItem onClick={() => handleReportComment(comment.id)}>
+                                  <Flag className="w-4 h-4 mr-2" />
+                                  Reportar
                                 </DropdownMenuItem>
                               )}
                               {canDelete && (

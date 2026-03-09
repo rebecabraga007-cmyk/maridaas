@@ -14,6 +14,7 @@ import FeedHeader from "@/components/feed/FeedHeader";
 import FeedPostComposer from "@/components/feed/FeedPostComposer";
 import FeedPostList from "@/components/feed/FeedPostList";
 import FeedServiceCarousel from "@/components/feed/FeedServiceCarousel";
+import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 
 interface Profile {
   full_name: string;
@@ -55,6 +56,14 @@ const Feed = () => {
   const [unreadCounts, setUnreadCounts] = useState({ messages: 0, requests: 0 });
   const [selectedNeighborhood, setSelectedNeighborhood] = useState<"primary" | "secondary">("primary");
   const [neighborhoodInfo, setNeighborhoodInfo] = useState<{ primary: NeighborhoodInfo | null; secondary: NeighborhoodInfo | null }>({ primary: null, secondary: null });
+
+  const { isPulling, isRefreshing, pullDistance, shouldShowRefresh } = usePullToRefresh({
+    onRefresh: async () => {
+      reloadPosts();
+      loadServices();
+      loadAnnouncements();
+    },
+  });
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
@@ -119,8 +128,47 @@ const Feed = () => {
       loadPosts(null);
       loadServices();
       loadAnnouncements();
+      subscribeToRealtimePosts();
     }
   }, [currentNeighborhoodId]);
+
+  // Realtime subscription for new posts
+  const subscribeToRealtimePosts = () => {
+    if (!currentNeighborhoodId) return;
+
+    const channel = supabase
+      .channel(`posts-${currentNeighborhoodId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "posts",
+          filter: `neighborhood_id=eq.${currentNeighborhoodId}`,
+        },
+        async (payload) => {
+          const newPost = payload.new as any;
+          
+          // Get profile info for the new post
+          const { data: profileData } = await supabase.rpc("get_public_profile", { 
+            target_user_id: newPost.user_id 
+          });
+          
+          const enrichedPost = {
+            ...newPost,
+            author: profileData?.[0]?.full_name || "Usuária",
+            avatar_url: profileData?.[0]?.avatar_url || null,
+            likes_count: 0,
+            comments_count: 0,
+          };
+          
+          setPosts((prev) => [enrichedPost, ...prev]);
+        }
+      )
+      .subscribe();
+
+    return () => supabase.removeChannel(channel);
+  };
 
   const loadAnnouncements = async () => {
     if (!user || !currentNeighborhoodId) return;
@@ -295,7 +343,31 @@ const Feed = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background pb-20">
+    <div className="min-h-screen bg-background pb-20 relative">
+      {/* Pull to refresh indicator */}
+      {(isPulling || isRefreshing) && (
+        <div 
+          className="fixed top-0 left-0 right-0 z-50 flex items-center justify-center bg-primary/10 transition-all duration-200"
+          style={{ 
+            height: isPulling ? `${Math.min(pullDistance, 80)}px` : isRefreshing ? '60px' : '0px',
+            transform: `translateY(${isPulling ? '0' : isRefreshing ? '0' : '-100%'})`,
+          }}
+        >
+          <div className="text-center text-primary">
+            {isRefreshing ? (
+              <>
+                <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-1" />
+                <span className="text-xs">Atualizando...</span>
+              </>
+            ) : shouldShowRefresh ? (
+              <span className="text-sm font-medium">Solte para atualizar</span>
+            ) : (
+              <span className="text-sm">Puxe para atualizar</span>
+            )}
+          </div>
+        </div>
+      )}
+      
       <SEOHead title="Feed — Maridaas" description="Veja as últimas novidades do seu bairro, publique e interaja com suas vizinhas." noindex />
 
       {showOnboarding && (

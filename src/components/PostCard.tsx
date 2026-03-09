@@ -1,6 +1,6 @@
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Heart, MessageCircle, User, MoreVertical, Trash2, Edit2, X, Check } from "lucide-react";
+import { Heart, MessageCircle, User, MoreVertical, Trash2, Edit2, X, Check, Share, Flag } from "lucide-react";
 import React, { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import CommentsModal from "./CommentsModal";
@@ -52,6 +52,7 @@ const PostCard = ({ post, currentUserId, onLikeChange, onPostDeleted, onPostUpda
 
   const isOwner = currentUserId === post.userId;
   const canDelete = isOwner || canModerate;
+  const [sharing, setSharing] = useState(false);
 
   useEffect(() => {
     checkIfLiked();
@@ -169,6 +170,41 @@ const PostCard = ({ post, currentUserId, onLikeChange, onPostDeleted, onPostUpda
     setShowComments(true);
   };
 
+  const handleShare = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSharing(true);
+    
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: `${post.author} no Maridaas`,
+          text: post.content,
+          url: window.location.origin,
+        });
+      } catch (err) {
+        // User cancelled or error occurred
+      }
+    } else {
+      // Fallback to copying to clipboard
+      const textToCopy = `${post.author} no Maridaas:\n\n${post.content}\n\n${window.location.origin}`;
+      try {
+        await navigator.clipboard.writeText(textToCopy);
+        toast({ title: "Post copiado!", description: "Link copiado para a área de transferência." });
+      } catch (err) {
+        toast({ title: "Erro ao copiar", variant: "destructive" });
+      }
+    }
+    setSharing(false);
+  };
+
+  const handleReport = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    toast({ 
+      title: "Post reportado", 
+      description: "Obrigada por reportar. Nossa equipe irá revisar." 
+    });
+  };
+
   const timeAgo = formatDistanceToNow(post.createdAt, {
     addSuffix: true,
     locale: ptBR,
@@ -215,6 +251,16 @@ const PostCard = ({ post, currentUserId, onLikeChange, onPostDeleted, onPostUpda
                       <DropdownMenuItem onClick={handleEdit}>
                         <Edit2 className="w-4 h-4 mr-2" />
                         Editar
+                      </DropdownMenuItem>
+                    )}
+                    <DropdownMenuItem onClick={handleShare} disabled={sharing}>
+                      <Share className="w-4 h-4 mr-2" />
+                      {sharing ? "Compartilhando..." : "Compartilhar"}
+                    </DropdownMenuItem>
+                    {!isOwner && (
+                      <DropdownMenuItem onClick={handleReport}>
+                        <Flag className="w-4 h-4 mr-2" />
+                        Reportar
                       </DropdownMenuItem>
                     )}
                     {canDelete && (

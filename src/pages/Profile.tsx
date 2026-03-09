@@ -391,7 +391,7 @@ const Profile = () => {
               }}
             >
               <Users className="w-4 h-4 mr-2" />
-              Amigos
+              Amigos ({friends.length})
             </Button>
             <Button
               variant="outline"

@@ -1,6 +1,7 @@
 import { useRef, useEffect } from "react";
 import { Loader2 } from "lucide-react";
 import PostCard from "@/components/PostCard";
+import PostSkeleton from "@/components/PostSkeleton";
 
 interface Post {
   id: string;
@@ -57,6 +58,14 @@ export default function FeedPostList({
 
   return (
     <div className="space-y-4">
+      {loadingMore && posts.length === 0 && (
+        <>
+          <PostSkeleton />
+          <PostSkeleton />
+          <PostSkeleton />
+        </>
+      )}
+      
       {posts.map((p) => (
         <PostCard
           key={p.id}
@@ -78,13 +87,16 @@ export default function FeedPostList({
           canModerate={canModerate}
         />
       ))}
+      
       {posts.length === 0 && !loadingMore && (
         <div className="text-center py-12 text-muted-foreground">
-          <p>Nenhuma postagem ainda. Seja a primeira!</p>
+          <p className="text-lg mb-2">Nenhuma postagem ainda 📝</p>
+          <p className="text-sm">Seja a primeira a compartilhar algo!</p>
         </div>
       )}
+      
       <div ref={loadMoreRef} className="h-10 flex items-center justify-center">
-        {loadingMore && <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />}
+        {loadingMore && posts.length > 0 && <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />}
         {!hasMore && posts.length > 0 && (
           <p className="text-sm text-muted-foreground">Você viu todas as postagens 🎉</p>
         )}

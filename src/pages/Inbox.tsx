@@ -78,14 +78,15 @@ const Inbox = () => {
     }
   }, [user]);
 
-  const loadConversations = async () => {
+  const loadConversations = async (limit: number = 20, offset: number = 0) => {
     if (!user) return;
 
     const { data: messages } = await supabase
       .from("user_messages")
       .select("*")
       .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`)
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: false })
+      .limit(limit * 10); // Get more messages to ensure we have enough conversations
 
     if (messages) {
       const conversationsMap = new Map<string, any>();
@@ -108,8 +109,13 @@ const Inbox = () => {
         }
       }
 
+      // Apply pagination to conversations
+      const allConversations = Array.from(conversationsMap.values())
+        .sort((a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime())
+        .slice(offset, offset + limit);
+
       const conversationsWithProfiles = await Promise.all(
-        Array.from(conversationsMap.values()).map(async (conv) => {
+        allConversations.map(async (conv) => {
           const { data } = await supabase.rpc("get_public_profile", { target_user_id: conv.userId });
           return {
             ...conv,
@@ -119,7 +125,11 @@ const Inbox = () => {
         })
       );
 
-      setConversations(conversationsWithProfiles);
+      if (offset === 0) {
+        setConversations(conversationsWithProfiles);
+      } else {
+        setConversations(prev => [...prev, ...conversationsWithProfiles]);
+      }
     }
   };
 

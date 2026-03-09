@@ -10,15 +10,31 @@ import {
   Star,
   Sparkles,
   Crown,
+  Filter,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import BottomNav from "@/components/BottomNav";
 import CreateServiceModal from "@/components/CreateServiceModal";
 import ServiceDetailModal from "@/components/ServiceDetailModal";
 import SEOHead from "@/components/SEOHead";
+import ServiceSkeleton from "@/components/ServiceSkeleton";
 import { useServices, type Service } from "@/hooks/useServices";
+
+const SERVICE_CATEGORIES = [
+  "Todas",
+  "Diarista",
+  "Cuidadora",
+  "Costureira",
+  "Cozinheira",
+  "Manicure",
+  "Cabeleireira",
+  "Pet Care",
+  "Aulas",
+  "Outros"
+];
 
 export default function ServicesView() {
   const navigate = useNavigate();
@@ -38,16 +54,31 @@ export default function ServicesView() {
   } = useServices();
 
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("Todas");
   const [selectedService, setSelectedService] = useState<Service | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
 
   const filteredServices = useMemo(() => {
+    let filtered = services;
+    
+    // Filter by category
+    if (selectedCategory !== "Todas") {
+      filtered = filtered.filter(s => 
+        s.title.toLowerCase().includes(selectedCategory.toLowerCase()) ||
+        s.description?.toLowerCase().includes(selectedCategory.toLowerCase())
+      );
+    }
+    
+    // Filter by search query
     const q = searchQuery.trim().toLowerCase();
-    if (!q) return services;
-    return services.filter(
-      (s) => s.title.toLowerCase().includes(q) || s.owner_name.toLowerCase().includes(q)
-    );
-  }, [services, searchQuery]);
+    if (q) {
+      filtered = filtered.filter(
+        (s) => s.title.toLowerCase().includes(q) || s.owner_name.toLowerCase().includes(q)
+      );
+    }
+    
+    return filtered;
+  }, [services, searchQuery, selectedCategory]);
 
   if (loading) {
     return (
@@ -125,14 +156,31 @@ export default function ServicesView() {
             )}
           </div>
 
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder="Buscar serviço ou prestadora..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
-            />
+          <div className="flex gap-3">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar serviço ou prestadora..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+            <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+              <SelectTrigger className="w-40">
+                <div className="flex items-center gap-2">
+                  <Filter className="w-4 h-4" />
+                  <SelectValue />
+                </div>
+              </SelectTrigger>
+              <SelectContent>
+                {SERVICE_CATEGORIES.map((category) => (
+                  <SelectItem key={category} value={category}>
+                    {category}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </div>
       </header>
@@ -160,13 +208,33 @@ export default function ServicesView() {
           </div>
         )}
 
-        {filteredServices.length === 0 ? (
+        {loading ? (
+          <div className="grid gap-4">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <ServiceSkeleton key={i} />
+            ))}
+          </div>
+        ) : filteredServices.length === 0 ? (
           <div className="text-center py-12">
             <Briefcase className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
             <p className="text-muted-foreground">
-              {searchQuery ? "Nenhum serviço encontrado" : "Nenhum serviço cadastrado no bairro ainda."}
+              {searchQuery || selectedCategory !== "Todas" 
+                ? "Nenhum serviço encontrado para os filtros selecionados" 
+                : "Nenhum serviço cadastrado no bairro ainda."
+              }
             </p>
-            {isPremium ? (
+            {searchQuery || selectedCategory !== "Todas" ? (
+              <Button 
+                variant="outline" 
+                className="mt-4" 
+                onClick={() => {
+                  setSearchQuery("");
+                  setSelectedCategory("Todas");
+                }}
+              >
+                Limpar filtros
+              </Button>
+            ) : isPremium ? (
               <Button className="btn-maridaas mt-4" onClick={() => setShowCreateModal(true)}>
                 <Plus className="w-4 h-4 mr-2" /> Seja a primeira!
               </Button>
