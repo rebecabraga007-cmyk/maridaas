@@ -388,8 +388,13 @@ const Admin = () => {
     // Se for para enviar agora, chama a edge function
     if (sendNow && insertedNotification) {
       try {
-        const { data, error: funcError } = await supabase.functions.invoke("send-push-notification", {
-          body: { notification_id: insertedNotification.id },
+        const { data, error: funcError } = await supabase.functions.invoke("send-onesignal-push", {
+          body: {
+            title: insertedNotification.title,
+            message: insertedNotification.body,
+            target_type: insertedNotification.target_type,
+            target_id: insertedNotification.target_id,
+          },
         });
 
         if (funcError) {
