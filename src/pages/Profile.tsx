@@ -434,6 +434,9 @@ const Profile = () => {
           </p>
         </div>
 
+        {/* Notifications */}
+        <NotificationSection />
+
         {/* Account Actions */}
         <div className="card-maridaas p-4 space-y-4">
           <h3 className="font-display font-bold text-foreground">Conta</h3>
