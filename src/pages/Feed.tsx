@@ -493,10 +493,11 @@ const Feed = () => {
                 <Shield className="h-5 w-5" />
               </Button>
             )}
-            <Button variant="ghost" size="icon" onClick={() => setShowNotificationSettings(true)}>
+            <ThemeToggle />
+            <Button variant="ghost" size="icon" onClick={() => setShowNotificationSettings(true)} aria-label="Configurações de notificação">
               <Bell className="h-5 w-5" />
             </Button>
-            <Button variant="ghost" size="icon" onClick={handleLogout}>
+            <Button variant="ghost" size="icon" onClick={handleLogout} aria-label="Sair">
               <LogOut className="h-5 w-5" />
             </Button>
           </div>
