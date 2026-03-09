@@ -119,8 +119,47 @@ const Feed = () => {
       loadPosts(null);
       loadServices();
       loadAnnouncements();
+      subscribeToRealtimePosts();
     }
   }, [currentNeighborhoodId]);
+
+  // Realtime subscription for new posts
+  const subscribeToRealtimePosts = () => {
+    if (!currentNeighborhoodId) return;
+
+    const channel = supabase
+      .channel(`posts-${currentNeighborhoodId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "posts",
+          filter: `neighborhood_id=eq.${currentNeighborhoodId}`,
+        },
+        async (payload) => {
+          const newPost = payload.new as any;
+          
+          // Get profile info for the new post
+          const { data: profileData } = await supabase.rpc("get_public_profile", { 
+            target_user_id: newPost.user_id 
+          });
+          
+          const enrichedPost = {
+            ...newPost,
+            author: profileData?.[0]?.full_name || "Usuária",
+            avatar_url: profileData?.[0]?.avatar_url || null,
+            likes_count: 0,
+            comments_count: 0,
+          };
+          
+          setPosts((prev) => [enrichedPost, ...prev]);
+        }
+      )
+      .subscribe();
+
+    return () => supabase.removeChannel(channel);
+  };
 
   const loadAnnouncements = async () => {
     if (!user || !currentNeighborhoodId) return;
