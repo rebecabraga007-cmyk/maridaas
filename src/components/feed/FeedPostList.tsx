@@ -1,6 +1,7 @@
 import { useRef, useEffect } from "react";
 import { Loader2 } from "lucide-react";
 import PostCard from "@/components/PostCard";
+import PostSkeleton from "@/components/PostSkeleton";
 
 interface Post {
   id: string;
