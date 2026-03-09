@@ -17,6 +17,7 @@ import { useToast } from "@/hooks/use-toast";
 import BottomNav from "@/components/BottomNav";
 import CreateServiceModal from "@/components/CreateServiceModal";
 import ServiceDetailModal from "@/components/ServiceDetailModal";
+import SEOHead from "@/components/SEOHead";
 import { useServices, type Service } from "@/hooks/useServices";
 
 export default function ServicesView() {
