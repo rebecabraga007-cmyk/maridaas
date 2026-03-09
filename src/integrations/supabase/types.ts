@@ -687,6 +687,22 @@ export type Database = {
           whatsapp: string
         }[]
       }
+      get_services_with_details: {
+        Args: { _neighborhood_id: string }
+        Returns: {
+          avg_rating: number
+          description: string
+          id: string
+          image_url: string
+          instagram: string
+          owner_avatar: string
+          owner_name: string
+          review_count: number
+          title: string
+          user_id: string
+          whatsapp: string
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]

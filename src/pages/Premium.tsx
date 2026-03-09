@@ -48,8 +48,12 @@ const Premium = () => {
       if (error) throw error;
       setSubscribed(data.subscribed);
       setSubscriptionEnd(data.subscription_end);
-    } catch (err) {
-      console.error("Error checking subscription:", err);
+    } catch {
+      toast({
+        title: "Erro",
+        description: "Não foi possível verificar sua assinatura agora.",
+        variant: "destructive",
+      });
     } finally {
       setChecking(false);
     }
@@ -67,8 +71,7 @@ const Premium = () => {
       if (data?.url) {
         window.open(data.url, "_blank");
       }
-    } catch (err) {
-      console.error("Checkout error:", err);
+    } catch {
       toast({ title: "Erro", description: "Não foi possível iniciar o checkout.", variant: "destructive" });
     } finally {
       setLoading(false);
@@ -83,8 +86,7 @@ const Premium = () => {
       if (data?.url) {
         window.open(data.url, "_blank");
       }
-    } catch (err) {
-      console.error("Portal error:", err);
+    } catch {
       toast({ title: "Erro", description: "Não foi possível abrir o portal.", variant: "destructive" });
     } finally {
       setLoading(false);

@@ -257,9 +257,13 @@ const Admin = () => {
   const loadUsers = async () => {
     // Use admin function to get all profiles
     const { data: profiles, error } = await supabase.rpc("admin_get_all_profiles");
-    
+
     if (error) {
-      console.error("Error loading users:", error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível carregar a lista de usuárias.",
+        variant: "destructive",
+      });
       return;
     }
 
@@ -389,21 +393,18 @@ const Admin = () => {
         });
 
         if (funcError) {
-          console.error("Error sending push:", funcError);
-          toast({ 
-            title: "Notificação criada, mas erro ao enviar", 
-            description: funcError.message, 
-            variant: "destructive" 
+          toast({
+            title: "Notificação criada, mas erro ao enviar",
+            description: funcError.message,
+            variant: "destructive",
           });
         } else {
-          console.log("Push sent:", data);
-          toast({ 
-            title: "Notificação enviada!", 
-            description: `Enviada para ${data?.results?.[0]?.sent || 0} dispositivos.` 
+          toast({
+            title: "Notificação enviada!",
+            description: `Enviada para ${data?.results?.[0]?.sent || 0} dispositivos.`,
           });
         }
-      } catch (e) {
-        console.error("Error invoking function:", e);
+      } catch {
         toast({ title: "Erro ao enviar notificação", variant: "destructive" });
       }
     } else {
@@ -422,24 +423,21 @@ const Admin = () => {
   const handleSendNotificationNow = async (notificationId: string) => {
     try {
       toast({ title: "Enviando notificação..." });
-      
+
       const { data, error } = await supabase.functions.invoke("send-push-notification", {
         body: { notification_id: notificationId },
       });
 
       if (error) {
-        console.error("Error sending push:", error);
         toast({ title: "Erro ao enviar", description: error.message, variant: "destructive" });
       } else {
-        console.log("Push sent:", data);
-        toast({ 
-          title: "Notificação enviada!", 
-          description: `Enviada para ${data?.results?.[0]?.sent || 0} dispositivos.` 
+        toast({
+          title: "Notificação enviada!",
+          description: `Enviada para ${data?.results?.[0]?.sent || 0} dispositivos.`,
         });
         loadScheduledNotifications();
       }
-    } catch (e) {
-      console.error("Error:", e);
+    } catch {
       toast({ title: "Erro ao enviar notificação", variant: "destructive" });
     }
   };

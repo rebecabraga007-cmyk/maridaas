@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "@/hooks/use-toast";
 import {
   Dialog,
   DialogContent,
@@ -50,10 +51,10 @@ const UserDetailsModal = ({ userId, isOpen, onClose }: UserDetailsModalProps) =>
 
   const loadFullProfile = async () => {
     setLoading(true);
-    
-    // Use admin function to get full profile (bypasses RLS)
-    const { data, error } = await supabase
-      .rpc("admin_get_full_profile" as any, { target_user_id: userId });
+
+    const { data, error } = await supabase.rpc("admin_get_full_profile" as any, {
+      target_user_id: userId,
+    });
 
     if (data && Array.isArray(data) && data.length > 0) {
       const profile = data[0] as any;
@@ -71,7 +72,11 @@ const UserDetailsModal = ({ userId, isOpen, onClose }: UserDetailsModalProps) =>
         created_at: profile.created_at,
       });
     } else {
-      console.error("Error loading profile:", error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível carregar o perfil deste usuário.",
+        variant: "destructive",
+      });
     }
 
     setLoading(false);
