@@ -197,9 +197,17 @@ const CommentsModal = ({
                   <div key={comment.id} className="flex gap-2">
                     <button 
                       onClick={() => handleProfileClick(comment.user_id)}
-                      className="w-8 h-8 rounded-full bg-accent flex items-center justify-center flex-shrink-0 hover:opacity-80 transition-opacity"
+                      className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center flex-shrink-0 hover:opacity-80 transition-opacity overflow-hidden"
                     >
-                      <User className="w-4 h-4 text-accent-foreground" />
+                      {comment.author_avatar ? (
+                        <img 
+                          src={comment.author_avatar} 
+                          alt={comment.author_name} 
+                          className="w-full h-full object-cover" 
+                        />
+                      ) : (
+                        <User className="w-4 h-4 text-white" />
+                      )}
                     </button>
                     <div className="flex-1">
                       <div className="flex items-center justify-between">
