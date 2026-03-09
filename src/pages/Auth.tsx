@@ -223,10 +223,7 @@ const Auth = () => {
           toast({ title: "Erro ao criar conta", description: error.message, variant: "destructive" });
         }
       } else {
-        toast({ title: "Conta criada!", description: "Você já pode fazer login." });
-        setIsSignup(false);
-        setStep(1);
-        setShowEmailForm(false);
+        toast({ title: "Conta criada!", description: "Bem-vinda ao Maridaas!" });
       }
     } catch (error) {
       if (error instanceof z.ZodError) {
