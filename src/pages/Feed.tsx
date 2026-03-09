@@ -57,6 +57,14 @@ const Feed = () => {
   const [selectedNeighborhood, setSelectedNeighborhood] = useState<"primary" | "secondary">("primary");
   const [neighborhoodInfo, setNeighborhoodInfo] = useState<{ primary: NeighborhoodInfo | null; secondary: NeighborhoodInfo | null }>({ primary: null, secondary: null });
 
+  const { isPulling, isRefreshing, pullDistance, shouldShowRefresh } = usePullToRefresh({
+    onRefresh: async () => {
+      reloadPosts();
+      loadServices();
+      loadAnnouncements();
+    },
+  });
+
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setUser(session?.user ?? null);
