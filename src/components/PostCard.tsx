@@ -52,6 +52,7 @@ const PostCard = ({ post, currentUserId, onLikeChange, onPostDeleted, onPostUpda
 
   const isOwner = currentUserId === post.userId;
   const canDelete = isOwner || canModerate;
+  const [sharing, setSharing] = useState(false);
 
   useEffect(() => {
     checkIfLiked();
