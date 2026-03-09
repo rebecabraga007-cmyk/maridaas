@@ -177,7 +177,7 @@
   }
 
   .glass {
-    @apply bg-white/80 backdrop-blur-md;
+    @apply bg-background/80 backdrop-blur-md;
   }
 
   .btn-maridaas {
