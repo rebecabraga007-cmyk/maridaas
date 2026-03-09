@@ -4,6 +4,7 @@ import {
   isValidUUID,
   sanitizeInput,
 } from "../_shared/security.ts";
+import { checkRateLimit, rateLimitKey } from "../_shared/rateLimit.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -80,6 +81,13 @@ serve(async (req) => {
 
     if (!roleData) {
       return errorResponse("Admin access required", 403);
+    }
+
+    // Rate limit: 30 push sends per minute per admin
+    const rlKey = rateLimitKey(userId, "send-push");
+    const { allowed, remaining } = await checkRateLimit(rlKey, 30, 60);
+    if (!allowed) {
+      return errorResponse("Too many requests", 429);
     }
 
     // Parse body

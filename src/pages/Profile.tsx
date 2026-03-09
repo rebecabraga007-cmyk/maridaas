@@ -280,14 +280,25 @@ const Profile = () => {
     if (!user) return;
     setDeletingAccount(true);
 
-    // Sign out and inform user - actual deletion requires admin action or edge function
-    await supabase.auth.signOut();
-    toast({
-      title: "Conta marcada para exclusão",
-      description: "Sua conta será removida em até 30 dias. Entre em contato se mudar de ideia.",
-    });
-    navigate("/");
-    setDeletingAccount(false);
+    try {
+      const { error } = await supabase.functions.invoke("delete-account");
+      if (error) throw error;
+
+      toast({
+        title: "Conta excluída",
+        description: "Todos os seus dados foram removidos permanentemente.",
+      });
+      navigate("/");
+    } catch (err) {
+      console.error("[delete-account]", err);
+      toast({
+        title: "Erro ao excluir conta",
+        description: "Tente novamente ou entre em contato com o suporte.",
+        variant: "destructive",
+      });
+    } finally {
+      setDeletingAccount(false);
+    }
   };
 
   const formatDate = (dateString: string | null) => {

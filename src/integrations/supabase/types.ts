@@ -683,20 +683,36 @@ export type Database = {
         Args: { _neighborhood_id: string }
         Returns: number
       }
-      get_profiles_public: {
-        Args: never
-        Returns: {
-          avatar_url: string
-          bio: string
-          city: string
-          created_at: string
-          full_name: string
-          neighborhood: string
-          primary_neighborhood_id: string
-          secondary_neighborhood_id: string
-          user_id: string
-        }[]
-      }
+      delete_own_account: { Args: never; Returns: boolean }
+      get_profiles_public:
+        | {
+            Args: never
+            Returns: {
+              avatar_url: string
+              bio: string
+              city: string
+              created_at: string
+              full_name: string
+              neighborhood: string
+              primary_neighborhood_id: string
+              secondary_neighborhood_id: string
+              user_id: string
+            }[]
+          }
+        | {
+            Args: { _limit?: number; _offset?: number }
+            Returns: {
+              avatar_url: string
+              bio: string
+              city: string
+              created_at: string
+              full_name: string
+              neighborhood: string
+              primary_neighborhood_id: string
+              secondary_neighborhood_id: string
+              user_id: string
+            }[]
+          }
       get_public_profile: {
         Args: { target_user_id: string }
         Returns: {
@@ -743,15 +759,25 @@ export type Database = {
       is_premium_user: { Args: { _user_id: string }; Returns: boolean }
       same_neighborhood: { Args: { target_user_id: string }; Returns: boolean }
       sanitize_like_input: { Args: { input_text: string }; Returns: string }
-      search_users_global: {
-        Args: { search_term: string }
-        Returns: {
-          city: string
-          full_name: string
-          neighborhood: string
-          user_id: string
-        }[]
-      }
+      search_users_global:
+        | {
+            Args: { search_term: string }
+            Returns: {
+              city: string
+              full_name: string
+              neighborhood: string
+              user_id: string
+            }[]
+          }
+        | {
+            Args: { _limit?: number; search_term: string }
+            Returns: {
+              city: string
+              full_name: string
+              neighborhood: string
+              user_id: string
+            }[]
+          }
     }
     Enums: {
       app_role: "admin" | "moderator" | "user"
