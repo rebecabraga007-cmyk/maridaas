@@ -35,6 +35,44 @@ const isPathActive = (pathname: string, target: string) =>
 export default function BottomNav() {
   const navigate = useNavigate();
   const { pathname } = useLocation();
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const checkAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        setCurrentUserId(session.user.id);
+        loadUnreadCount(session.user.id);
+      }
+    };
+    
+    checkAuth();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (session?.user) {
+        setCurrentUserId(session.user.id);
+        loadUnreadCount(session.user.id);
+      } else {
+        setCurrentUserId(null);
+        setUnreadCount(0);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const loadUnreadCount = async (userId: string) => {
+    if (!userId) return;
+    
+    const [messagesRes, requestsRes] = await Promise.all([
+      supabase.from("user_messages").select("id", { count: "exact", head: true }).eq("receiver_id", userId).is("read_at", null),
+      supabase.from("friendships").select("id", { count: "exact", head: true }).eq("addressee_id", userId).eq("status", "pending"),
+    ]);
+    
+    const total = (messagesRes.count || 0) + (requestsRes.count || 0);
+    setUnreadCount(total);
+  };
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 glass border-t border-border z-40" aria-label="Navegação principal">
