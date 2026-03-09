@@ -67,6 +67,12 @@ const Feed = () => {
   const [postImageUrl, setPostImageUrl] = useState<string>("");
   const [showImageUpload, setShowImageUpload] = useState(false);
   const [posts, setPosts] = useState<any[]>([]);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const [cursor, setCursor] = useState<string | null>(null);
+  const observerRef = useRef<IntersectionObserver | null>(null);
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
+  const PAGE_SIZE = 20;
   const [services, setServices] = useState<any[]>([]);
   const [userProfile, setUserProfile] = useState<Profile | null>(null);
   const [announcements, setAnnouncements] = useState<any[]>([]);
