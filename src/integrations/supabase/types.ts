@@ -121,6 +121,39 @@ export type Database = {
         }
         Relationships: []
       }
+      notification_preferences: {
+        Row: {
+          channel_email: boolean
+          channel_push: boolean
+          channel_sms: boolean
+          created_at: string
+          event_type: string
+          id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          channel_email?: boolean
+          channel_push?: boolean
+          channel_sms?: boolean
+          created_at?: string
+          event_type?: string
+          id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          channel_email?: boolean
+          channel_push?: boolean
+          channel_sms?: boolean
+          created_at?: string
+          event_type?: string
+          id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       notification_reads: {
         Row: {
           id: string
