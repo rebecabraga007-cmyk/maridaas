@@ -87,6 +87,7 @@ const CommentsModal = ({
           return {
             ...comment,
             author_name: profileData?.[0]?.full_name || "Usuária",
+            author_avatar: profileData?.[0]?.avatar_url || null,
           };
         })
       );
