@@ -1,5 +1,5 @@
 import { Star, User } from "lucide-react";
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import ServiceDetailModal from "./ServiceDetailModal";
 

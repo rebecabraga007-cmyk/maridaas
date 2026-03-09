@@ -1,7 +1,7 @@
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Heart, MessageCircle, User, MoreVertical, Trash2, Edit2, X, Check } from "lucide-react";
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import CommentsModal from "./CommentsModal";
 import ProfilePreviewPopup from "./ProfilePreviewPopup";
