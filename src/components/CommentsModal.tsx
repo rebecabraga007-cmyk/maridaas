@@ -28,6 +28,7 @@ interface Comment {
   created_at: string;
   user_id: string;
   author_name: string;
+  author_avatar: string | null;
 }
 
 interface CommentsModalProps {
