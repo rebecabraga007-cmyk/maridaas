@@ -83,6 +83,13 @@ serve(async (req) => {
       return errorResponse("Admin access required", 403);
     }
 
+    // Rate limit: 30 push sends per minute per admin
+    const rlKey = rateLimitKey(userId, "send-push");
+    const { allowed, remaining } = await checkRateLimit(rlKey, 30, 60);
+    if (!allowed) {
+      return errorResponse("Too many requests", 429);
+    }
+
     // Parse body
     let body: PushRequest;
     try {
