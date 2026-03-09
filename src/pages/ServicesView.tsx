@@ -10,15 +10,31 @@ import {
   Star,
   Sparkles,
   Crown,
+  Filter,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import BottomNav from "@/components/BottomNav";
 import CreateServiceModal from "@/components/CreateServiceModal";
 import ServiceDetailModal from "@/components/ServiceDetailModal";
 import SEOHead from "@/components/SEOHead";
+import ServiceSkeleton from "@/components/ServiceSkeleton";
 import { useServices, type Service } from "@/hooks/useServices";
+
+const SERVICE_CATEGORIES = [
+  "Todas",
+  "Diarista",
+  "Cuidadora",
+  "Costureira",
+  "Cozinheira",
+  "Manicure",
+  "Cabeleireira",
+  "Pet Care",
+  "Aulas",
+  "Outros"
+];
 
 export default function ServicesView() {
   const navigate = useNavigate();
