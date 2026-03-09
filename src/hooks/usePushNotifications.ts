@@ -1,6 +1,13 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
+// Type augmentation for ServiceWorkerRegistration
+declare global {
+  interface ServiceWorkerRegistration {
+    readonly pushManager: PushManager;
+  }
+}
+
 interface PushState {
   permission: NotificationPermission | "unsupported";
   isSupported: boolean;
