@@ -149,8 +149,6 @@ export default function ServicesView() {
                 >
                   <Sparkles className="w-4 h-4 mr-2" /> Assinar Premium
                 </Button>
-                  <Sparkles className="w-4 h-4 mr-2" /> Assinar Premium
-                </Button>
               </div>
             </div>
           </div>
