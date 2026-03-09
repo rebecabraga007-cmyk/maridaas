@@ -491,7 +491,7 @@ const MetricDetailModal = ({ type, onClose }: MetricDetailModalProps) => {
 
   const handleDeleteUser = async () => {
     if (!userToDelete) return;
-    
+
     setDeleting(true);
     try {
       const { data, error } = await supabase.rpc("admin_delete_user", {
@@ -506,8 +506,7 @@ const MetricDetailModal = ({ type, onClose }: MetricDetailModalProps) => {
       } else {
         toast.error("Não foi possível deletar o usuário");
       }
-    } catch (error) {
-      console.error("Error deleting user:", error);
+    } catch {
       toast.error("Erro ao deletar usuário");
     } finally {
       setDeleting(false);

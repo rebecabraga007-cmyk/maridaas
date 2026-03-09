@@ -86,8 +86,7 @@ const Premium = () => {
       if (data?.url) {
         window.open(data.url, "_blank");
       }
-    } catch (err) {
-      console.error("Portal error:", err);
+    } catch {
       toast({ title: "Erro", description: "Não foi possível abrir o portal.", variant: "destructive" });
     } finally {
       setLoading(false);

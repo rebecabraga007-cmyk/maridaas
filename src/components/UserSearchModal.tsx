@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Search, User, MapPin, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { toast } from "@/hooks/use-toast";
 import {
   Dialog,
   DialogContent,
@@ -28,11 +29,6 @@ const UserSearchModal = ({ isOpen, onClose }: UserSearchModalProps) => {
   const [results, setResults] = useState<UserResult[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // Sanitize input to escape LIKE special characters (%, _, \)
-  const sanitizeForLike = (input: string): string => {
-    return input.replace(/[%_\\]/g, '\\$&');
-  };
-
   useEffect(() => {
     if (searchQuery.length >= 2) {
       searchUsers();
@@ -43,27 +39,37 @@ const UserSearchModal = ({ isOpen, onClose }: UserSearchModalProps) => {
 
   const searchUsers = async () => {
     setLoading(true);
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
     if (!user) {
       setLoading(false);
       return;
     }
-    
-    // Global search using the search function
-    const { data, error } = await supabase
-      .rpc("search_users_global" as any, { search_term: searchQuery });
+
+    const { data, error } = await supabase.rpc("search_users_global" as any, {
+      search_term: searchQuery,
+    });
 
     if (data && Array.isArray(data)) {
-      setResults(data.map((p: any) => ({
-        user_id: p.user_id,
-        full_name: p.full_name,
-        neighborhood: p.neighborhood,
-        city: p.city,
-      })));
+      setResults(
+        data.map((p: any) => ({
+          user_id: p.user_id,
+          full_name: p.full_name,
+          neighborhood: p.neighborhood,
+          city: p.city,
+        }))
+      );
     } else if (error) {
-      console.error("Search error:", error);
+      toast({
+        title: "Erro na busca",
+        description: "Não foi possível buscar usuárias agora. Tente novamente.",
+        variant: "destructive",
+      });
+      setResults([]);
     }
-    
+
     setLoading(false);
   };
 
