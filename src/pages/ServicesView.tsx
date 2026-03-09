@@ -59,12 +59,26 @@ export default function ServicesView() {
   const [showCreateModal, setShowCreateModal] = useState(false);
 
   const filteredServices = useMemo(() => {
+    let filtered = services;
+    
+    // Filter by category
+    if (selectedCategory !== "Todas") {
+      filtered = filtered.filter(s => 
+        s.title.toLowerCase().includes(selectedCategory.toLowerCase()) ||
+        s.description?.toLowerCase().includes(selectedCategory.toLowerCase())
+      );
+    }
+    
+    // Filter by search query
     const q = searchQuery.trim().toLowerCase();
-    if (!q) return services;
-    return services.filter(
-      (s) => s.title.toLowerCase().includes(q) || s.owner_name.toLowerCase().includes(q)
-    );
-  }, [services, searchQuery]);
+    if (q) {
+      filtered = filtered.filter(
+        (s) => s.title.toLowerCase().includes(q) || s.owner_name.toLowerCase().includes(q)
+      );
+    }
+    
+    return filtered;
+  }, [services, searchQuery, selectedCategory]);
 
   if (loading) {
     return (
