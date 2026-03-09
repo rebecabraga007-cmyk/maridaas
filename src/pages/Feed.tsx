@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { User, Session } from "@supabase/supabase-js";
@@ -20,6 +20,7 @@ import {
   ImagePlus,
   X,
   Star,
+  Loader2,
 } from "lucide-react";
 import ServiceCard from "@/components/ServiceCard";
 import PostCard from "@/components/PostCard";
@@ -30,6 +31,8 @@ import UserSearchModal from "@/components/UserSearchModal";
 import ImageUpload from "@/components/ImageUpload";
 import NotificationSettingsModal from "@/components/NotificationSettingsModal";
 import BottomNav from "@/components/BottomNav";
+import SEOHead from "@/components/SEOHead";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 interface Profile {
   full_name: string;
