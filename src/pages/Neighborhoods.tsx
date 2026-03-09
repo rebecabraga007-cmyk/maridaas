@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import BottomNav from "@/components/BottomNav";
 import { differenceInDays } from "date-fns";
+import SEOHead from "@/components/SEOHead";
 
 interface Neighborhood {
   id: string;

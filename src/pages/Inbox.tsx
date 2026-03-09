@@ -21,6 +21,7 @@ import { ptBR } from "date-fns/locale";
 import ProfilePreviewPopup from "@/components/ProfilePreviewPopup";
 import UserBadge from "@/components/UserBadge";
 import ConfirmDialog from "@/components/ConfirmDialog";
+import SEOHead from "@/components/SEOHead";
 
 interface Conversation {
   userId: string;

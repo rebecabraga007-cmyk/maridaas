@@ -59,6 +59,11 @@ export default function ServicesView() {
 
   return (
     <div className="min-h-screen bg-background pb-24">
+      <SEOHead
+        title="Serviços — Maridaas"
+        description="Encontre serviços de confiança no seu bairro. Diaristas, cuidadoras, costureiras e muito mais."
+        noindex
+      />
       {selectedService && (
         <ServiceDetailModal
           service={selectedService}

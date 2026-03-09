@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Crown, Check, Loader2, ArrowLeft, Settings, Star } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import SEOHead from "@/components/SEOHead";
 
 const Premium = () => {
   const navigate = useNavigate();

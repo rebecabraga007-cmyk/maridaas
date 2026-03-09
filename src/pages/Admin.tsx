@@ -42,6 +42,7 @@ import { ptBR } from "date-fns/locale";
 import UserDetailsModal from "@/components/UserDetailsModal";
 import MetricDetailModal, { MetricType } from "@/components/MetricDetailModal";
 import ImageUpload from "@/components/ImageUpload";
+import SEOHead from "@/components/SEOHead";
 
 interface DashboardMetrics {
   totalUsers: number;

@@ -14,6 +14,7 @@ import {
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { sanitizeInput } from "@/lib/inputSanitization";
+import SEOHead from "@/components/SEOHead";
 
 interface Message {
   id: string;
