@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import LoadingFallback from "./components/LoadingFallback";
 import ErrorBoundary from "./components/ErrorBoundary";
+import ProtectedRoute from "./components/ProtectedRoute";
 
 const Landing = lazy(() => import("./pages/Landing"));
 const Auth = lazy(() => import("./pages/Auth"));
@@ -44,16 +45,20 @@ const App = () => (
             <Routes>
               <Route path="/" element={<Landing />} />
               <Route path="/auth" element={<Auth />} />
-              <Route path="/feed" element={<Feed />} />
-              <Route path="/profile" element={<Profile />} />
-              <Route path="/profile/:userId" element={<PublicProfile />} />
-              <Route path="/services" element={<Services />} />
-              <Route path="/neighborhoods" element={<Neighborhoods />} />
-              <Route path="/neighborhoods/:neighborhoodId" element={<NeighborhoodView />} />
-              <Route path="/admin" element={<Admin />} />
-              <Route path="/messages/:userId" element={<Messages />} />
-              <Route path="/inbox" element={<Inbox />} />
-              <Route path="/premium" element={<Premium />} />
+              <Route element={<ProtectedRoute />}>
+                <Route path="/feed" element={<Feed />} />
+                <Route path="/profile" element={<Profile />} />
+                <Route path="/profile/:userId" element={<PublicProfile />} />
+                <Route path="/services" element={<Services />} />
+                <Route path="/neighborhoods" element={<Neighborhoods />} />
+                <Route path="/neighborhoods/:neighborhoodId" element={<NeighborhoodView />} />
+                <Route path="/messages/:userId" element={<Messages />} />
+                <Route path="/inbox" element={<Inbox />} />
+                <Route path="/premium" element={<Premium />} />
+              </Route>
+              <Route element={<ProtectedRoute requireAdmin />}>
+                <Route path="/admin" element={<Admin />} />
+              </Route>
               <Route path="/privacidade" element={<PrivacyPolicy />} />
               <Route path="/termos" element={<TermsOfService />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

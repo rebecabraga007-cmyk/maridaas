@@ -1,27 +1,22 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
+  createCorsHeadersForRequest,
   isValidUUID,
+  rejectDisallowedOrigin,
   sanitizeInput,
 } from "../_shared/security.ts";
 import { checkRateLimit, rateLimitKey } from "../_shared/rateLimit.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
-
-function jsonResponse(data: unknown, status = 200) {
+function jsonResponse(data: unknown, corsHeaders: Record<string, string>, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 }
 
-function errorResponse(message: string, status: number) {
-  return jsonResponse({ error: message }, status);
+function errorResponse(message: string, corsHeaders: Record<string, string>, status: number) {
+  return jsonResponse({ error: message }, corsHeaders, status);
 }
 
 interface PushRequest {
@@ -33,9 +28,14 @@ interface PushRequest {
 }
 
 serve(async (req) => {
+  const corsHeaders = createCorsHeadersForRequest(req);
+
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: corsHeaders });
   }
+
+  const originRejection = rejectDisallowedOrigin(req, corsHeaders);
+  if (originRejection) return originRejection;
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -46,13 +46,13 @@ serve(async (req) => {
 
     if (!onesignalAppId || !onesignalApiKey) {
       console.error("Missing OneSignal credentials");
-      return errorResponse("Configuration error", 500);
+      return errorResponse("Configuration error", corsHeaders, 500);
     }
 
     // Auth via getClaims
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
-      return errorResponse("Unauthorized", 401);
+      return errorResponse("Unauthorized", corsHeaders, 401);
     }
 
     const supabaseUser = createClient(supabaseUrl, supabaseAnonKey, {
@@ -62,12 +62,12 @@ serve(async (req) => {
     const token = authHeader.replace("Bearer ", "");
     const { data: claimsData, error: claimsError } = await supabaseUser.auth.getClaims(token);
     if (claimsError || !claimsData?.claims) {
-      return errorResponse("Invalid token", 401);
+      return errorResponse("Invalid token", corsHeaders, 401);
     }
 
     const userId = claimsData.claims.sub;
     if (!isValidUUID(userId)) {
-      return errorResponse("Invalid user ID", 401);
+      return errorResponse("Invalid user ID", corsHeaders, 401);
     }
 
     // Admin check
@@ -80,14 +80,14 @@ serve(async (req) => {
       .maybeSingle();
 
     if (!roleData) {
-      return errorResponse("Admin access required", 403);
+      return errorResponse("Admin access required", corsHeaders, 403);
     }
 
     // Rate limit: 30 push sends per minute per admin
     const rlKey = rateLimitKey(userId, "send-push");
     const { allowed, remaining } = await checkRateLimit(rlKey, 30, 60);
     if (!allowed) {
-      return errorResponse("Too many requests", 429);
+      return errorResponse("Too many requests", corsHeaders, 429);
     }
 
     // Parse body
@@ -95,14 +95,14 @@ serve(async (req) => {
     try {
       body = await req.json();
     } catch {
-      return errorResponse("Invalid JSON body", 400);
+      return errorResponse("Invalid JSON body", corsHeaders, 400);
     }
 
     const title = sanitizeInput(body.title, 200);
     const message = sanitizeInput(body.message, 500);
 
     if (!title || !message) {
-      return errorResponse("Title and message required", 400);
+      return errorResponse("Title and message required", corsHeaders, 400);
     }
 
     // Build OneSignal payload — v16 API format
@@ -118,14 +118,14 @@ serve(async (req) => {
       onesignalPayload.included_segments = ["All"];
     } else if (body.target_type === "user" && body.target_id) {
       if (!isValidUUID(body.target_id)) {
-        return errorResponse("Invalid target_id", 400);
+        return errorResponse("Invalid target_id", corsHeaders, 400);
       }
       onesignalPayload.include_aliases = {
         external_id: [body.target_id],
       };
     } else if (body.target_type === "neighborhood" && body.target_id) {
       if (!isValidUUID(body.target_id)) {
-        return errorResponse("Invalid target_id", 400);
+        return errorResponse("Invalid target_id", corsHeaders, 400);
       }
 
       const { data: profiles } = await supabase
@@ -138,7 +138,7 @@ serve(async (req) => {
 
       const userIds = profiles?.map((p: { user_id: string }) => p.user_id) || [];
       if (userIds.length === 0) {
-        return jsonResponse({ success: true, sent: 0 });
+        return jsonResponse({ success: true, sent: 0 }, corsHeaders);
       }
 
       onesignalPayload.include_aliases = {
@@ -191,12 +191,12 @@ serve(async (req) => {
     }
 
     if (!success) {
-      return errorResponse(`Push failed after ${retries} attempts`, 502);
+      return errorResponse(`Push failed after ${retries} attempts`, corsHeaders, 502);
     }
 
-    return jsonResponse({ success: true, data: responseData });
+    return jsonResponse({ success: true, data: responseData }, corsHeaders);
   } catch (error) {
     console.error("Internal error:", error);
-    return errorResponse("An error occurred", 500);
+    return errorResponse("An error occurred", corsHeaders, 500);
   }
 });

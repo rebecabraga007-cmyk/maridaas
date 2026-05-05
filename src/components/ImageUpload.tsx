@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useId, useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Camera, X, Loader2 } from "lucide-react";
@@ -17,6 +17,7 @@ const ImageUpload = ({ onImageUploaded, userId, folder = "posts", className = ""
   const [uploading, setUploading] = useState(false);
   const [preview, setPreview] = useState<string | null>(existingUrl || null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const inputId = useId();
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -78,7 +79,7 @@ const ImageUpload = ({ onImageUploaded, userId, folder = "posts", className = ""
         accept="image/*"
         onChange={handleFileChange}
         className="hidden"
-        id="image-upload"
+        id={inputId}
       />
       
       {preview ? (
@@ -93,7 +94,7 @@ const ImageUpload = ({ onImageUploaded, userId, folder = "posts", className = ""
         </div>
       ) : (
         <label
-          htmlFor="image-upload"
+          htmlFor={inputId}
           className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-muted-foreground/30 rounded-xl cursor-pointer hover:border-primary/50 transition-colors"
         >
           {uploading ? (

@@ -1,19 +1,19 @@
 project_id = "yzrrlxnnqwihkkmokrso"
 
 [functions.get-onesignal-config]
-verify_jwt = false
+verify_jwt = true
 
 [functions.send-onesignal-push]
-verify_jwt = false
+verify_jwt = true
 
 [functions.check-subscription]
-verify_jwt = false
+verify_jwt = true
 
 [functions.create-checkout]
-verify_jwt = false
+verify_jwt = true
 
 [functions.customer-portal]
-verify_jwt = false
+verify_jwt = true
 
 [functions.get-vapid-public-key]
 verify_jwt = false
@@ -22,4 +22,4 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.delete-account]
-verify_jwt = false
+verify_jwt = true

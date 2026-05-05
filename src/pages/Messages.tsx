@@ -93,7 +93,10 @@ const Messages = () => {
             (msg.sender_id === user.id && msg.receiver_id === userId) ||
             (msg.sender_id === userId && msg.receiver_id === user.id)
           ) {
-            setMessages((prev) => [...prev, msg]);
+            setMessages((prev) => {
+              if (prev.some((existing) => existing.id === msg.id)) return prev;
+              return [...prev, msg];
+            });
             // Mark as read if received
             if (msg.sender_id === userId) {
               markAsRead();

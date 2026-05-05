@@ -417,6 +417,60 @@ export const DEFAULT_CORS_HEADERS = {
   "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
 };
 
+const DEFAULT_ALLOWED_ORIGINS = [
+  "https://maridaas.lovable.app",
+  "http://localhost:8080",
+  "http://localhost:5173",
+];
+
+function getConfiguredAllowedOrigins(): string[] {
+  const raw = Deno.env.get("ALLOWED_ORIGINS") || Deno.env.get("APP_ORIGIN") || "";
+  const configured = raw
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+
+  return configured.length > 0 ? configured : DEFAULT_ALLOWED_ORIGINS;
+}
+
+export function getAllowedOrigin(request: Request): string | null {
+  const origin = request.headers.get("Origin");
+  const referer = request.headers.get("Referer");
+  const requestOrigin = origin || (referer ? new URL(referer).origin : null);
+  const allowedOrigins = getConfiguredAllowedOrigins();
+
+  if (!requestOrigin) {
+    return allowedOrigins[0] ?? null;
+  }
+
+  return allowedOrigins.includes(requestOrigin) ? requestOrigin : null;
+}
+
+export function createCorsHeadersForRequest(request: Request): Record<string, string> {
+  const allowedOrigin = getAllowedOrigin(request);
+
+  return {
+    "Access-Control-Allow-Origin": allowedOrigin || "null",
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+    "Vary": "Origin",
+  };
+}
+
+export function rejectDisallowedOrigin(
+  request: Request,
+  corsHeaders: Record<string, string>,
+): Response | null {
+  if (request.headers.get("Origin") && !getAllowedOrigin(request)) {
+    return new Response(JSON.stringify({ error: "Origin not allowed" }), {
+      status: 403,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  return null;
+}
+
 /**
  * Creates CORS headers with specific origin (more secure than *)
  */

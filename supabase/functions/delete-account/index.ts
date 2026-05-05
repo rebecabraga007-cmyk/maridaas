@@ -1,11 +1,20 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { DEFAULT_CORS_HEADERS, handleCorsOptions } from "../_shared/security.ts";
+import {
+  createCorsHeadersForRequest,
+  handleCorsOptions,
+  rejectDisallowedOrigin,
+} from "../_shared/security.ts";
 
 serve(async (req) => {
+  const corsHeaders = createCorsHeadersForRequest(req);
+
   if (req.method === "OPTIONS") {
-    return handleCorsOptions(DEFAULT_CORS_HEADERS);
+    return handleCorsOptions(corsHeaders);
   }
+
+  const originRejection = rejectDisallowedOrigin(req, corsHeaders);
+  if (originRejection) return originRejection;
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -16,7 +25,7 @@ serve(async (req) => {
     if (!authHeader?.startsWith("Bearer ")) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
-        headers: { ...DEFAULT_CORS_HEADERS, "Content-Type": "application/json" },
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
@@ -29,7 +38,7 @@ serve(async (req) => {
     if (userError || !userData?.user) {
       return new Response(JSON.stringify({ error: "Invalid token" }), {
         status: 401,
-        headers: { ...DEFAULT_CORS_HEADERS, "Content-Type": "application/json" },
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
@@ -43,7 +52,7 @@ serve(async (req) => {
       console.error("[delete-account] Error:", deleteError.message);
       return new Response(JSON.stringify({ error: "Failed to delete account" }), {
         status: 500,
-        headers: { ...DEFAULT_CORS_HEADERS, "Content-Type": "application/json" },
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
@@ -51,13 +60,13 @@ serve(async (req) => {
 
     return new Response(JSON.stringify({ success: true }), {
       status: 200,
-      headers: { ...DEFAULT_CORS_HEADERS, "Content-Type": "application/json" },
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {
     console.error("[delete-account] Internal error:", error);
     return new Response(JSON.stringify({ error: "An error occurred" }), {
       status: 500,
-      headers: { ...DEFAULT_CORS_HEADERS, "Content-Type": "application/json" },
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });

@@ -1,17 +1,26 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { DEFAULT_CORS_HEADERS, handleCorsOptions } from "../_shared/security.ts";
+import {
+  createCorsHeadersForRequest,
+  handleCorsOptions,
+  rejectDisallowedOrigin,
+} from "../_shared/security.ts";
 import { checkRateLimit, rateLimitKey } from "../_shared/rateLimit.ts";
 
 serve(async (req) => {
+  const corsHeaders = createCorsHeadersForRequest(req);
+
   if (req.method === "OPTIONS") {
-    return handleCorsOptions(DEFAULT_CORS_HEADERS);
+    return handleCorsOptions(corsHeaders);
   }
+
+  const originRejection = rejectDisallowedOrigin(req, corsHeaders);
+  if (originRejection) return originRejection;
 
   const json = (data: unknown, status = 200) =>
     new Response(JSON.stringify(data), {
       status,
-      headers: { ...DEFAULT_CORS_HEADERS, "Content-Type": "application/json" },
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
 
   try {
