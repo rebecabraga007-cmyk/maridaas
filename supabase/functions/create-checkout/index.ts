@@ -19,7 +19,8 @@ serve(async (req) => {
 
   const supabaseClient = createClient(
     Deno.env.get("SUPABASE_URL") ?? "",
-    Deno.env.get("SUPABASE_ANON_KEY") ?? ""
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+    { auth: { persistSession: false } }
   );
 
   try {
@@ -34,6 +35,30 @@ serve(async (req) => {
     const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", {
       apiVersion: "2025-08-27.basil",
     });
+
+    const { data: localSubscription } = await supabaseClient
+      .from("subscriptions")
+      .select("status, trial_ends_at")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    const trialEndsAt = localSubscription?.trial_ends_at
+      ? new Date(localSubscription.trial_ends_at)
+      : null;
+
+    if (
+      localSubscription?.status === "trialing" &&
+      trialEndsAt !== null &&
+      trialEndsAt.getTime() > Date.now()
+    ) {
+      return new Response(JSON.stringify({
+        error: "Seu período gratuito de inauguração ainda está ativo.",
+        trial_ends_at: localSubscription.trial_ends_at,
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 409,
+      });
+    }
 
     const customers = await stripe.customers.list({ email: user.email, limit: 1 });
     let customerId: string | undefined;

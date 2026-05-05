@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { Eye, EyeOff, ArrowLeft, Loader2, Mail } from "lucide-react";
+import { Eye, EyeOff, ArrowLeft, Loader2, Mail, Gift } from "lucide-react";
 import { z } from "zod";
 
 const loginSchema = z.object({
@@ -223,7 +223,10 @@ const Auth = () => {
           toast({ title: "Erro ao criar conta", description: error.message, variant: "destructive" });
         }
       } else {
-        toast({ title: "Conta criada!", description: "Bem-vinda ao Maridaas!" });
+        toast({
+          title: "Parabéns! Você acaba de ganhar 2 meses grátis",
+          description: "Promoção de inauguração: os primeiros 60 dias são gratuitos para conhecer a plataforma.",
+        });
       }
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -276,6 +279,17 @@ const Auth = () => {
           {isSignup ? "Escolha como criar sua conta" : "Escolha como acessar"}
         </p>
       </div>
+
+      {isSignup && (
+        <div className="rounded-xl border border-primary/20 bg-primary/10 p-3 text-sm text-foreground">
+          <div className="flex items-start gap-2">
+            <Gift className="mt-0.5 h-4 w-4 flex-shrink-0 text-primary" />
+            <p>
+              Parabéns! Na promoção de inauguração, sua conta ganha 2 meses grátis. O acesso é gratuito apenas nos primeiros 60 dias.
+            </p>
+          </div>
+        </div>
+      )}
 
       <div className="space-y-3">
         {socialButtons}
@@ -368,6 +382,14 @@ const Auth = () => {
               <p className="text-sm text-muted-foreground">Etapa 1 de 2</p>
             </div>
           </div>
+          <div className="rounded-xl border border-primary/20 bg-primary/10 p-3 text-sm text-foreground">
+            <div className="flex items-start gap-2">
+              <Gift className="mt-0.5 h-4 w-4 flex-shrink-0 text-primary" />
+              <p>
+                Promoção de inauguração: ao criar sua conta, você ganha 60 dias grátis para conhecer o Maridaas.
+              </p>
+            </div>
+          </div>
           <div className="space-y-2">
             <Label htmlFor="fullName">Nome completo</Label>
             <Input id="fullName" placeholder="Maria Silva" value={fullName} onChange={(e) => setFullName(e.target.value)} className="input-maridaas" autoComplete="name" />
@@ -396,6 +418,14 @@ const Auth = () => {
             <div>
               <h2 className="text-xl font-display font-bold text-foreground">Seus dados</h2>
               <p className="text-sm text-muted-foreground">Etapa 2 de 2</p>
+            </div>
+          </div>
+          <div className="rounded-xl border border-primary/20 bg-primary/10 p-3 text-sm text-foreground">
+            <div className="flex items-start gap-2">
+              <Gift className="mt-0.5 h-4 w-4 flex-shrink-0 text-primary" />
+              <p>
+                Ao finalizar, você ativa 2 meses grátis. É gratuito somente nos primeiros 60 dias da promoção de inauguração.
+              </p>
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">

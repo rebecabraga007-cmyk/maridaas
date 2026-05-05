@@ -507,8 +507,11 @@ export type Database = {
           expires_at: string | null
           id: string
           product_id: string | null
+          promotion_name: string | null
           status: string
           stripe_customer_id: string | null
+          trial_ends_at: string | null
+          trial_started_at: string | null
           updated_at: string
           user_id: string
         }
@@ -517,8 +520,11 @@ export type Database = {
           expires_at?: string | null
           id?: string
           product_id?: string | null
+          promotion_name?: string | null
           status?: string
           stripe_customer_id?: string | null
+          trial_ends_at?: string | null
+          trial_started_at?: string | null
           updated_at?: string
           user_id: string
         }
@@ -527,8 +533,11 @@ export type Database = {
           expires_at?: string | null
           id?: string
           product_id?: string | null
+          promotion_name?: string | null
           status?: string
           stripe_customer_id?: string | null
+          trial_ends_at?: string | null
+          trial_started_at?: string | null
           updated_at?: string
           user_id?: string
         }

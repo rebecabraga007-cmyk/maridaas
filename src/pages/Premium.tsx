@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Crown, Check, Loader2, ArrowLeft, Settings, Star } from "lucide-react";
+import { Crown, Check, Loader2, ArrowLeft, Settings, Star, Gift } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import SEOHead from "@/components/SEOHead";
 
@@ -13,6 +13,9 @@ const Premium = () => {
   const [checking, setChecking] = useState(true);
   const [subscribed, setSubscribed] = useState(false);
   const [subscriptionEnd, setSubscriptionEnd] = useState<string | null>(null);
+  const [subscriptionStatus, setSubscriptionStatus] = useState<"active" | "trialing" | "none">("none");
+  const [trialEndsAt, setTrialEndsAt] = useState<string | null>(null);
+  const [trialDaysRemaining, setTrialDaysRemaining] = useState(0);
   const [user, setUser] = useState<any>(null);
 
   useEffect(() => {
@@ -49,6 +52,9 @@ const Premium = () => {
       if (error) throw error;
       setSubscribed(data.subscribed);
       setSubscriptionEnd(data.subscription_end);
+      setSubscriptionStatus(data.subscription_status || "none");
+      setTrialEndsAt(data.trial_ends_at || null);
+      setTrialDaysRemaining(Number(data.trial_days_remaining || 0));
     } catch {
       toast({
         title: "Erro",
@@ -68,7 +74,17 @@ const Premium = () => {
     try {
       setLoading(true);
       const { data, error } = await supabase.functions.invoke("create-checkout");
-      if (error) throw error;
+      if (error) {
+        if (error.context?.status === 409) {
+          toast({
+            title: "Você ainda está nos 2 meses grátis",
+            description: "A assinatura paga via Stripe fica disponível quando terminarem os 60 dias gratuitos.",
+          });
+          await checkSubscription();
+          return;
+        }
+        throw error;
+      }
       if (data?.url) {
         window.location.href = data.url;
       }
@@ -132,6 +148,25 @@ const Premium = () => {
           <div className="flex justify-center py-4">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
+        ) : subscriptionStatus === "trialing" ? (
+          <Card className="p-5 border-2 border-primary bg-primary/5">
+            <div className="flex items-center gap-3 mb-3">
+              <Gift className="h-5 w-5 text-primary" />
+              <span className="font-bold text-foreground">Parabéns! Você ganhou 2 meses grátis</span>
+            </div>
+            <p className="text-sm text-muted-foreground mb-3">
+              Promoção de inauguração do aplicativo: seu acesso Premium é gratuito apenas nos primeiros 60 dias.
+            </p>
+            {trialEndsAt && (
+              <p className="text-sm font-medium text-foreground">
+                Gratuito até {new Date(trialEndsAt).toLocaleDateString("pt-BR")}
+                {trialDaysRemaining > 0 ? ` (${trialDaysRemaining} dias restantes)` : ""}.
+              </p>
+            )}
+            <p className="text-xs text-muted-foreground mt-3">
+              Depois desse período, para continuar com os recursos Premium, o pagamento será feito via Stripe.
+            </p>
+          </Card>
         ) : subscribed ? (
           <Card className="p-5 border-2 border-secondary bg-secondary/5">
             <div className="flex items-center gap-3 mb-3">
@@ -158,6 +193,9 @@ const Premium = () => {
         {/* Plan Card */}
         {!subscribed && !checking && (
           <Card className="p-6 border-2 border-accent/30 shadow-elevated">
+            <div className="mb-5 rounded-xl bg-primary/10 p-3 text-sm text-foreground">
+              Promoção de inauguração: novas contas têm 2 meses grátis. A cobrança via Stripe começa somente quando você assinar após os 60 dias gratuitos.
+            </div>
             <div className="text-center mb-6">
               <div className="text-3xl font-bold text-foreground">
                 R$ 29,90
