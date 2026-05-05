@@ -1,0 +1,89 @@
+workflows:
+  ios-release:
+    name: iOS Release
+    max_build_duration: 60
+    integrations:
+      app_store_connect: Trinity API
+    environment:
+      xcode: 26.2
+      node: 22.11.0
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: app.trinity.life
+    scripts:
+      - name: Install dependencies
+        script: npm install
+      - name: Build web assets
+        script: npm run build
+      - name: Ensure iOS platform exists
+        script: |
+          if [ ! -d "ios/App" ]; then
+            npx cap add ios
+          fi
+      - name: Sync Capacitor
+        script: npx cap sync ios
+      - name: Set up code signing
+        script: xcode-project use-profiles
+      - name: Increment build number
+        script: |
+          cd ios/App
+          BUILD_NUMBER=$(($(date +%s) / 60))
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUMBER" App/Info.plist
+          echo "Set CFBundleVersion to $BUILD_NUMBER"
+      - name: Build IPA
+        script: |
+          xcode-project build-ipa \
+            --project "ios/App/App.xcodeproj" \
+            --scheme "App" \
+            --clean
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: false
+        submit_to_app_store: false
+
+  android-release:
+    name: Android Release
+    max_build_duration: 60
+    environment:
+      java: 17
+      node: 22.11.0
+      android_signing:
+        - trinity_keystore
+      groups:
+        - google_play
+    scripts:
+      - name: Install dependencies
+        script: npm install
+      - name: Build web assets
+        script: npm run build
+      - name: Ensure Android platform exists
+        script: |
+          if [ ! -d "android" ]; then
+            npx cap add android
+          fi
+      - name: Sync Capacitor
+        script: npx cap sync android
+      - name: Set Android SDK location
+        script: echo "sdk.dir=$ANDROID_SDK_ROOT" > android/local.properties
+      - name: Increment version code
+        script: |
+          cd android
+          VERSION_CODE=$(($(date +%s) / 60))
+          sed -i "s/versionCode [0-9]*/versionCode $VERSION_CODE/" app/build.gradle
+      - name: Build AAB (release)
+        script: |
+          cd android
+          chmod +x gradlew
+          ./gradlew bundleRelease
+    artifacts:
+      - android/app/build/outputs/**/*.aab
+      - android/app/build/outputs/**/*.apk
+    publishing:
+      google_play:
+        credentials: $GCLOUD_SERVICE_ACCOUNT_CREDENTIALS
+        track: internal
+        submit_as_draft: true
