@@ -94,36 +94,14 @@ workflows:
           set -e
           keychain initialize
 
-      - name: Create fresh Distribution signing identity
+      - name: Auto-provision signing files (Codemagic managed)
         script: |
           set -e
-          CERT_PRIVATE_KEY_PATH="$CM_BUILD_DIR/apple_distribution_private_key.pem"
-          XCODE_CERTS_DIR="$HOME/Library/Developer/Xcode/UserData/Certificates"
-          XCODE_PROFILES_DIR="$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"
-          MOBILE_PROFILES_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
-          rm -rf "$XCODE_CERTS_DIR" "$XCODE_PROFILES_DIR" "$MOBILE_PROFILES_DIR"
-          mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
-
-          openssl genrsa -out "$CERT_PRIVATE_KEY_PATH" 2048
-          chmod 600 "$CERT_PRIVATE_KEY_PATH"
-
-          # External precondition: old Apple Distribution certificates without a
-          # private key must be removed from Apple Developer before this step.
-          # This intentionally creates a new certificate bound to the VM key.
-          app-store-connect certificates create \
-            --type DISTRIBUTION \
-            --certificate-key "@file:$CERT_PRIVATE_KEY_PATH" \
-            --save
-
-          keychain add-certificates
-
-      - name: Create App Store provisioning profile
-        script: |
-          set -e
-          CERT_PRIVATE_KEY_PATH="$CM_BUILD_DIR/apple_distribution_private_key.pem"
+          # Precondition: stale Distribution certificates without private key
+          # must be removed from Apple Developer beforehand. Codemagic will then
+          # auto-create a new certificate (with private key) on demand.
           app-store-connect fetch-signing-files "$BUNDLE_ID" \
             --type IOS_APP_STORE \
-            --certificate-key "@file:$CERT_PRIVATE_KEY_PATH" \
             --create \
             --delete-stale-profiles
 
