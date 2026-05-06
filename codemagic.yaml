@@ -100,38 +100,9 @@ workflows:
           set -e
           keychain initialize
 
-      - name: Fetch signing files via App Store Connect API (auto-create cert)
+      - name: Validate signing assets installed by Codemagic
         script: |
           set -e
-          # Uses the connected App Store Connect integration "Maridas".
-          # We generate a fresh private key on this VM and pass it to the
-          # Codemagic CLI so the new Apple Distribution certificate created
-          # via the Apple API has a matching private key locally — otherwise
-          # the CLI fails with "Cannot save Signing Certificates without
-          # certificate private key".
-
-          CERT_DIR="$HOME/Library/MobileDevice/Certificates"
-          PROFILE_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
-          mkdir -p "$CERT_DIR" "$PROFILE_DIR"
-
-          CERT_KEY_PATH="$HOME/dist_cert_private_key.pem"
-          if [ ! -f "$CERT_KEY_PATH" ]; then
-            echo "Generating temporary RSA private key for the Distribution certificate..."
-            openssl genrsa -out "$CERT_KEY_PATH" 2048
-          fi
-
-          app-store-connect fetch-signing-files "$BUNDLE_ID" \
-            --type IOS_APP_STORE \
-            --certificate-key "@file:$CERT_KEY_PATH" \
-            --certificates-dir "$CERT_DIR" \
-            --profiles-dir "$PROFILE_DIR" \
-            --create
-
-          echo "--- Fetched certificates ---"
-          ls -la "$CERT_DIR" || true
-          echo "--- Fetched provisioning profiles ---"
-          ls -la "$PROFILE_DIR" || true
-
           keychain add-certificates
 
           echo "--- Code signing identities ---"
@@ -141,7 +112,7 @@ workflows:
 
           DIST_COUNT=$(security find-identity -v -p codesigning | grep -c "Apple Distribution" || true)
           if [ "$DIST_COUNT" -lt 1 ]; then
-            echo "ERROR: No 'Apple Distribution' identity available after fetch"
+            echo "ERROR: Apple Distribution identity not present after Codemagic auto-install"
             exit 1
           fi
 
