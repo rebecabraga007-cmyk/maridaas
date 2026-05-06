@@ -396,6 +396,7 @@ const Feed = () => {
         {showNotificationPrompt && (
           <NotificationPrompt onClose={() => { setShowNotificationPrompt(false); localStorage.setItem("maridaas_notification_dismissed", "true"); }} />
         )}
+        <WelcomeTrialBanner />
         {announcements.map((ann) => <AnnouncementBanner key={ann.id} announcement={ann} />)}
 
         <FeedServiceCarousel services={services} />
