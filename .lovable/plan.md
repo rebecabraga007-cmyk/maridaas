@@ -1,103 +1,105 @@
-Vou ajustar apenas o fluxo iOS no `codemagic.yaml` para eliminar o erro atual.
+## Objetivo
 
-## Diagnóstico do erro atual
+Criar o certificado Apple Distribution **automaticamente na VM do Codemagic** a cada build, usando a integração App Store Connect API (`Maridas`) que já está conectada. Isso elimina o P12 manual revogado.
 
-O problema agora não é falta de certificado. O log mostra que o certificado existe:
+## Como funciona
 
-```text
-Using CODE_SIGN_IDENTITY SHA=4795D67BDC162A4D4CDF394E1AD8207BE801774A
-```
+O CLI `app-store-connect fetch-signing-files --create` (já disponível na VM do Codemagic) vai:
 
-Mas o comando passa dois overrides de `CODE_SIGN_IDENTITY`:
+1. Gerar uma private key nova localmente na VM
+2. Criar um novo certificado Apple Distribution via API
+3. Criar/atualizar o provisioning profile App Store para `com.healthmedia.maridas`
+4. Instalar certificado + profile no keychain da VM
 
-```text
-CODE_SIGN_IDENTITY="Apple Distribution"
-"CODE_SIGN_IDENTITY[sdk=iphoneos*]=Apple Distribution"
-```
+Como a private key é gerada na própria VM, ela existe junto com o certificado — o erro "Cannot save Signing Certificates without certificate private key" não acontece.
 
-No Xcode 26.2, esse segundo argumento está sendo interpretado incorretamente. O log confirma:
+## Pré-requisito manual (CRÍTICO antes do build rodar)
 
-```text
-CODE_SIGN_IDENTITY = iphoneos*]=Apple Distribution
-No certificate ... matching 'iphoneos*]=Apple Distribution' found
-```
-
-Ou seja: o valor real virou `iphoneos*]=Apple Distribution`, então o Xcode tenta procurar um certificado com esse nome inválido.
-
-## Plano de correção
-
-1. Remover o override problemático:
+A Apple permite no máximo **2 certificados Apple Distribution ativos por time**. Hoje você já tem ao menos um inválido:
 
 ```text
-"CODE_SIGN_IDENTITY[sdk=iphoneos*]=Apple Distribution"
+Apple Distribution: HEALTH MEDIA LTDA (22M7YZ5TMF)
+serial: 174C5D2EE8DE9211D0D792FF3B7BDEF
 ```
 
-2. Usar o SHA real do certificado Distribution já encontrado no keychain, em vez do nome genérico:
+Antes do build:
 
-```text
-CODE_SIGN_IDENTITY="$DIST_SHA"
+1. Acesse https://developer.apple.com/account/resources/certificates/list
+2. Filtre por **Apple Distribution**
+3. **Revogue** todos os Distribution existentes do time `22M7YZ5TMF`
+4. (Opcional) Delete o `maridas cert` em **Codemagic → Teams → Code signing identities → iOS certificates** — não vamos mais usá-lo
+
+Se houver 2 Distribution ativos quando o build rodar, vai falhar com erro 409.
+
+## Mudanças no `codemagic.yaml`
+
+### 1. Remover o P12 manual do `ios_signing`
+
+```yaml
+ios_signing:
+  distribution_type: app_store
+  bundle_identifier: com.healthmedia.maridas
+  # certificates: ["maridas cert"]  ← REMOVIDO
 ```
 
-3. Manter signing manual limpo:
+A integração `app_store_connect: Maridas` (já presente) continua sendo usada — é ela que fornece a API key para criar o certificado.
 
-```text
-CODE_SIGN_STYLE=Manual
-DEVELOPMENT_TEAM=$APPLE_TEAM_ID
-PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_ID"
-PROVISIONING_PROFILE_SPECIFIER="$CM_PROFILE_NAME"
+### 2. Substituir os passos de signing antigos
+
+**Remover** os passos:
+- "Install Codemagic P12 signing certificate"
+- "Validate signing identity"
+- "Re-inject provisioning profiles before archive"
+
+**Adicionar** um único passo novo após "Initialize keychain":
+
+```yaml
+- name: Fetch signing files via App Store Connect API (auto-create cert)
+  script: |
+    set -e
+    app-store-connect fetch-signing-files "$BUNDLE_ID" \
+      --type IOS_APP_STORE \
+      --create
+    keychain add-certificates
+    security find-identity -v -p codesigning
+    DIST_COUNT=$(security find-identity -v -p codesigning | grep -c "Apple Distribution" || true)
+    if [ "$DIST_COUNT" -lt 1 ]; then
+      echo "ERROR: No Apple Distribution identity available"
+      exit 1
+    fi
 ```
 
-4. Manter o fluxo atual de provisioning profile:
+### 3. Aplicar profiles no projeto antes do archive
 
-```text
-xcode-project use-profiles --archive-method app-store
+```yaml
+- name: Apply provisioning profiles
+  script: |
+    xcode-project use-profiles \
+      --project "$XCODE_PROJECT" \
+      --archive-method app-store
 ```
 
-5. Adicionar validações antes do archive para imprimir:
+### 4. Manter o archive com signing manual usando os arquivos auto-fetchados
 
-```text
-Signing identity: Apple Distribution
-Provisioning profile: maridas
-Team ID: 22M7YZ5TMF
-Bundle ID: com.healthmedia.maridas
-```
-
-## Configuração final esperada do build
-
-O archive deve ficar conceitualmente assim:
+O bloco do `xcodebuild` continua igual ao atual (que já está correto):
 
 ```bash
-xcodebuild \
-  -project "$XCODE_PROJECT" \
-  -scheme "$XCODE_SCHEME" \
-  -configuration Release \
-  -archivePath "$CM_BUILD_DIR/App.xcarchive" \
-  -destination "generic/platform=iOS" \
-  -skipPackagePluginValidation \
-  clean archive \
+xcodebuild ... clean archive \
   CODE_SIGN_STYLE=Manual \
   DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
   PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_ID" \
-  PROVISIONING_PROFILE_SPECIFIER="$CM_PROFILE_NAME" \
+  PROVISIONING_PROFILE_SPECIFIER="$PROFILE_NAME" \
   CODE_SIGN_IDENTITY="$DIST_SHA"
 ```
 
-## Scripts removidos / alterados
-
-- Remover apenas o argumento inválido de signing por SDK.
-- Alterar `CODE_SIGN_IDENTITY="Apple Distribution"` para usar o SHA real já detectado: `CODE_SIGN_IDENTITY="$DIST_SHA"`.
-- Não voltar para automatic signing.
-- Não criar certificado novo.
-- Não usar `.cer` isolado.
-- Não usar certificado Apple sem private key.
-- Não misturar manual com automático.
+`$PROFILE_NAME` e `$DIST_SHA` são extraídos do keychain/profile recém-instalados.
 
 ## Resultado esperado
 
-Depois da alteração, o Xcode não deve mais procurar por:
+- Certificado Distribution **novo, válido e com private key** criado a cada build
+- Provisioning profile App Store gerado automaticamente
+- Archive iOS conclui e gera `.ipa` exportável para TestFlight
 
-```text
-iphoneos*]=Apple Distribution
-```
+## Ação adicional recomendada (segurança)
 
-Ele deve usar diretamente a identidade local com private key instalada pelo P12 `maridas cert`, junto com o provisioning profile `maridas`, para concluir o archive iOS.
+Como você colou a App Store Connect API Key no chat, **revogue essa chave** em https://appstoreconnect.apple.com/access/integrations/api e gere uma nova. Depois atualize a integração `Maridas` no Codemagic com a nova chave.
