@@ -15,8 +15,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@capacitor/cli": "^7.6.2",
-    "@capacitor/core": "^7.6.2",
+    "@capacitor/cli": "^8.3.1",
+    "@capacitor/core": "^8.3.1",
+    "@capacitor/ios": "^8.3.1",
     "@hookform/resolvers": "^3.10.0",
     "@lovable.dev/cloud-auth-js": "^1.0.0",
     "@radix-ui/react-accordion": "^1.2.11",
