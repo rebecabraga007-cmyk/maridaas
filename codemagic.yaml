@@ -7,10 +7,11 @@ workflows:
     environment:
       xcode: 26.2
       node: 22.12.0
-      groups:
-        - ios_signing
       vars:
         BUNDLE_ID: "com.healthmedia.maridas"
+        XCODE_WORKSPACE: "ios/App/App.xcworkspace"
+        XCODE_PROJECT: "ios/App/App.xcodeproj"
+        XCODE_SCHEME: "App"
     scripts:
       - name: Install dependencies
         script: |
@@ -42,21 +43,13 @@ workflows:
           npx cap add ios || { echo "ERROR: cap add ios failed"; exit 1; }
           npx cap sync ios || { echo "ERROR: cap sync ios failed"; exit 1; }
 
-          if [ ! -d "ios" ]; then
-            echo "ERROR: IOS_GENERATION_FAILED — ios folder not created"
-            exit 1
-          fi
-
-          echo "--- iOS tree (depth 5) ---"
-          find ios -maxdepth 5 -type d
-          echo "--- Key iOS files ---"
-          find ios -maxdepth 5 \( -name "Podfile" -o -name "Package.swift" -o -name "*.xcodeproj" -o -name "*.xcworkspace" \)
-
-          # Hard validation: xcodeproj MUST exist
           if [ ! -d "ios/App/App.xcodeproj" ]; then
             echo "ERROR: IOS_GENERATION_FAILED — ios/App/App.xcodeproj missing"
             exit 1
           fi
+
+          echo "--- iOS tree ---"
+          find ios -maxdepth 5 \( -name "Podfile" -o -name "Package.swift" -o -name "*.xcodeproj" -o -name "*.xcworkspace" \)
 
       - name: Detect iOS dependency manager (CocoaPods vs SPM)
         script: |
@@ -67,23 +60,18 @@ workflows:
             DEP_MANAGER="cocoapods"
             BUILD_CONTAINER="$IOS_APP_DIR/App.xcworkspace"
             BUILD_FLAG="-workspace"
-          elif [ -f "$IOS_APP_DIR/Package.swift" ] || [ -d "$IOS_APP_DIR/CapApp-SPM" ] || find "$IOS_APP_DIR" -maxdepth 3 -name "Package.swift" | grep -q .; then
+          elif [ -d "$IOS_APP_DIR/App.xcworkspace" ]; then
             DEP_MANAGER="spm"
-            # SPM-based Capacitor projects use xcodeproj directly (no workspace from pods)
-            if [ -d "$IOS_APP_DIR/App.xcworkspace" ]; then
-              BUILD_CONTAINER="$IOS_APP_DIR/App.xcworkspace"
-              BUILD_FLAG="-workspace"
-            else
-              BUILD_CONTAINER="$IOS_APP_DIR/App.xcodeproj"
-              BUILD_FLAG="-project"
-            fi
+            BUILD_CONTAINER="$IOS_APP_DIR/App.xcworkspace"
+            BUILD_FLAG="-workspace"
           else
-            echo "ERROR: Could not detect CocoaPods (no Podfile) or SPM (no Package.swift)"
-            exit 1
+            DEP_MANAGER="spm"
+            BUILD_CONTAINER="$IOS_APP_DIR/App.xcodeproj"
+            BUILD_FLAG="-project"
           fi
 
           echo "Detected dependency manager: $DEP_MANAGER"
-          echo "Build container: $BUILD_CONTAINER ($BUILD_FLAG)"
+          echo "Build container: $BUILD_FLAG $BUILD_CONTAINER"
 
           echo "IOS_APP_DIR=$IOS_APP_DIR" >> $CM_ENV
           echo "DEP_MANAGER=$DEP_MANAGER" >> $CM_ENV
@@ -94,49 +82,32 @@ workflows:
         script: |
           set -e
           if [ "$DEP_MANAGER" = "cocoapods" ]; then
-            echo "Installing CocoaPods dependencies in $IOS_APP_DIR"
             cd "$IOS_APP_DIR"
             pod install || (pod repo update && pod install)
           else
-            echo "Using Swift Package Manager — skipping pod install"
-            echo "Xcode will resolve SPM packages during the archive step"
+            echo "SPM — Xcode resolves packages during archive"
           fi
 
-      - name: Set up signing keychain
+      - name: Initialize keychain
         script: |
           set -e
-          KEYCHAIN_PATH="$HOME/Library/Keychains/build.keychain-db"
-          security create-keychain -p "" build.keychain || true
-          security default-keychain -s build.keychain
-          security unlock-keychain -p "" build.keychain
-          security set-keychain-settings -t 3600 -u build.keychain
+          keychain initialize
 
-          echo "$CM_CERTIFICATE" | base64 --decode > /tmp/cert.p12
-          security import /tmp/cert.p12 \
-            -k build.keychain \
-            -P "$CM_CERTIFICATE_PASSWORD" \
-            -T /usr/bin/codesign \
-            -T /usr/bin/security
-
-          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "" build.keychain
-
-      - name: Install provisioning profile
+      - name: Auto-provision signing (App Store Connect API)
         script: |
           set -e
-          PROFILES_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
-          mkdir -p "$PROFILES_DIR"
-          echo "$CM_PROVISIONING_PROFILE" | base64 --decode > /tmp/profile.mobileprovision
+          # Fetches/creates Apple Distribution certificate + App Store provisioning profile
+          # via the App Store Connect API (integration: Maridas).
+          # No .p12, no base64, no manual `security import`.
+          app-store-connect fetch-signing-files "$BUNDLE_ID" \
+            --type IOS_APP_STORE \
+            --create
 
-          # Extract UUID + Name from profile
-          PROFILE_PLIST=$(security cms -D -i /tmp/profile.mobileprovision)
-          PROFILE_UUID=$(/usr/libexec/PlistBuddy -c "Print :UUID" /dev/stdin <<< "$PROFILE_PLIST")
-          PROFILE_NAME=$(/usr/libexec/PlistBuddy -c "Print :Name" /dev/stdin <<< "$PROFILE_PLIST")
+          # Add the fetched cert(s) to the build keychain
+          keychain add-certificates
 
-          cp /tmp/profile.mobileprovision "$PROFILES_DIR/$PROFILE_UUID.mobileprovision"
-
-          echo "Installed profile: $PROFILE_NAME ($PROFILE_UUID)"
-          echo "PROFILE_NAME=$PROFILE_NAME" >> $CM_ENV
-          echo "PROFILE_UUID=$PROFILE_UUID" >> $CM_ENV
+          # Patch the Xcode project to use the provisioning profile(s) just installed
+          xcode-project use-profiles
 
       - name: Debug signing assets
         script: |
@@ -144,10 +115,6 @@ workflows:
           security find-identity -v -p codesigning
           echo "--- Installed provisioning profiles ---"
           ls -la "$HOME/Library/MobileDevice/Provisioning Profiles/" || true
-          echo "Using PROFILE_NAME=$PROFILE_NAME"
-          echo "Using PROFILE_UUID=$PROFILE_UUID"
-          echo "Using TEAM=$APPLE_TEAM_ID"
-          echo "Using BUNDLE_ID=$BUNDLE_ID"
 
       - name: Increment build number
         script: |
@@ -161,56 +128,31 @@ workflows:
         script: |
           set -e
           mkdir -p "$CM_BUILD_DIR/build"
-          echo "Archiving with $BUILD_FLAG $BUILD_CONTAINER"
           xcodebuild \
             $BUILD_FLAG "$BUILD_CONTAINER" \
-            -scheme App \
+            -scheme "$XCODE_SCHEME" \
             -configuration Release \
             -archivePath "$CM_BUILD_DIR/build/App.xcarchive" \
             -destination "generic/platform=iOS" \
             -allowProvisioningUpdates \
             clean archive \
-            CODE_SIGN_STYLE=Manual \
-            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
-            PROVISIONING_PROFILE_SPECIFIER="$PROFILE_NAME" \
-            PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_ID" \
-            CODE_SIGN_IDENTITY="Apple Distribution"
+            PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_ID"
 
       - name: Export IPA
         script: |
           set -e
-          cat > /tmp/ExportOptions.plist <<EOF
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-            <key>method</key>
-            <string>app-store</string>
-            <key>teamID</key>
-            <string>${APPLE_TEAM_ID}</string>
-            <key>signingStyle</key>
-            <string>manual</string>
-            <key>signingCertificate</key>
-            <string>Apple Distribution</string>
-            <key>provisioningProfiles</key>
-            <dict>
-              <key>${BUNDLE_ID}</key>
-              <string>${PROFILE_NAME}</string>
-            </dict>
-            <key>stripSwiftSymbols</key>
-            <true/>
-            <key>uploadSymbols</key>
-            <true/>
-          </dict>
-          </plist>
-          EOF
-
           mkdir -p "$CM_BUILD_DIR/build/ipa"
+          xcode-project build-ipa \
+            --archive-path "$CM_BUILD_DIR/build/App.xcarchive" \
+            --export-options-plist "$HOME/export_options.plist" || \
           xcodebuild \
             -exportArchive \
             -archivePath "$CM_BUILD_DIR/build/App.xcarchive" \
             -exportPath "$CM_BUILD_DIR/build/ipa" \
-            -exportOptionsPlist /tmp/ExportOptions.plist
+            -exportOptionsPlist "$HOME/export_options.plist"
+
+          # Move IPA to the expected location if produced by xcode-project at repo root
+          find . -maxdepth 2 -name "*.ipa" -exec mv {} "$CM_BUILD_DIR/build/ipa/" \; 2>/dev/null || true
 
           echo "--- IPA output ---"
           ls -la "$CM_BUILD_DIR/build/ipa"
