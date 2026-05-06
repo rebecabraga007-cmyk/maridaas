@@ -94,24 +94,16 @@ workflows:
             echo "SPM — Xcode resolves packages during archive"
           fi
 
-      - name: Initialize keychain
+      - name: Validate signing assets
         script: |
           set -e
-          keychain initialize
-
-      - name: Validate signing assets installed by Codemagic
-        script: |
-          set -e
-          keychain add-certificates
-
           echo "--- Code signing identities ---"
           security find-identity -v -p codesigning
           echo "--- Installed provisioning profiles ---"
           ls -la "$HOME/Library/MobileDevice/Provisioning Profiles/" || true
-
           DIST_COUNT=$(security find-identity -v -p codesigning | grep -c "Apple Distribution" || true)
           if [ "$DIST_COUNT" -lt 1 ]; then
-            echo "ERROR: Apple Distribution identity not present after Codemagic auto-install"
+            echo "ERROR: Apple Distribution identity missing"
             exit 1
           fi
 
