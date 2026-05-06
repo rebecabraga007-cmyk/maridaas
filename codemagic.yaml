@@ -7,6 +7,9 @@ workflows:
     environment:
       xcode: 26.2
       node: 22.12.0
+      ios_signing:
+        certificates:
+          - "maridas cert"
       vars:
         BUNDLE_ID: "com.healthmedia.maridas"
         APPLE_TEAM_ID: "22M7YZ5TMF"
@@ -94,19 +97,11 @@ workflows:
           set -e
           keychain initialize
 
-      - name: Auto-provision signing files (Codemagic managed)
+      - name: Install Codemagic P12 signing certificate
         script: |
           set -e
-          # Precondition: stale Distribution certificates without private key
-          # must be removed from Apple Developer beforehand. Codemagic will then
-          # auto-create a new certificate (with private key) on demand.
-          app-store-connect fetch-signing-files "$BUNDLE_ID" \
-            --type IOS_APP_STORE \
-            --create \
-            --delete-stale-profiles
-
           keychain add-certificates
-          xcode-project use-profiles
+          security find-identity -v -p codesigning
 
       - name: Validate signing identity
         script: |
