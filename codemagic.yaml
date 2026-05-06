@@ -157,18 +157,31 @@ workflows:
             exit 1
           fi
           echo "Using DEVELOPMENT_TEAM=$APPLE_TEAM_ID"
+          echo "Using PROVISIONING_PROFILE_SPECIFIER=$CM_PROFILE_NAME"
           mkdir -p "$CM_BUILD_DIR"
+
+          # Resolve the Apple Distribution identity SHA from the keychain
+          DIST_SHA=$(security find-identity -v -p codesigning | grep "Apple Distribution" | head -n1 | awk '{print $2}')
+          if [ -z "$DIST_SHA" ]; then
+            echo "ERROR: Could not find Apple Distribution identity SHA"
+            exit 1
+          fi
+          echo "Using CODE_SIGN_IDENTITY SHA=$DIST_SHA"
+
           xcodebuild \
             -project "$XCODE_PROJECT" \
             -scheme "$XCODE_SCHEME" \
             -configuration Release \
             -archivePath "$CM_BUILD_DIR/App.xcarchive" \
             -destination "generic/platform=iOS" \
+            -skipPackagePluginValidation \
             clean archive \
             CODE_SIGN_STYLE=Manual \
             DEVELOPMENT_TEAM=$APPLE_TEAM_ID \
             PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_ID" \
-            PROVISIONING_PROFILE_SPECIFIER="$CM_PROFILE_NAME"
+            PROVISIONING_PROFILE_SPECIFIER="$CM_PROFILE_NAME" \
+            CODE_SIGN_IDENTITY="Apple Distribution" \
+            "CODE_SIGN_IDENTITY[sdk=iphoneos*]=Apple Distribution"
 
       - name: Export IPA
         script: |
