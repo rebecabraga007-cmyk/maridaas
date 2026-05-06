@@ -6,7 +6,7 @@ workflows:
       app_store_connect: Maridas
     environment:
       xcode: 26.2
-      node: 22.12.0
+      node: 22.20.0
       ios_signing:
         distribution_type: app_store
         bundle_identifier: com.healthmedia.maridas
@@ -235,7 +235,7 @@ workflows:
     max_build_duration: 60
     environment:
       java: 17
-      node: 22.11.0
+      node: 22.20.0
       android_signing:
         - trinity_keystore
       groups:
