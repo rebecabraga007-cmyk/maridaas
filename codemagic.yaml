@@ -10,6 +10,9 @@ workflows:
       ios_signing:
         distribution_type: app_store
         bundle_identifier: com.healthmedia.maridas
+        certificate_p12: Encrypted(Ref::CM_CERTIFICATE)
+        certificate_password: Encrypted(Ref::CM_CERTIFICATE_PASSWORD)
+        provisioning_profile: Encrypted(Ref::CM_PROVISIONING_PROFILE)
       vars:
         BUNDLE_ID: "com.healthmedia.maridas"
         APPLE_TEAM_ID: "22M7YZ5TMF"

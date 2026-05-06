@@ -1,45 +1,77 @@
-## Diagnóstico
+## Objetivo
 
-O erro atual acontece no passo:
+Substituir a criação automática de certificado/profile via App Store Connect API por referências aos arquivos `.p12` e `.mobileprovision` que já estão salvos no Codemagic em **Code signing identities** (chaves `CM_CERTIFICATE`, `CM_CERTIFICATE_PASSWORD`, `CM_PROVISIONING_PROFILE`).
 
-```text
-Fetch signing files via App Store Connect API (auto-create cert)
-Cannot save Signing Certificates without certificate private key
+## Mudanças no `codemagic.yaml`
+
+### 1. Bloco `environment.ios_signing`
+Remover este bloco por completo. Ele é usado apenas pelo modo "automatic signing" (que cria/baixa certificados via API). Como agora usamos arquivos manuais, ele não é necessário e pode entrar em conflito.
+
+Também remover `integrations.app_store_connect: Maridas` da seção `environment` (não é mais usado para signing — manter apenas se quiser publicar via TestFlight depois; nesse caso pode ficar no bloco `publishing`).
+
+### 2. Adicionar bloco `environment.ios_signing` no formato manual
+
+```yaml
+environment:
+  xcode: 26.2
+  node: 22.12.0
+  ios_signing:
+    distribution_type: app_store
+    bundle_identifier: com.healthmedia.maridas
+    certificate_p12: Encrypted(Ref::CM_CERTIFICATE)
+    certificate_password: Encrypted(Ref::CM_CERTIFICATE_PASSWORD)
+    provisioning_profile: Encrypted(Ref::CM_PROVISIONING_PROFILE)
+  vars:
+    BUNDLE_ID: "com.healthmedia.maridas"
+    APPLE_TEAM_ID: "22M7YZ5TMF"
+    XCODE_WORKSPACE: "ios/App/App.xcworkspace"
+    XCODE_PROJECT: "ios/App/App.xcodeproj"
+    XCODE_SCHEME: "App"
 ```
 
-A causa provável é que o comando `app-store-connect fetch-signing-files --create` não gera uma private key automaticamente sem receber `--certificate-key`. A documentação do Codemagic CLI indica que `--certificate-key` é usado junto com `--create`, e sem isso ele também pode tentar reutilizar/fazer download de um certificado existente no portal Apple sem a private key correspondente.
+Observação: o Codemagic resolve `Ref::NOME` para os arquivos/strings salvos em **Code signing identities**. Quando esse bloco está presente, o Codemagic instala automaticamente o `.p12` no keychain e copia o profile para `~/Library/MobileDevice/Provisioning Profiles/` antes dos scripts rodarem — não precisa de nenhum comando manual.
 
-## Plano de correção
+### 3. Substituir o passo "Fetch signing files via App Store Connect API"
+Remover esse passo inteiro (gera private key, cria cert via API, etc.). Em vez dele, manter apenas um passo curto de validação:
 
-1. **Gerar uma private key temporária na VM do Codemagic**
-   - Antes de chamar `app-store-connect fetch-signing-files`, criar um arquivo `.key` local na VM usando `openssl genrsa`.
-   - Essa private key existe apenas durante o build e será usada para criar o certificado Apple Distribution.
+```yaml
+- name: Validate signing assets installed by Codemagic
+  script: |
+    set -e
+    keychain initialize
+    keychain add-certificates
+    echo "--- Code signing identities ---"
+    security find-identity -v -p codesigning
+    echo "--- Installed provisioning profiles ---"
+    ls -la "$HOME/Library/MobileDevice/Provisioning Profiles/" || true
 
-2. **Passar a private key explicitamente ao Codemagic CLI**
-   - Alterar o comando para:
+    DIST_COUNT=$(security find-identity -v -p codesigning | grep -c "Apple Distribution" || true)
+    if [ "$DIST_COUNT" -lt 1 ]; then
+      echo "ERROR: Apple Distribution identity not present after Codemagic auto-install"
+      exit 1
+    fi
+```
 
-   ```bash
-   app-store-connect fetch-signing-files "$BUNDLE_ID" \
-     --type IOS_APP_STORE \
-     --create \
-     --certificate-key "@file:$CERT_KEY_PATH"
-   ```
+### 4. Ajustar o passo "Apply provisioning profiles to Xcode project"
+Manter como está — `xcode-project use-profiles` lê os profiles já instalados pelo Codemagic em `~/Library/MobileDevice/Provisioning Profiles/` e aplica ao projeto. Continua exportando `CM_PROFILE_NAME` para o passo de archive.
 
-   - Assim o certificado criado no Apple Developer Portal terá uma private key correspondente disponível na VM, permitindo salvar/importar o `.p12`.
+### 5. Passo "Archive" — sem mudanças
+Continua usando `CODE_SIGN_STYLE=Manual`, `PROVISIONING_PROFILE_SPECIFIER=$CM_PROFILE_NAME` e `CODE_SIGN_IDENTITY=$DIST_SHA` resolvido do keychain.
 
-3. **Forçar diretórios compatíveis com o `keychain add-certificates`**
-   - Configurar `--certificates-dir "$HOME/Library/MobileDevice/Certificates"` e `--profiles-dir "$HOME/Library/MobileDevice/Provisioning Profiles"` para manter compatibilidade com o passo seguinte.
+### 6. Limpeza
+- Remover a key temporária `openssl genrsa` e variáveis `CERT_KEY_PATH`.
+- Atualizar `.lovable/plan.md` para refletir a nova estratégia (uso de arquivos manuais ao invés da API).
 
-4. **Melhorar validação e logs do signing**
-   - Criar os diretórios antes do fetch.
-   - Listar certificados/profiles baixados.
-   - Manter a validação de que existe ao menos uma identidade `Apple Distribution` no keychain.
+## Pré-requisitos no Codemagic (manual, antes do build)
 
-5. **Remover/ajustar a afirmação incorreta no plano interno**
-   - Atualizar `.lovable/plan.md` para não dizer que o CLI gera a private key sozinho; ele precisa receber uma private key via `--certificate-key`.
+Confirmar em **Teams → seu time → Code signing identities**:
+1. `.p12` salvo com referência **`CM_CERTIFICATE`** e senha **`CM_CERTIFICATE_PASSWORD`**.
+2. `.mobileprovision` (App Store) salvo com referência **`CM_PROVISIONING_PROFILE`**, vinculado ao bundle `com.healthmedia.maridas`.
+3. Os nomes das referências precisam ser exatamente esses — case-sensitive.
 
-## Pré-requisito manual antes de rodar de novo
+## Resultado esperado
 
-No Apple Developer Portal, revogue/remova certificados `Apple Distribution` antigos/sem private key para evitar que o CLI tente reutilizar um certificado que a VM não consegue salvar. O ideal é deixar espaço para ele criar um novo certificado válido com a key gerada no build.
-
-Também recomendo revogar a App Store Connect API Key compartilhada no chat e atualizar a integração `Maridas` no Codemagic com uma chave nova.
+- Build não tenta mais criar certificado via API → some o erro "Cannot save Signing Certificates without certificate private key".
+- Codemagic instala o `.p12` (com private key embutida) e o profile automaticamente no início do job.
+- Validação confirma `Apple Distribution` no keychain antes de seguir.
+- Archive e Export usam o profile e identidade já instalados.
