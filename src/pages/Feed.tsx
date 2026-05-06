@@ -5,6 +5,7 @@ import { User, Session } from "@supabase/supabase-js";
 import { useToast } from "@/hooks/use-toast";
 import OnboardingModal from "@/components/OnboardingModal";
 import AnnouncementBanner from "@/components/AnnouncementBanner";
+import WelcomeTrialBanner from "@/components/WelcomeTrialBanner";
 import NotificationPrompt from "@/components/NotificationPrompt";
 import UserSearchModal from "@/components/UserSearchModal";
 import NotificationSettingsModal from "@/components/NotificationSettingsModal";
