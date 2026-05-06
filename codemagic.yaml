@@ -93,28 +93,56 @@ workflows:
           set -e
           keychain initialize
 
-      - name: Auto-provision signing (App Store Connect API)
+      - name: Force-create NEW Apple Distribution certificate (with private key in VM)
         script: |
           set -e
-          # Fetches/creates Apple Distribution certificate + App Store provisioning profile
-          # via the App Store Connect API (integration: Maridas).
-          # No .p12, no base64, no manual `security import`.
+          # CRITICAL: Existing certificates created via API have NO accessible private key.
+          # We must generate a brand-new Distribution certificate INSIDE this VM so the
+          # private key is available for signing.
+
+          CERT_DIR="$CM_BUILD_DIR/certs"
+          mkdir -p "$CERT_DIR"
+          PRIVATE_KEY_PATH="$CERT_DIR/distribution_private_key.pem"
+
+          # 1. Generate a fresh RSA private key locally (stays in this VM keychain).
+          openssl genrsa -out "$PRIVATE_KEY_PATH" 2048
+          echo "Generated new RSA private key at $PRIVATE_KEY_PATH"
+
+          # 2. Create a NEW Apple Distribution certificate on App Store Connect using
+          #    the locally-generated private key. This guarantees the private key is
+          #    available in the VM (no reuse of keyless API-created certs).
+          app-store-connect certificates create \
+            --type DISTRIBUTION \
+            --certificate-key="@file:$PRIVATE_KEY_PATH" \
+            --save
+
+          # 3. Fetch / create the App Store provisioning profile bound to BUNDLE_ID,
+          #    using ONLY the newly-created certificate (matched by private key).
           app-store-connect fetch-signing-files "$BUNDLE_ID" \
             --type IOS_APP_STORE \
+            --certificate-key="@file:$PRIVATE_KEY_PATH" \
             --create
 
-          # Add the fetched cert(s) to the build keychain
+          # 4. Import the fetched cert(s) into the build keychain (private key is local).
           keychain add-certificates
 
-          # Patch the Xcode project to use the provisioning profile(s) just installed
+          # 5. Patch the Xcode project to use the freshly-installed profile(s).
           xcode-project use-profiles
 
-      - name: Debug signing assets
+      - name: Validate signing identity (must contain Apple Distribution)
         script: |
+          set -e
           echo "--- Code signing identities ---"
           security find-identity -v -p codesigning
           echo "--- Installed provisioning profiles ---"
           ls -la "$HOME/Library/MobileDevice/Provisioning Profiles/" || true
+
+          DIST_COUNT=$(security find-identity -v -p codesigning | grep -c "Apple Distribution" || true)
+          if [ "$DIST_COUNT" -lt 1 ]; then
+            echo "ERROR: No 'Apple Distribution' identity with private key in keychain"
+            exit 1
+          fi
+          echo "OK: $DIST_COUNT Apple Distribution identity(ies) available"
 
       - name: Increment build number
         script: |
@@ -124,7 +152,7 @@ workflows:
           /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUMBER" App/Info.plist
           echo "Set CFBundleVersion to $BUILD_NUMBER"
 
-      - name: Archive (xcodebuild)
+      - name: Archive (xcodebuild, automatic signing)
         script: |
           set -e
           mkdir -p "$CM_BUILD_DIR/build"
@@ -136,6 +164,7 @@ workflows:
             -destination "generic/platform=iOS" \
             -allowProvisioningUpdates \
             clean archive \
+            CODE_SIGN_STYLE=Automatic \
             PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_ID"
 
       - name: Export IPA
