@@ -98,9 +98,10 @@ workflows:
         script: |
           set -e
           CERT_PRIVATE_KEY_PATH="$CM_BUILD_DIR/apple_distribution_private_key.pem"
-          rm -rf "$HOME/Library/Developer/Xcode/UserData/Certificates" \
-                 "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles" \
-                 "$HOME/Library/MobileDevice/Provisioning Profiles"
+          XCODE_CERTS_DIR="$HOME/Library/Developer/Xcode/UserData/Certificates"
+          XCODE_PROFILES_DIR="$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"
+          MOBILE_PROFILES_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
+          rm -rf "$XCODE_CERTS_DIR" "$XCODE_PROFILES_DIR" "$MOBILE_PROFILES_DIR"
           mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
 
           openssl genrsa -out "$CERT_PRIVATE_KEY_PATH" 2048
