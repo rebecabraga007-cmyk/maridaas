@@ -129,12 +129,20 @@ workflows:
           # 5. Patch the Xcode project to use the freshly-installed profile(s).
           xcode-project use-profiles
 
-      - name: Debug signing assets
+      - name: Validate signing identity (must contain Apple Distribution)
         script: |
+          set -e
           echo "--- Code signing identities ---"
           security find-identity -v -p codesigning
           echo "--- Installed provisioning profiles ---"
           ls -la "$HOME/Library/MobileDevice/Provisioning Profiles/" || true
+
+          DIST_COUNT=$(security find-identity -v -p codesigning | grep -c "Apple Distribution" || true)
+          if [ "$DIST_COUNT" -lt 1 ]; then
+            echo "ERROR: No 'Apple Distribution' identity with private key in keychain"
+            exit 1
+          fi
+          echo "OK: $DIST_COUNT Apple Distribution identity(ies) available"
 
       - name: Increment build number
         script: |
@@ -144,7 +152,7 @@ workflows:
           /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUMBER" App/Info.plist
           echo "Set CFBundleVersion to $BUILD_NUMBER"
 
-      - name: Archive (xcodebuild)
+      - name: Archive (xcodebuild, automatic signing)
         script: |
           set -e
           mkdir -p "$CM_BUILD_DIR/build"
@@ -156,6 +164,7 @@ workflows:
             -destination "generic/platform=iOS" \
             -allowProvisioningUpdates \
             clean archive \
+            CODE_SIGN_STYLE=Automatic \
             PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_ID"
 
       - name: Export IPA
