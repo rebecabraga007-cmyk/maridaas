@@ -52,6 +52,12 @@ workflows:
           echo "--- Podfile locations ---"
           find ios -name Podfile
 
+          # Hard validation: Podfile must exist in one of the expected paths
+          if [ ! -f "ios/App/Podfile" ] && [ ! -f "ios/Podfile" ]; then
+            echo "ERROR: IOS_GENERATION_FAILED — Podfile missing at ios/App/Podfile and ios/Podfile"
+            exit 1
+          fi
+
       - name: Install CocoaPods
         script: |
           set -e
