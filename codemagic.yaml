@@ -102,7 +102,8 @@ workflows:
 
       - name: Increment build number
         script: |
-          cd ios/App
+          set -e
+          cd "$IOS_PATH"
           BUILD_NUMBER=$(($(date +%s) / 60))
           /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUMBER" App/Info.plist
           echo "Set CFBundleVersion to $BUILD_NUMBER"
@@ -112,7 +113,7 @@ workflows:
           set -e
           mkdir -p "$CM_BUILD_DIR/build"
           xcodebuild \
-            -workspace ios/App/App.xcworkspace \
+            -workspace "$IOS_PATH/App.xcworkspace" \
             -scheme App \
             -configuration Release \
             -archivePath "$CM_BUILD_DIR/build/App.xcarchive" \
