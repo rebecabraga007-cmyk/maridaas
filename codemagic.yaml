@@ -9,9 +9,9 @@ workflows:
       node: 22.12.0
       ios_signing:
         provisioning_profiles:
-          - CM_PROVISIONING_PROFILE
+          - "maridas provi"
         certificates:
-          - CM_CERTIFICATE
+          - "maridas cert"
       vars:
         BUNDLE_ID: "com.healthmedia.maridas"
         APPLE_TEAM_ID: "22M7YZ5TMF"
