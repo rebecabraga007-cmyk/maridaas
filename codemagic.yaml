@@ -10,8 +10,6 @@ workflows:
       ios_signing:
         distribution_type: app_store
         bundle_identifier: com.healthmedia.maridas
-        certificates:
-          - "maridas cert"
       vars:
         BUNDLE_ID: "com.healthmedia.maridas"
         APPLE_TEAM_ID: "22M7YZ5TMF"
