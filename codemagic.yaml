@@ -101,12 +101,33 @@ workflows:
         script: |
           set -e
           # Uses the connected App Store Connect integration "Maridas".
-          # Generates a fresh private key on this VM, creates a new
-          # Apple Distribution certificate via the Apple API, creates/refreshes
-          # the App Store provisioning profile, and installs everything in the keychain.
+          # We generate a fresh private key on this VM and pass it to the
+          # Codemagic CLI so the new Apple Distribution certificate created
+          # via the Apple API has a matching private key locally — otherwise
+          # the CLI fails with "Cannot save Signing Certificates without
+          # certificate private key".
+
+          CERT_DIR="$HOME/Library/MobileDevice/Certificates"
+          PROFILE_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
+          mkdir -p "$CERT_DIR" "$PROFILE_DIR"
+
+          CERT_KEY_PATH="$HOME/dist_cert_private_key.pem"
+          if [ ! -f "$CERT_KEY_PATH" ]; then
+            echo "Generating temporary RSA private key for the Distribution certificate..."
+            openssl genrsa -out "$CERT_KEY_PATH" 2048
+          fi
+
           app-store-connect fetch-signing-files "$BUNDLE_ID" \
             --type IOS_APP_STORE \
+            --certificate-key "@file:$CERT_KEY_PATH" \
+            --certificates-dir "$CERT_DIR" \
+            --profiles-dir "$PROFILE_DIR" \
             --create
+
+          echo "--- Fetched certificates ---"
+          ls -la "$CERT_DIR" || true
+          echo "--- Fetched provisioning profiles ---"
+          ls -la "$PROFILE_DIR" || true
 
           keychain add-certificates
 
