@@ -20,17 +20,38 @@ workflows:
 
       - name: Ensure iOS platform exists
         script: |
-          if [ ! -d "ios/App" ]; then
+          set -e
+          if [ ! -d "ios" ]; then
+            echo "iOS folder missing — adding platform"
             npx cap add ios
           fi
+          npx cap sync ios
 
-      - name: Sync Capacitor
-        script: npx cap sync ios
+          # Validate Podfile presence; recreate if missing
+          if ! find ios -name Podfile | grep -q .; then
+            echo "Podfile not found — recreating iOS platform"
+            rm -rf ios
+            npx cap add ios
+            npx cap sync ios
+          fi
+
+          echo "--- iOS folder structure ---"
+            ls -la ios
+          echo "--- Podfile locations ---"
+          find ios -name Podfile
 
       - name: Install CocoaPods
         script: |
-          cd ios/App
-          pod install --repo-update
+          set -e
+          IOS_PATH=$(find ios -name Podfile -exec dirname {} \; | head -n 1)
+          if [ -z "$IOS_PATH" ]; then
+            echo "ERROR: No Podfile found after cap add/sync"
+            exit 1
+          fi
+          echo "Podfile directory: $IOS_PATH"
+          echo "IOS_PATH=$IOS_PATH" >> $CM_ENV
+          cd "$IOS_PATH"
+          pod install || (pod repo update && pod install)
 
       - name: Set up signing keychain
         script: |
@@ -81,7 +102,8 @@ workflows:
 
       - name: Increment build number
         script: |
-          cd ios/App
+          set -e
+          cd "$IOS_PATH"
           BUILD_NUMBER=$(($(date +%s) / 60))
           /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUMBER" App/Info.plist
           echo "Set CFBundleVersion to $BUILD_NUMBER"
@@ -91,7 +113,7 @@ workflows:
           set -e
           mkdir -p "$CM_BUILD_DIR/build"
           xcodebuild \
-            -workspace ios/App/App.xcworkspace \
+            -workspace "$IOS_PATH/App.xcworkspace" \
             -scheme App \
             -configuration Release \
             -archivePath "$CM_BUILD_DIR/build/App.xcarchive" \
