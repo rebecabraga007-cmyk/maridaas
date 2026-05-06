@@ -97,15 +97,19 @@ workflows:
           set -e
           keychain initialize
 
-      - name: Install Codemagic P12 signing certificate
+      - name: Fetch signing files via App Store Connect API (auto-create cert)
         script: |
           set -e
-          keychain add-certificates
-          security find-identity -v -p codesigning
+          # Uses the connected App Store Connect integration "Maridas".
+          # Generates a fresh private key on this VM, creates a new
+          # Apple Distribution certificate via the Apple API, creates/refreshes
+          # the App Store provisioning profile, and installs everything in the keychain.
+          app-store-connect fetch-signing-files "$BUNDLE_ID" \
+            --type IOS_APP_STORE \
+            --create
 
-      - name: Validate signing identity
-        script: |
-          set -e
+          keychain add-certificates
+
           echo "--- Code signing identities ---"
           security find-identity -v -p codesigning
           echo "--- Installed provisioning profiles ---"
@@ -113,10 +117,8 @@ workflows:
 
           DIST_COUNT=$(security find-identity -v -p codesigning | grep -c "Apple Distribution" || true)
           if [ "$DIST_COUNT" -lt 1 ]; then
-            echo "ERROR: No 'Apple Distribution' identity with private key found locally"
+            echo "ERROR: No 'Apple Distribution' identity available after fetch"
             exit 1
-          else
-            echo "OK: $DIST_COUNT Apple Distribution identity(ies) available"
           fi
 
       - name: Increment build number
@@ -127,19 +129,18 @@ workflows:
           /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUMBER" App/Info.plist
           echo "Set CFBundleVersion to $BUILD_NUMBER"
 
-      - name: Re-inject provisioning profiles before archive
+      - name: Apply provisioning profiles to Xcode project
         script: |
           set -e
           xcode-project use-profiles \
             --project "$XCODE_PROJECT" \
-            --profile "$HOME/Library/MobileDevice/Provisioning Profiles/*.mobileprovision" \
             --archive-method app-store \
             --code-signing-setup-verbose-logging
 
           PROFILE_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
           PROFILE_PATH=$(find "$PROFILE_DIR" -name "*.mobileprovision" -print -quit)
           if [ -z "$PROFILE_PATH" ]; then
-            echo "ERROR: No provisioning profile installed by Codemagic ios_signing"
+            echo "ERROR: No provisioning profile installed"
             exit 1
           fi
 
