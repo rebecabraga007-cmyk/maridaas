@@ -8,11 +8,10 @@ workflows:
       xcode: 26.2
       node: 22.12.0
       ios_signing:
-        distribution_type: app_store
-        bundle_identifier: com.healthmedia.maridas
-        certificate_p12: Encrypted(Ref::CM_CERTIFICATE)
-        certificate_password: Encrypted(Ref::CM_CERTIFICATE_PASSWORD)
-        provisioning_profile: Encrypted(Ref::CM_PROVISIONING_PROFILE)
+        provisioning_profiles:
+          - CM_PROVISIONING_PROFILE
+        certificates:
+          - CM_CERTIFICATE
       vars:
         BUNDLE_ID: "com.healthmedia.maridas"
         APPLE_TEAM_ID: "22M7YZ5TMF"
@@ -95,24 +94,16 @@ workflows:
             echo "SPM — Xcode resolves packages during archive"
           fi
 
-      - name: Initialize keychain
+      - name: Validate signing assets
         script: |
           set -e
-          keychain initialize
-
-      - name: Validate signing assets installed by Codemagic
-        script: |
-          set -e
-          keychain add-certificates
-
           echo "--- Code signing identities ---"
           security find-identity -v -p codesigning
           echo "--- Installed provisioning profiles ---"
           ls -la "$HOME/Library/MobileDevice/Provisioning Profiles/" || true
-
           DIST_COUNT=$(security find-identity -v -p codesigning | grep -c "Apple Distribution" || true)
           if [ "$DIST_COUNT" -lt 1 ]; then
-            echo "ERROR: Apple Distribution identity not present after Codemagic auto-install"
+            echo "ERROR: Apple Distribution identity missing"
             exit 1
           fi
 

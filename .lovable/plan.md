@@ -1,77 +1,79 @@
-## Objetivo
+## Problema
 
-Substituir a criação automática de certificado/profile via App Store Connect API por referências aos arquivos `.p12` e `.mobileprovision` que já estão salvos no Codemagic em **Code signing identities** (chaves `CM_CERTIFICATE`, `CM_CERTIFICATE_PASSWORD`, `CM_PROVISIONING_PROFILE`).
-
-## Mudanças no `codemagic.yaml`
-
-### 1. Bloco `environment.ios_signing`
-Remover este bloco por completo. Ele é usado apenas pelo modo "automatic signing" (que cria/baixa certificados via API). Como agora usamos arquivos manuais, ele não é necessário e pode entrar em conflito.
-
-Também remover `integrations.app_store_connect: Maridas` da seção `environment` (não é mais usado para signing — manter apenas se quiser publicar via TestFlight depois; nesse caso pode ficar no bloco `publishing`).
-
-### 2. Adicionar bloco `environment.ios_signing` no formato manual
-
-```yaml
-environment:
-  xcode: 26.2
-  node: 22.12.0
-  ios_signing:
-    distribution_type: app_store
-    bundle_identifier: com.healthmedia.maridas
-    certificate_p12: Encrypted(Ref::CM_CERTIFICATE)
-    certificate_password: Encrypted(Ref::CM_CERTIFICATE_PASSWORD)
-    provisioning_profile: Encrypted(Ref::CM_PROVISIONING_PROFILE)
-  vars:
-    BUNDLE_ID: "com.healthmedia.maridas"
-    APPLE_TEAM_ID: "22M7YZ5TMF"
-    XCODE_WORKSPACE: "ios/App/App.xcworkspace"
-    XCODE_PROJECT: "ios/App/App.xcodeproj"
-    XCODE_SCHEME: "App"
+O Codemagic rejeita o YAML com:
+```
+ios-release -> environment -> ios_signing -> certificate_p12  extra fields not permitted
+ios-release -> environment -> ios_signing -> certificate_password  extra fields not permitted
+ios-release -> environment -> ios_signing -> provisioning_profile  extra fields not permitted
 ```
 
-Observação: o Codemagic resolve `Ref::NOME` para os arquivos/strings salvos em **Code signing identities**. Quando esse bloco está presente, o Codemagic instala automaticamente o `.p12` no keychain e copia o profile para `~/Library/MobileDevice/Provisioning Profiles/` antes dos scripts rodarem — não precisa de nenhum comando manual.
+Esses campos (`certificate_p12`, `certificate_password`, `provisioning_profile`) **não existem** no schema do `codemagic.yaml`. Eles são apenas campos da UI do builder visual. Pela [doc oficial](https://docs.codemagic.io/yaml-code-signing/signing-ios/), o `ios_signing` no YAML aceita apenas duas formas:
 
-### 3. Substituir o passo "Fetch signing files via App Store Connect API"
-Remover esse passo inteiro (gera private key, cria cert via API, etc.). Em vez dele, manter apenas um passo curto de validação:
+1. **Por distribution_type + bundle_identifier** (busca automática nos arquivos salvos em Code signing identities que casam)
+2. **Por reference names** (`provisioning_profiles:` e `certificates:` listando os nomes salvos)
+
+A senha do `.p12` **não vai no YAML** — ela é armazenada junto com o `.p12` quando você faz upload em **Code signing identities**, e o Codemagic a usa automaticamente.
+
+## Solução: usar reference names (mais explícito e robusto)
+
+Como você já tem o `.p12` salvo como `CM_CERTIFICATE` e o profile como `CM_PROVISIONING_PROFILE`, vamos usar a forma 2 — ela é mais explícita e independe de "matching" automático.
+
+### Mudanças em `codemagic.yaml`
+
+**1. Substituir o bloco `ios_signing`** (atualmente com `certificate_p12`/`certificate_password`/`provisioning_profile`) por:
 
 ```yaml
-- name: Validate signing assets installed by Codemagic
+ios_signing:
+  provisioning_profiles:
+    - CM_PROVISIONING_PROFILE
+  certificates:
+    - CM_CERTIFICATE
+```
+
+Sem `distribution_type` nem `bundle_identifier` (a doc diz explicitamente: "when fetching individual files, the fields `distribution_type` and `bundle_identifier` are not allowed").
+
+**2. Remover o passo "Initialize keychain" e o "Validate signing assets installed by Codemagic"**
+
+A doc é explícita: "Steps `Initialize keychain` & `Add certificates to keychain` scripts are **not required** as those are automatically fetched during the build process" quando se usa reference names. O Codemagic já instala `.p12` no keychain (usando a senha salva junto com o arquivo) e copia o profile para `~/Library/MobileDevice/Provisioning Profiles/` antes de qualquer script rodar.
+
+Vou substituir esses dois passos por um único passo curto de validação:
+
+```yaml
+- name: Validate signing assets
   script: |
     set -e
-    keychain initialize
-    keychain add-certificates
     echo "--- Code signing identities ---"
     security find-identity -v -p codesigning
     echo "--- Installed provisioning profiles ---"
     ls -la "$HOME/Library/MobileDevice/Provisioning Profiles/" || true
-
     DIST_COUNT=$(security find-identity -v -p codesigning | grep -c "Apple Distribution" || true)
     if [ "$DIST_COUNT" -lt 1 ]; then
-      echo "ERROR: Apple Distribution identity not present after Codemagic auto-install"
+      echo "ERROR: Apple Distribution identity missing"
       exit 1
     fi
 ```
 
-### 4. Ajustar o passo "Apply provisioning profiles to Xcode project"
-Manter como está — `xcode-project use-profiles` lê os profiles já instalados pelo Codemagic em `~/Library/MobileDevice/Provisioning Profiles/` e aplica ao projeto. Continua exportando `CM_PROFILE_NAME` para o passo de archive.
+**3. Manter `integrations.app_store_connect: Maridas`** — ainda é útil para o `publishing.app_store_connect: auth: integration` no fim do workflow (publicação futura no TestFlight).
 
-### 5. Passo "Archive" — sem mudanças
-Continua usando `CODE_SIGN_STYLE=Manual`, `PROVISIONING_PROFILE_SPECIFIER=$CM_PROFILE_NAME` e `CODE_SIGN_IDENTITY=$DIST_SHA` resolvido do keychain.
+**4. Manter inalterado:**
+- "Apply provisioning profiles to Xcode project" (`xcode-project use-profiles` lê do diretório padrão)
+- "Archive (xcodebuild, Codemagic manual signing)" — `CODE_SIGN_STYLE=Manual`, `PROVISIONING_PROFILE_SPECIFIER=$CM_PROFILE_NAME`, `CODE_SIGN_IDENTITY=$DIST_SHA`
+- "Export IPA"
 
-### 6. Limpeza
-- Remover a key temporária `openssl genrsa` e variáveis `CERT_KEY_PATH`.
-- Atualizar `.lovable/plan.md` para refletir a nova estratégia (uso de arquivos manuais ao invés da API).
+**5. Atualizar `.lovable/plan.md`** para descrever a nova estratégia (reference names em vez de campos inválidos).
 
-## Pré-requisitos no Codemagic (manual, antes do build)
+## Pré-requisitos no Codemagic (já confirmados por você)
 
-Confirmar em **Teams → seu time → Code signing identities**:
-1. `.p12` salvo com referência **`CM_CERTIFICATE`** e senha **`CM_CERTIFICATE_PASSWORD`**.
-2. `.mobileprovision` (App Store) salvo com referência **`CM_PROVISIONING_PROFILE`**, vinculado ao bundle `com.healthmedia.maridas`.
-3. Os nomes das referências precisam ser exatamente esses — case-sensitive.
+Em **Teams → seu time → codemagic.yaml settings → Code signing identities**:
+
+- **iOS certificates**: `.p12` salvo com Reference name = `CM_CERTIFICATE`. A senha do `.p12` é fornecida no momento do upload e fica armazenada junto — não vai no YAML.
+- **iOS provisioning profiles**: `.mobileprovision` salvo com Reference name = `CM_PROVISIONING_PROFILE`, vinculado ao bundle `com.healthmedia.maridas`.
+
+> Se a senha do `.p12` não foi informada no upload, será necessário re-uploadar o arquivo informando-a; o Codemagic não consegue instalar o cert sem ela.
 
 ## Resultado esperado
 
-- Build não tenta mais criar certificado via API → some o erro "Cannot save Signing Certificates without certificate private key".
-- Codemagic instala o `.p12` (com private key embutida) e o profile automaticamente no início do job.
-- Validação confirma `Apple Distribution` no keychain antes de seguir.
-- Archive e Export usam o profile e identidade já instalados.
+- O YAML passa na validação (sem mais "extra fields not permitted").
+- O Codemagic baixa automaticamente `CM_CERTIFICATE` (com a senha salva) e `CM_PROVISIONING_PROFILE` antes dos scripts.
+- O `.p12` é instalado no keychain com a private key embutida → some o erro "Cannot save Signing Certificates without certificate private key".
+- `xcode-project use-profiles` aplica o profile, `CM_PROFILE_NAME` é exportado, archive e export rodam normalmente.
