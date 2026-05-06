@@ -170,21 +170,49 @@ workflows:
       - name: Export IPA
         script: |
           set -e
-          mkdir -p "$CM_BUILD_DIR/build/ipa"
-          xcode-project build-ipa \
-            --archive-path "$CM_BUILD_DIR/App.xcarchive" \
-            --export-options-plist "$HOME/export_options.plist" || \
+          EXPORT_DIR="$CM_BUILD_DIR/build/ipa"
+          PLIST="$CM_BUILD_DIR/export_options.plist"
+          mkdir -p "$EXPORT_DIR"
+
+          cat > "$PLIST" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key>
+            <string>app-store</string>
+            <key>teamID</key>
+            <string>$APPLE_TEAM_ID</string>
+            <key>signingStyle</key>
+            <string>manual</string>
+            <key>signingCertificate</key>
+            <string>Apple Distribution</string>
+            <key>provisioningProfiles</key>
+            <dict>
+              <key>$BUNDLE_ID</key>
+              <string>$CM_PROFILE_NAME</string>
+            </dict>
+            <key>stripSwiftSymbols</key>
+            <true/>
+            <key>uploadBitcode</key>
+            <false/>
+            <key>uploadSymbols</key>
+            <true/>
+          </dict>
+          </plist>
+          EOF
+
+          echo "--- export_options.plist ---"
+          cat "$PLIST"
+
           xcodebuild \
             -exportArchive \
             -archivePath "$CM_BUILD_DIR/App.xcarchive" \
-            -exportPath "$CM_BUILD_DIR/build/ipa" \
-            -exportOptionsPlist "$HOME/export_options.plist"
-
-          # Move IPA to the expected location if produced by xcode-project at repo root
-          find . -maxdepth 2 -name "*.ipa" -exec mv {} "$CM_BUILD_DIR/build/ipa/" \; 2>/dev/null || true
+            -exportPath "$EXPORT_DIR" \
+            -exportOptionsPlist "$PLIST"
 
           echo "--- IPA output ---"
-          ls -la "$CM_BUILD_DIR/build/ipa"
+          ls -la "$EXPORT_DIR"
     artifacts:
       - $CM_BUILD_DIR/build/ipa/*.ipa
       - $CM_BUILD_DIR/App.xcarchive
