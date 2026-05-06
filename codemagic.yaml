@@ -94,23 +94,40 @@ workflows:
           set -e
           keychain initialize
 
-      - name: Auto-provision signing (reuse existing Distribution certificate)
+      - name: Create fresh Distribution signing identity
         script: |
           set -e
-          # Use Codemagic's native auto-provisioning. This will:
-          #  - Reuse the existing Apple Distribution certificate from App Store Connect
-          #    (downloading it together with its private key when available)
-          #  - Create or reuse the App Store provisioning profile bound to BUNDLE_ID
-          #  - NEVER force-create a new certificate (avoids 409 "already have a current
-          #    Distribution certificate")
-          app-store-connect fetch-signing-files "$BUNDLE_ID" \
-            --type IOS_APP_STORE \
-            --create
+          CERT_PRIVATE_KEY_PATH="$CM_BUILD_DIR/apple_distribution_private_key.pem"
+          XCODE_CERTS_DIR="$HOME/Library/Developer/Xcode/UserData/Certificates"
+          XCODE_PROFILES_DIR="$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"
+          MOBILE_PROFILES_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
+          rm -rf "$XCODE_CERTS_DIR" "$XCODE_PROFILES_DIR" "$MOBILE_PROFILES_DIR"
+          mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
 
-          # Import any fetched certificates into the build keychain.
+          openssl genrsa -out "$CERT_PRIVATE_KEY_PATH" 2048
+          chmod 600 "$CERT_PRIVATE_KEY_PATH"
+
+          # External precondition: old Apple Distribution certificates without a
+          # private key must be removed from Apple Developer before this step.
+          # This intentionally creates a new certificate bound to the VM key.
+          app-store-connect certificates create \
+            --type DISTRIBUTION \
+            --certificate-key "@file:$CERT_PRIVATE_KEY_PATH" \
+            --save
+
           keychain add-certificates
 
-          # Patch the Xcode project to use the installed provisioning profile(s).
+      - name: Create App Store provisioning profile
+        script: |
+          set -e
+          CERT_PRIVATE_KEY_PATH="$CM_BUILD_DIR/apple_distribution_private_key.pem"
+          app-store-connect fetch-signing-files "$BUNDLE_ID" \
+            --type IOS_APP_STORE \
+            --certificate-key "@file:$CERT_PRIVATE_KEY_PATH" \
+            --create \
+            --delete-stale-profiles
+
+          keychain add-certificates
           xcode-project use-profiles
 
       - name: Validate signing identity
@@ -123,8 +140,8 @@ workflows:
 
           DIST_COUNT=$(security find-identity -v -p codesigning | grep -c "Apple Distribution" || true)
           if [ "$DIST_COUNT" -lt 1 ]; then
-            echo "WARN: No 'Apple Distribution' identity found locally."
-            echo "Relying on -allowProvisioningUpdates during xcodebuild to resolve signing."
+            echo "ERROR: No 'Apple Distribution' identity with private key found locally"
+            exit 1
           else
             echo "OK: $DIST_COUNT Apple Distribution identity(ies) available"
           fi
@@ -150,12 +167,12 @@ workflows:
             exit 1
           fi
           echo "Using DEVELOPMENT_TEAM=$APPLE_TEAM_ID"
-          mkdir -p "$CM_BUILD_DIR/build"
+          mkdir -p "$CM_BUILD_DIR"
           xcodebuild \
             -project "$XCODE_PROJECT" \
             -scheme "$XCODE_SCHEME" \
             -configuration Release \
-            -archivePath "$CM_BUILD_DIR/build/App.xcarchive" \
+            -archivePath "$CM_BUILD_DIR/App.xcarchive" \
             -destination "generic/platform=iOS" \
             -allowProvisioningUpdates \
             clean archive \
@@ -168,11 +185,11 @@ workflows:
           set -e
           mkdir -p "$CM_BUILD_DIR/build/ipa"
           xcode-project build-ipa \
-            --archive-path "$CM_BUILD_DIR/build/App.xcarchive" \
+            --archive-path "$CM_BUILD_DIR/App.xcarchive" \
             --export-options-plist "$HOME/export_options.plist" || \
           xcodebuild \
             -exportArchive \
-            -archivePath "$CM_BUILD_DIR/build/App.xcarchive" \
+            -archivePath "$CM_BUILD_DIR/App.xcarchive" \
             -exportPath "$CM_BUILD_DIR/build/ipa" \
             -exportOptionsPlist "$HOME/export_options.plist"
 
@@ -183,7 +200,7 @@ workflows:
           ls -la "$CM_BUILD_DIR/build/ipa"
     artifacts:
       - $CM_BUILD_DIR/build/ipa/*.ipa
-      - $CM_BUILD_DIR/build/App.xcarchive
+      - $CM_BUILD_DIR/App.xcarchive
       - /tmp/xcodebuild_logs/*.log
     publishing:
       app_store_connect:
