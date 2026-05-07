@@ -1,14 +1,12 @@
-## Alinhar applicationId Android com Play Console
+## Adicionar assinatura release ao build Android
 
-**Editar `capacitor.config.ts`:**
-- `appId: 'app.lovable.ec7435214cbf4c3ea2cde2adacbf5879'` → `appId: 'com.maridas.app'`
+Inserir novo step **`Configure release signing`** no `codemagic.yaml` (workflow `android-release`), entre **Set Android SDK location** e **Increment version code**.
+
+O step:
+1. Injeta um bloco `signingConfigs.release` no início do `android { ... }` em `android/app/build.gradle`, lendo as variáveis `CM_KEYSTORE_PATH`, `CM_KEYSTORE_PASSWORD`, `CM_KEY_ALIAS`, `CM_KEY_PASSWORD` que o Codemagic expõe quando `android_signing: healthmedia` está ativo.
+2. Adiciona `release { signingConfig signingConfigs.release }` no bloco `buildTypes`.
+3. Usa `sed -i.bak` (portátil macOS/Linux) e remove o backup.
+4. Faz grep no final pra confirmar a injeção.
 
 ## Por quê
-O app "Maridas" no Play Console usa package `com.maridas.app`. O `cap add android` lê o `appId` para gerar o `applicationId` no `build.gradle`, então essa única mudança é suficiente.
-
-## Impacto
-- **Android:** passa a usar `com.maridas.app`. iOS não muda (usa `BUNDLE_ID` definido no `codemagic.yaml`).
-- **OAuth Google/Firebase:** se você tem SHA registrado pra outro package, vai precisar reconfigurar pro novo. (Não é o caso agora — auth roda via web/Supabase.)
-
-## Ação manual depois do build
-Primeiro AAB precisa ser enviado **manualmente** no Play Console (Maridas → Testes Internos → Criar versão → upload do .aab dos artefatos do Codemagic). Próximos builds vão publicar automaticamente.
+O `npx cap add android` gera um `build.gradle` sem `signingConfigs`, então o `bundleRelease` produz um AAB **não assinado** — daí o erro do Play Console "Todos os pacotes enviados precisam ser assinados". Como recriamos a pasta `android/` a cada build, a injeção precisa rodar a cada execução.
