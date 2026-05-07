@@ -260,7 +260,11 @@ workflows:
           if [ ! -f "android/app/build.gradle" ]; then
             echo "ERROR: ANDROID_GENERATION_FAILED — android/app/build.gradle missing"
             exit 1
-          fi
+           fi
+      - name: Generate native app icons
+        script: |
+          set -e
+          npx -y @capacitor/assets generate --android --iconBackgroundColor '#5BA69A' --iconBackgroundColorDark '#5BA69A'
       - name: Set Android SDK location
         script: echo "sdk.dir=$ANDROID_SDK_ROOT" > android/local.properties
       - name: Configure release signing
