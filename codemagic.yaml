@@ -230,7 +230,7 @@ workflows:
       java: 17
       node: 22.11.0
       android_signing:
-        - trinity_keystore
+        - healthmedia
       groups:
         - google_play
     scripts:
