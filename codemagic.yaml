@@ -57,6 +57,11 @@ workflows:
           echo "--- iOS tree ---"
           find ios -maxdepth 5 \( -name "Podfile" -o -name "Package.swift" -o -name "*.xcodeproj" -o -name "*.xcworkspace" \)
 
+      - name: Generate native app icons
+        script: |
+          set -e
+          npx -y @capacitor/assets generate --ios --iconBackgroundColor '#5BA69A' --iconBackgroundColorDark '#5BA69A'
+
       - name: Detect iOS dependency manager (CocoaPods vs SPM)
         script: |
           set -e
