@@ -238,13 +238,24 @@ workflows:
         script: npm install
       - name: Build web assets
         script: npm run build
-      - name: Ensure Android platform exists
+      - name: Ensure Capacitor Android packages
         script: |
-          if [ ! -d "android" ]; then
-            npx cap add android
+          set -e
+          npm install @capacitor/core @capacitor/cli @capacitor/android
+          if [ ! -f "capacitor.config.ts" ] && [ ! -f "capacitor.config.json" ]; then
+            echo "ERROR: capacitor config missing"
+            exit 1
           fi
-      - name: Sync Capacitor
-        script: npx cap sync android
+      - name: Recreate Android platform from scratch
+        script: |
+          set -e
+          rm -rf android
+          npx cap add android || { echo "ERROR: cap add android failed"; exit 1; }
+          npx cap sync android || { echo "ERROR: cap sync android failed"; exit 1; }
+          if [ ! -f "android/app/build.gradle" ]; then
+            echo "ERROR: ANDROID_GENERATION_FAILED — android/app/build.gradle missing"
+            exit 1
+          fi
       - name: Set Android SDK location
         script: echo "sdk.dir=$ANDROID_SDK_ROOT" > android/local.properties
       - name: Increment version code
