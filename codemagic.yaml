@@ -258,29 +258,6 @@ workflows:
           fi
       - name: Set Android SDK location
         script: echo "sdk.dir=$ANDROID_SDK_ROOT" > android/local.properties
-      - name: Configure release signing
-        script: |
-          set -e
-          cd android/app
-          cat > /tmp/signing.gradle <<'EOF'
-          signingConfigs {
-              release {
-                  if (System.getenv("CM_KEYSTORE_PATH")) {
-                      storeFile file(System.getenv("CM_KEYSTORE_PATH"))
-                      storePassword System.getenv("CM_KEYSTORE_PASSWORD")
-                      keyAlias System.getenv("CM_KEY_ALIAS")
-                      keyPassword System.getenv("CM_KEY_PASSWORD")
-                  }
-              }
-          }
-          EOF
-          awk '/^android \{/{print; while ((getline line < "/tmp/signing.gradle") > 0) print "    " line; next} {print}' build.gradle > build.gradle.new
-          mv build.gradle.new build.gradle
-          sed -i.bak 's|buildTypes {|buildTypes {\
-          release { signingConfig signingConfigs.release }|' build.gradle
-          rm -f build.gradle.bak
-          echo "--- signingConfigs / buildTypes ---"
-          grep -n "signingConfig\|buildTypes\|storeFile" build.gradle || true
       - name: Increment version code
         script: |
           set -e

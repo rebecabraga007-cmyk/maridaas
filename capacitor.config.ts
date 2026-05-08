@@ -1,7 +1,7 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.maridas.app',
+  appId: 'app.lovable.ec7435214cbf4c3ea2cde2adacbf5879',
   appName: 'maridaas',
   webDir: 'dist',
   server: {

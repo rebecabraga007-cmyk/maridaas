@@ -1,12 +1,13 @@
-## Adicionar assinatura release ao build Android
+## Mudança em `codemagic.yaml`
 
-Inserir novo step **`Configure release signing`** no `codemagic.yaml` (workflow `android-release`), entre **Set Android SDK location** e **Increment version code**.
+No workflow `android-release`, alterar:
 
-O step:
-1. Injeta um bloco `signingConfigs.release` no início do `android { ... }` em `android/app/build.gradle`, lendo as variáveis `CM_KEYSTORE_PATH`, `CM_KEYSTORE_PASSWORD`, `CM_KEY_ALIAS`, `CM_KEY_PASSWORD` que o Codemagic expõe quando `android_signing: healthmedia` está ativo.
-2. Adiciona `release { signingConfig signingConfigs.release }` no bloco `buildTypes`.
-3. Usa `sed -i.bak` (portátil macOS/Linux) e remove o backup.
-4. Faz grep no final pra confirmar a injeção.
+```yaml
+environment:
+  java: 17   # → 21
+```
 
 ## Por quê
-O `npx cap add android` gera um `build.gradle` sem `signingConfigs`, então o `bundleRelease` produz um AAB **não assinado** — daí o erro do Play Console "Todos os pacotes enviados precisam ser assinados". Como recriamos a pasta `android/` a cada build, a injeção precisa rodar a cada execução.
+O Capacitor Android atual compila com `sourceCompatibility = JavaVersion.VERSION_21`. O JDK 17 do Codemagic não reconhece source release 21, daí o erro `invalid source release: 21` em `:capacitor-android:compileReleaseJavaWithJavac`.
+
+Subir para Java 21 alinha com a toolchain do Capacitor sem precisar editar arquivos gerados (que são recriados a cada `npx cap add android`).
