@@ -210,7 +210,7 @@ const Feed = () => {
       .from("profiles")
       .select("full_name, neighborhood, city, primary_neighborhood_id, secondary_neighborhood_id, avatar_url")
       .eq("user_id", user.id)
-      .single();
+      .maybeSingle();
 
     if (data) {
       setUserProfile(data);
