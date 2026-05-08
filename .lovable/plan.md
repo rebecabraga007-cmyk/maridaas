@@ -1,41 +1,12 @@
-## Plano
+O problema é que o `versionCode` baseado em `date +%s + 100000` não garante unicidade contra tudo que já foi enviado ao Google Play. Pelo print, o Google Play já recebeu `1778366544`; se o build gerar um número menor ou igual, ele rejeita mesmo que seja outro arquivo AAB.
 
-Corrigir a etapa `Increment version code` do workflow Android para passar as credenciais ao `google-play` CLI no formato que ele realmente aceita.
+Plano de correção:
 
-## Diagnóstico
+1. Atualizar somente `codemagic.yaml`, na etapa `Increment version code`.
+2. Trocar a base local atual (`epoch + 100000`) por um número bem acima do último padrão já usado, por exemplo `date +%s + 1000000`, para sair imediatamente da faixa rejeitada.
+3. Manter a consulta ao Google Play quando as credenciais funcionarem.
+4. Se a consulta remota funcionar, continuar usando `max(REMOTE + 1, LOCAL)`.
+5. Se a consulta remota falhar com credenciais presentes, continuar falhando o build, para não enviar outro AAB com versão conflitante.
+6. Atualizar as mensagens de log para deixar claro qual `versionCode` final foi aplicado.
 
-O erro atual mostra que `google-play get-latest-build-number --credentials` não aceita `@FILE:/tmp/gp_creds.json`; ele está interpretando esse texto como JSON literal e falha com:
-
-```text
-argument --credentials: Provided value is not a valid JSON
-```
-
-Ou seja: a variável `GCLOUD_SERVICE_ACCOUNT_CREDENTIALS` está sendo detectada, mas o formato enviado ao CLI está errado.
-
-## Mudanças propostas
-
-1. Atualizar apenas `codemagic.yaml`, na etapa `Increment version code` do workflow Android.
-2. Remover o uso de `--credentials "@FILE:/tmp/gp_creds.json"`.
-3. Normalizar o conteúdo da variável de credencial antes do uso:
-   - aceitar JSON direto;
-   - aceitar JSON com quebras de linha escapadas (`\n`);
-   - validar com `python3 -m json.tool` antes de chamar o CLI.
-4. Chamar o CLI com o JSON literal válido:
-
-```bash
-google-play get-latest-build-number \
-  --credentials "$CRED_JSON_NORMALIZED" \
-  --package-name "$ANDROID_APP_ID" \
-  --tracks internal alpha beta production
-```
-
-5. Se o JSON for inválido, falhar com mensagem clara orientando a recriar a variável `GCLOUD_SERVICE_ACCOUNT_CREDENTIALS` como o JSON completo da service account.
-6. Manter a proteção já adicionada:
-   - `LOCAL=$(date +%s + 100000)`;
-   - se a consulta remota funcionar, usar `max(REMOTE + 1, LOCAL)`;
-   - se credenciais existem mas o CLI falha, parar o build para evitar novo upload com `versionCode` conflitante.
-
-## Arquivos afetados
-
-- `codemagic.yaml`
-- `.lovable/plan.md` será atualizado para refletir a causa real e a correção aplicada.
+Resultado esperado: o próximo AAB terá `versionCode` maior que `1778366544` e maior que qualquer código remoto retornado pela API do Google Play.
