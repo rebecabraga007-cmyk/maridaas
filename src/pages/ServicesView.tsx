@@ -8,8 +8,6 @@ import {
   MapPin,
   Briefcase,
   Star,
-  Sparkles,
-  Crown,
   Filter,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -48,8 +46,6 @@ export default function ServicesView() {
     locationLabel,
     isAdmin,
     isModerator,
-    isPremium,
-    checkingPremium,
     reloadServices,
   } = useServices();
 
@@ -137,23 +133,9 @@ export default function ServicesView() {
               </p>
             </div>
             <div className="flex-1" />
-            {checkingPremium ? (
-              <Button size="sm" disabled className="btn-maridaas">
-                <Plus className="w-4 h-4 mr-1" /> Cadastrar
-              </Button>
-            ) : isPremium ? (
-              <Button size="sm" className="btn-maridaas" onClick={() => setShowCreateModal(true)}>
-                <Plus className="w-4 h-4 mr-1" /> Cadastrar
-              </Button>
-            ) : (
-              <Button
-                size="sm"
-                className="bg-gradient-to-r from-secondary to-primary text-primary-foreground"
-                onClick={() => navigate("/premium")}
-              >
-                <Sparkles className="w-4 h-4 mr-1" /> Premium
-              </Button>
-            )}
+            <Button size="sm" className="btn-maridaas" onClick={() => setShowCreateModal(true)}>
+              <Plus className="w-4 h-4 mr-1" /> Cadastrar
+            </Button>
           </div>
 
           <div className="flex gap-3">
@@ -234,16 +216,9 @@ export default function ServicesView() {
               >
                 Limpar filtros
               </Button>
-            ) : isPremium ? (
+            ) : (
               <Button className="btn-maridaas mt-4" onClick={() => setShowCreateModal(true)}>
                 <Plus className="w-4 h-4 mr-2" /> Seja a primeira!
-              </Button>
-            ) : (
-              <Button
-                className="bg-gradient-to-r from-secondary to-primary text-primary-foreground mt-4"
-                onClick={() => navigate("/premium")}
-              >
-                <Sparkles className="w-4 h-4 mr-2" /> Assinar Premium
               </Button>
             )}
           </div>

@@ -92,7 +92,7 @@ const PrivacyPolicy = () => {
         <ul>
           <li><strong>Infraestrutura e nuvem:</strong> Supabase (banco de dados, autenticação e storage)</li>
           <li><strong>Notificações:</strong> OneSignal</li>
-          <li><strong>Pagamentos:</strong> Stripe</li>
+          
           <li><strong>Analytics e monitoramento:</strong> ferramentas de performance, com pseudonimização sempre que possível</li>
           <li><strong>Obrigações legais:</strong> quando exigido por lei, ordem judicial ou autoridade competente</li>
         </ul>
