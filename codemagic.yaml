@@ -129,6 +129,12 @@ workflows:
           /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUMBER" "$PLIST"
           echo "Set CFBundleVersion to $BUILD_NUMBER"
 
+          # Persist for downstream IPA validation step
+          printf '%s' "$BUILD_NUMBER" > /tmp/ios_build_number.txt
+          if [ -n "$CM_ENV" ]; then
+            echo "IOS_BUILD_NUMBER=$BUILD_NUMBER" >> "$CM_ENV"
+          fi
+
           # Export compliance: app uses only standard HTTPS/TLS encryption (exempt).
           # Declaring this avoids manual prompt in App Store Connect and the
           # "missing export compliance" error when submitting to TestFlight review.
