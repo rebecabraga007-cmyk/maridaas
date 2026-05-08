@@ -136,8 +136,15 @@ workflows:
           fi
           echo "Current MARKETING_VERSION: $CURRENT_VERSION"
 
-          MAJOR=$(echo "$CURRENT_VERSION" | awk -F. '{print ($1==""?1:$1)}')
-          MINOR=$(echo "$CURRENT_VERSION" | awk -F. '{print ($2==""?0:$2)}')
+          # Override MAJOR.MINOR with MARKETING_BASE_VERSION when provided (e.g. "1.1")
+          if [ -n "$MARKETING_BASE_VERSION" ] && echo "$MARKETING_BASE_VERSION" | grep -Eq '^[0-9]+\.[0-9]+$'; then
+            MAJOR=$(echo "$MARKETING_BASE_VERSION" | awk -F. '{print $1}')
+            MINOR=$(echo "$MARKETING_BASE_VERSION" | awk -F. '{print $2}')
+            echo "Overriding MAJOR.MINOR with MARKETING_BASE_VERSION=$MARKETING_BASE_VERSION"
+          else
+            MAJOR=$(echo "$CURRENT_VERSION" | awk -F. '{print ($1==""?1:$1)}')
+            MINOR=$(echo "$CURRENT_VERSION" | awk -F. '{print ($2==""?0:$2)}')
+          fi
           LOCAL_PATCH=$(echo "$CURRENT_VERSION" | awk -F. '{print ($3==""?0:$3)}')
 
           # Try to fetch the latest marketing version already on App Store Connect
