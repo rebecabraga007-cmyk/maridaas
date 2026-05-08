@@ -416,47 +416,69 @@ workflows:
           set -e
           ANDROID_APP_ID="com.maridas.app"
 
-          # Local candidate: epoch seconds (~1.78B today, well under Play's 2.1B limit)
-          LOCAL=$(date +%s)
-          echo "Local candidate versionCode: $LOCAL"
+          # Local candidate: epoch seconds + safety offset (~100k seconds ≈ 27h ahead).
+          # This guarantees the new code is well above any code uploaded to Play in the
+          # past day or so, even if the remote check below silently fails.
+          LOCAL=$(( $(date +%s) + 100000 ))
+          echo "Local candidate versionCode (epoch + 100000): $LOCAL"
+
+          echo "--- Env vars potentially holding Google Play credentials ---"
+          env | grep -iE 'google|gcloud|play' | awk -F= '{print $1}' || true
 
           # Detect a Google Play service-account credential variable
           CRED_VAR=""
-          for v in GCLOUD_SERVICE_ACCOUNT_CREDENTIALS GOOGLE_PLAY_SERVICE_ACCOUNT_CREDENTIALS GOOGLE_PLAY_SERVICE_ACCOUNT_JSON; do
-            if [ -n "$(eval echo \$$v)" ]; then
+          CRED_JSON=""
+          for v in GCLOUD_SERVICE_ACCOUNT_CREDENTIALS GOOGLE_PLAY_SERVICE_ACCOUNT_CREDENTIALS GOOGLE_PLAY_SERVICE_ACCOUNT_JSON GOOGLE_PLAY_JSON_KEY GCP_SA_KEY; do
+            VAL=$(eval echo "\$$v")
+            if [ -n "$VAL" ]; then
               CRED_VAR="$v"
+              CRED_JSON="$VAL"
               echo "Detected credentials in env var: $CRED_VAR"
               break
             fi
           done
 
           REMOTE=0
-          if [ -n "$CRED_VAR" ] && command -v google-play >/dev/null 2>&1; then
-            set +e
-            REMOTE_RAW=$(google-play get-latest-build-number \
-              --credentials "@env:$CRED_VAR" \
-              --package-name "$ANDROID_APP_ID" \
-              --tracks internal alpha beta production 2>&1)
-            RC=$?
-            set -e
-            if [ $RC -eq 0 ]; then
-              REMOTE=$(echo "$REMOTE_RAW" | grep -Eo '[0-9]+' | sort -n | tail -n1)
-              [ -z "$REMOTE" ] && REMOTE=0
-              echo "Remote latest versionCode (Google Play): $REMOTE"
+          REMOTE_OK=0
+          if [ -n "$CRED_VAR" ]; then
+            # Write to file — google-play CLI is more reliable with @FILE: than @env:
+            printf '%s' "$CRED_JSON" > /tmp/gp_creds.json
+            chmod 600 /tmp/gp_creds.json
+            if command -v google-play >/dev/null 2>&1; then
+              set +e
+              REMOTE_RAW=$(google-play get-latest-build-number \
+                --credentials "@FILE:/tmp/gp_creds.json" \
+                --package-name "$ANDROID_APP_ID" \
+                --tracks internal alpha beta production 2>&1)
+              RC=$?
+              set -e
+              if [ $RC -eq 0 ]; then
+                REMOTE=$(echo "$REMOTE_RAW" | grep -Eo '[0-9]+' | sort -n | tail -n1)
+                [ -z "$REMOTE" ] && REMOTE=0
+                REMOTE_OK=1
+                echo "Remote latest versionCode (Google Play): $REMOTE"
+              else
+                echo "ERROR: google-play CLI failed despite credentials being present:"
+                echo "$REMOTE_RAW"
+                rm -f /tmp/gp_creds.json
+                exit 1
+              fi
             else
-              echo "WARN: google-play CLI failed; falling back. Output:"
-              echo "$REMOTE_RAW"
+              echo "ERROR: google-play CLI missing but credentials are present"
+              rm -f /tmp/gp_creds.json
+              exit 1
             fi
+            rm -f /tmp/gp_creds.json
           else
-            echo "WARN: no Google Play credentials detected or google-play CLI missing; using local +1 fallback"
+            echo "WARN: no Google Play credentials detected — using LOCAL (epoch + 100000) only"
           fi
 
           if [ "$REMOTE" -ge "$LOCAL" ]; then
             VERSION_CODE=$((REMOTE + 1))
             echo "Final versionCode: $VERSION_CODE  (remote >= local, bumped above remote)"
           else
-            VERSION_CODE=$((LOCAL + 1))
-            echo "Final versionCode: $VERSION_CODE  (local + 1, ahead of any prior build)"
+            VERSION_CODE=$LOCAL
+            echo "Final versionCode: $VERSION_CODE  (local epoch+offset, ahead of any prior build)"
           fi
 
           cd android
