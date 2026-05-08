@@ -26,8 +26,15 @@ export const isPWAInstalled = () =>
   window.matchMedia("(display-mode: standalone)").matches ||
   (window.navigator as any).standalone === true;
 
+const isNativeWebView = () =>
+  window.location.protocol === "capacitor:" ||
+  window.location.protocol === "file:" ||
+  !!(window as any).Capacitor?.isNativePlatform?.();
+
 // Detect if push is available on this platform
 export const canUsePush = () => {
+  if (isNativeWebView()) return false;
+  if (import.meta.env.PROD) return false;
   if (isIOSDevice() && !isPWAInstalled()) return false;
   return "Notification" in window && "serviceWorker" in navigator;
 };
@@ -73,6 +80,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
  * Initialize OneSignal SDK — idempotent, safe to call multiple times.
  */
 export async function initOneSignal(config: OneSignalConfig): Promise<void> {
+  if (!canUsePush()) return;
   if (isInitialized) return;
   if (initPromise) return initPromise;
 
