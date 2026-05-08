@@ -127,6 +127,13 @@ workflows:
           BUILD_NUMBER=$(($(date +%s) / 60))
           /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUMBER" "$PLIST"
           echo "Set CFBundleVersion to $BUILD_NUMBER"
+
+          # Export compliance: app uses only standard HTTPS/TLS encryption (exempt).
+          # Declaring this avoids manual prompt in App Store Connect and the
+          # "missing export compliance" error when submitting to TestFlight review.
+          /usr/libexec/PlistBuddy -c "Add :ITSAppUsesNonExemptEncryption bool false" "$PLIST" 2>/dev/null \
+            || /usr/libexec/PlistBuddy -c "Set :ITSAppUsesNonExemptEncryption false" "$PLIST"
+          echo "Set ITSAppUsesNonExemptEncryption to false"
           # Also update CURRENT_PROJECT_VERSION in pbxproj (Xcode uses this for $(CURRENT_PROJECT_VERSION))
           sed -i.bak -E "s/CURRENT_PROJECT_VERSION = [^;]+;/CURRENT_PROJECT_VERSION = $BUILD_NUMBER;/g" "$PBXPROJ"
 
