@@ -166,23 +166,21 @@ workflows:
             ASC_JSON=$(app-store-connect apps app-store-versions "$APPLE_APP_ID" --json 2>/dev/null || echo "")
             if [ -n "$ASC_JSON" ]; then
               echo "--- App Store Versions found ---"
-              echo "$ASC_JSON" | python3 -c "
-import sys, json, re
-try:
-    data = json.loads(sys.stdin.read())
-except Exception as e:
-    sys.stderr.write(f'JSON parse error: {e}\n'); sys.exit(0)
-items = data if isinstance(data, list) else data.get('data', [])
-rows = []
-for it in items:
-    attrs = it.get('attributes', it) if isinstance(it, dict) else {}
-    v = attrs.get('versionString') or attrs.get('version_string')
-    s = attrs.get('appStoreState') or attrs.get('app_store_state') or attrs.get('state') or ''
-    if v and re.match(r'^\d+\.\d+\.\d+$', v):
-        rows.append((v, s))
-for v, s in rows:
-    print(f'{v}\t{s}')
-" > /tmp/asc_versions.tsv 2>&1 || true
+              cat > /tmp/parse_asc.py <<'PY'
+              import sys, json, re
+              try:
+                  data = json.loads(sys.stdin.read())
+              except Exception as e:
+                  sys.stderr.write(f'JSON parse error: {e}\n'); sys.exit(0)
+              items = data if isinstance(data, list) else data.get('data', [])
+              for it in items:
+                  attrs = it.get('attributes', it) if isinstance(it, dict) else {}
+                  v = attrs.get('versionString') or attrs.get('version_string')
+                  s = attrs.get('appStoreState') or attrs.get('app_store_state') or attrs.get('state') or ''
+                  if v and re.match(r'^\d+\.\d+\.\d+$', v):
+                      print(f'{v}\t{s}')
+              PY
+              echo "$ASC_JSON" | python3 /tmp/parse_asc.py > /tmp/asc_versions.tsv 2>&1 || true
               cat /tmp/asc_versions.tsv || true
               LATEST_REMOTE=$(awk -F'\t' '{print $1}' /tmp/asc_versions.tsv | sort -t. -k1,1n -k2,2n -k3,3n | tail -n1)
               BLOCKING_STATE=$(awk -F'\t' -v maj="$MAJOR" -v min="$MINOR" '
