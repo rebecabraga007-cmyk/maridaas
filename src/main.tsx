@@ -63,6 +63,24 @@ logBoot("main.tsx carregado");
 
 const rootEl = document.getElementById("root");
 
+async function cleanupServiceWorkersAndCaches() {
+  if ("serviceWorker" in navigator) {
+    const registrations = await navigator.serviceWorker.getRegistrations();
+    await Promise.all(registrations.map((registration) => registration.unregister()));
+    logBoot(`Service workers removidos: ${registrations.length}`);
+  } else {
+    logBoot("Service worker indisponível neste ambiente");
+  }
+
+  if ("caches" in window) {
+    const cacheNames = await caches.keys();
+    await Promise.all(cacheNames.map((name) => caches.delete(name)));
+    logBoot(`Caches removidos: ${cacheNames.length}`);
+  } else {
+    logBoot("Cache Storage indisponível neste ambiente");
+  }
+}
+
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
@@ -78,6 +96,8 @@ async function bootstrap() {
     if (!SUPABASE_URL || !SUPABASE_KEY) {
       throw new Error("Variáveis do backend ausentes no bundle");
     }
+
+    await cleanupServiceWorkersAndCaches();
 
     logBoot("Importando App");
     const { default: App } = await import("./App.tsx");
