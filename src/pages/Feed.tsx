@@ -135,15 +135,15 @@ const Feed = () => {
       : userProfile?.primary_neighborhood_id;
 
   useEffect(() => {
-    if (currentNeighborhoodId) {
-      setPosts([]);
-      setCursor(null);
-      setHasMore(true);
-      loadPosts(null);
-      loadServices();
-      loadAnnouncements();
-      subscribeToRealtimePosts();
-    }
+    if (!currentNeighborhoodId) return;
+    setPosts([]);
+    setCursor(null);
+    setHasMore(true);
+    loadPosts(null);
+    loadServices().catch((e) => console.error("[Feed] loadServices", e));
+    loadAnnouncements().catch((e) => console.error("[Feed] loadAnnouncements", e));
+    const cleanup = subscribeToRealtimePosts();
+    return cleanup;
   }, [currentNeighborhoodId]);
 
   // Realtime subscription for new posts
