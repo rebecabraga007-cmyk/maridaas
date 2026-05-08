@@ -236,7 +236,6 @@ workflows:
             clean archive \
             CODE_SIGN_STYLE=Manual \
             DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
-            PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_ID" \
             PROVISIONING_PROFILE_SPECIFIER="$CM_PROFILE_NAME" \
             CODE_SIGN_IDENTITY="$DIST_SHA"
 
