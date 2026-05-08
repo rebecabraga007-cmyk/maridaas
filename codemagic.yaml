@@ -420,11 +420,16 @@ workflows:
           # This guarantees the new code is well above any code uploaded to Play in the
           # past day or so, even if the remote check below silently fails.
           # Bump well above any versionCode already accepted by Google Play.
-          # Last known used code was ~1778366544 (epoch + ~100k). We add 1_000_000
-          # so the new code lands clearly above that floor even if the remote
-          # check fails or returns a stale value.
-          LOCAL=$(( $(date +%s) + 1000000 ))
-          echo "Local candidate versionCode (epoch + 1000000): $LOCAL"
+          # Known-used floor: 1779267389 was rejected as already used. We add
+          # 10_000_000 to the epoch and also enforce a hard floor above the
+          # last known rejected code so we land clearly above it.
+          KNOWN_USED_FLOOR=1779267389
+          LOCAL=$(( $(date +%s) + 10000000 ))
+          if [ "$LOCAL" -le "$KNOWN_USED_FLOOR" ]; then
+            LOCAL=$(( KNOWN_USED_FLOOR + 1 ))
+          fi
+          echo "Known used floor: $KNOWN_USED_FLOOR"
+          echo "Local candidate versionCode (max of epoch+10000000, floor+1): $LOCAL"
 
           echo "--- Env vars potentially holding Google Play credentials ---"
           env | grep -iE 'google|gcloud|play' | awk -F= '{print $1}' || true
