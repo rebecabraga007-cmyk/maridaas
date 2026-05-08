@@ -444,22 +444,24 @@ workflows:
             # Normalize and validate the JSON before passing to google-play CLI.
             # The CLI expects a literal JSON string in --credentials (not @FILE:/@env:).
             printf '%s' "$CRED_JSON" > /tmp/gp_creds.raw
-            CRED_JSON_NORMALIZED=$(python3 -c "
+            cat > /tmp/normalize_creds.py <<'PYEOF'
           import json, sys
           raw = open('/tmp/gp_creds.raw').read().strip()
           try:
               obj = json.loads(raw)
           except Exception:
-              # Maybe escaped newlines inside private_key
               try:
-                  obj = json.loads(raw.replace('\\\\n', '\\n'))
+                  obj = json.loads(raw.replace('\\n', '\n'))
               except Exception as e:
-                  sys.stderr.write('Invalid JSON in credential var: ' + str(e) + '\\n')
+                  sys.stderr.write('Invalid JSON in credential var: ' + str(e) + '\n')
                   sys.exit(2)
           sys.stdout.write(json.dumps(obj))
-          " )
+          PYEOF
+            # Strip the leading 10-space YAML indentation from the heredoc body
+            sed -i 's/^          //' /tmp/normalize_creds.py
+            CRED_JSON_NORMALIZED=$(python3 /tmp/normalize_creds.py)
             RC=$?
-            rm -f /tmp/gp_creds.raw
+            rm -f /tmp/gp_creds.raw /tmp/normalize_creds.py
             if [ $RC -ne 0 ] || [ -z "$CRED_JSON_NORMALIZED" ]; then
               echo "ERROR: $CRED_VAR does not contain valid JSON. Recreate it as the full service account JSON."
               exit 1
