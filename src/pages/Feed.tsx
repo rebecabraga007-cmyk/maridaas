@@ -143,7 +143,7 @@ const Feed = () => {
     loadServices().catch((e) => console.error("[Feed] loadServices", e));
     loadAnnouncements().catch((e) => console.error("[Feed] loadAnnouncements", e));
     const cleanup = subscribeToRealtimePosts();
-    return cleanup;
+    return () => { cleanup?.(); };
   }, [currentNeighborhoodId]);
 
   // Realtime subscription for new posts
