@@ -1,12 +1,29 @@
-O problema é que o `versionCode` baseado em `date +%s + 100000` não garante unicidade contra tudo que já foi enviado ao Google Play. Pelo print, o Google Play já recebeu `1778366544`; se o build gerar um número menor ou igual, ele rejeita mesmo que seja outro arquivo AAB.
+## Problema
 
-Plano de correção:
+O Google Play rejeitou o `versionCode` 1779267389. A checagem remota via `google-play` CLI provavelmente está falhando (ou retornando um valor desatualizado), e o cálculo local `epoch + 1000000` caiu em uma faixa já usada. Precisamos de um fallback que tente vários candidatos até encontrar um aceito pelo Google Play, ou que pelo menos suba o piso local de forma persistente.
 
-1. Atualizar somente `codemagic.yaml`, na etapa `Increment version code`.
-2. Trocar a base local atual (`epoch + 100000`) por um número bem acima do último padrão já usado, por exemplo `date +%s + 1000000`, para sair imediatamente da faixa rejeitada.
-3. Manter a consulta ao Google Play quando as credenciais funcionarem.
-4. Se a consulta remota funcionar, continuar usando `max(REMOTE + 1, LOCAL)`.
-5. Se a consulta remota falhar com credenciais presentes, continuar falhando o build, para não enviar outro AAB com versão conflitante.
-6. Atualizar as mensagens de log para deixar claro qual `versionCode` final foi aplicado.
+## Plano
 
-Resultado esperado: o próximo AAB terá `versionCode` maior que `1778366544` e maior que qualquer código remoto retornado pela API do Google Play.
+Editar apenas o passo `Increment version code` em `codemagic.yaml`:
+
+1. **Subir o piso local** de `epoch + 1000000` para `epoch + 10000000`, escapando imediatamente da faixa rejeitada (1779267389).
+
+2. **Adicionar piso conhecido**: definir `KNOWN_USED_FLOOR=1779267389` e garantir que o `LOCAL` seja sempre `> KNOWN_USED_FLOOR`. Se `epoch + 10000000` ainda for menor (não será hoje, mas blindagem futura), usar `KNOWN_USED_FLOOR + 1`.
+
+3. **Fallback incremental quando a checagem remota falhar ou estiver ausente**:
+   - Tentar até 50 candidatos consecutivos (`CANDIDATE = LOCAL + i`).
+   - Para cada candidato, se o `google-play` CLI estiver disponível e as credenciais válidas, perguntar `get-latest-build-number` e comparar — se o candidato for `> REMOTE`, aceitar.
+   - Se o CLI não estiver disponível ou continuar falhando, simplesmente avançar `LOCAL` em incrementos de 1000 e usar o último candidato (não há como validar sem API).
+
+4. **Quando a checagem remota funcionar normalmente** (caminho atual): manter `max(REMOTE + 1, LOCAL)` — sem mudanças.
+
+5. **Logs claros** mostrando: piso conhecido, LOCAL inicial, REMOTE (se obtido), número de tentativas no fallback, e `versionCode` final aplicado.
+
+6. **Não tocar em nenhum outro arquivo** — só `codemagic.yaml`.
+
+## Resultado esperado
+
+O próximo build:
+- Gera um `versionCode` ≥ `1779267389 + 1` mesmo se a API do Play falhar.
+- Quando a API responde, usa `REMOTE + 1` como hoje.
+- Se ainda houver colisão (caso raro de race), o publish falha — mas o piso elevado torna isso extremamente improvável.
