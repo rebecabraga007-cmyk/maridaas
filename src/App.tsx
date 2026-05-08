@@ -3,7 +3,18 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, HashRouter, Routes, Route } from "react-router-dom";
+
+// Em build nativo (Capacitor/WKWebView/Android WebView) usamos HashRouter
+// para evitar quebra de rotas, já que o WebView serve via file:// ou capacitor://.
+const isNative =
+  typeof window !== "undefined" &&
+  (window.location.protocol === "capacitor:" ||
+    window.location.protocol === "file:" ||
+    // @ts-ignore - Capacitor injetado em runtime
+    !!(window as any).Capacitor?.isNativePlatform?.());
+
+const Router = isNative ? HashRouter : BrowserRouter;
 import LoadingFallback from "./components/LoadingFallback";
 import ErrorBoundary from "./components/ErrorBoundary";
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -39,7 +50,7 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      <BrowserRouter>
+      <Router>
         <ErrorBoundary>
           <Suspense fallback={<LoadingFallback />}>
             <Routes>
@@ -66,7 +77,7 @@ const App = () => (
             </Routes>
           </Suspense>
         </ErrorBoundary>
-      </BrowserRouter>
+      </Router>
     </TooltipProvider>
   </QueryClientProvider>
 );
