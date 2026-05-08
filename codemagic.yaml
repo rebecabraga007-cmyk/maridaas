@@ -330,6 +330,44 @@ workflows:
 
           echo "--- IPA output ---"
           ls -la "$EXPORT_DIR"
+
+      - name: Validate IPA CFBundleVersion matches pipeline value
+        script: |
+          set -e
+          EXPORT_DIR="$CM_BUILD_DIR/build/ipa"
+          EXPECTED="${IOS_BUILD_NUMBER:-$(cat /tmp/ios_build_number.txt 2>/dev/null || true)}"
+          if [ -z "$EXPECTED" ]; then
+            echo "ERROR: expected iOS CFBundleVersion not found (IOS_BUILD_NUMBER unset)"
+            exit 1
+          fi
+
+          IPA_PATH=$(ls "$EXPORT_DIR"/*.ipa 2>/dev/null | head -n1)
+          if [ -z "$IPA_PATH" ]; then
+            echo "ERROR: no .ipa produced in $EXPORT_DIR"
+            exit 1
+          fi
+          echo "Validating IPA: $IPA_PATH"
+          echo "Expected CFBundleVersion: $EXPECTED"
+
+          WORK_DIR=$(mktemp -d)
+          unzip -q "$IPA_PATH" -d "$WORK_DIR"
+          APP_PLIST=$(ls "$WORK_DIR"/Payload/*.app/Info.plist 2>/dev/null | head -n1)
+          if [ -z "$APP_PLIST" ]; then
+            echo "ERROR: Info.plist not found inside IPA"
+            exit 1
+          fi
+
+          ACTUAL=$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$APP_PLIST" | tr -dc '0-9')
+          ACTUAL_SHORT=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$APP_PLIST" || true)
+
+          echo "Actual CFBundleVersion in IPA: $ACTUAL"
+          echo "Actual CFBundleShortVersionString in IPA: $ACTUAL_SHORT"
+
+          if [ "$ACTUAL" != "$EXPECTED" ]; then
+            echo "ERROR: IPA CFBundleVersion mismatch. Expected $EXPECTED, got $ACTUAL"
+            exit 1
+          fi
+          echo "OK — IPA CFBundleVersion ($ACTUAL) matches pipeline value ($EXPECTED)"
     artifacts:
       - $CM_BUILD_DIR/build/ipa/*.ipa
       - $CM_BUILD_DIR/App.xcarchive
