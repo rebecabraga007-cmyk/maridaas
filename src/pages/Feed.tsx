@@ -67,35 +67,48 @@ const Feed = () => {
   });
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    let cancelled = false;
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (cancelled) return;
       setUser(session?.user ?? null);
       if (!session) navigate("/auth");
     });
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      if (!session) {
-        navigate("/auth");
-      } else {
-        setLoading(false);
-        if (!localStorage.getItem("maridaas_onboarding_seen")) setShowOnboarding(true);
-        if ("Notification" in window && Notification.permission === "default") {
-          setTimeout(() => {
-            if (!localStorage.getItem("maridaas_notification_dismissed")) setShowNotificationPrompt(true);
-          }, 2000);
+    supabase.auth.getSession()
+      .then(({ data: { session } }) => {
+        if (cancelled) return;
+        setUser(session?.user ?? null);
+        if (!session) {
+          navigate("/auth");
+        } else {
+          setLoading(false);
+          try {
+            if (!localStorage.getItem("maridaas_onboarding_seen")) setShowOnboarding(true);
+            if ("Notification" in window && Notification.permission === "default") {
+              setTimeout(() => {
+                if (!localStorage.getItem("maridaas_notification_dismissed")) setShowNotificationPrompt(true);
+              }, 2000);
+            }
+          } catch (e) {
+            // localStorage can throw on iOS WebView in private mode — never block render
+            console.warn("[Feed] storage access failed", e);
+          }
         }
-      }
-    });
+      })
+      .catch((err) => {
+        console.error("[Feed] getSession failed", err);
+        if (!cancelled) setLoading(false);
+      });
 
-    return () => subscription.unsubscribe();
+    return () => { cancelled = true; subscription.unsubscribe(); };
   }, [navigate]);
 
   useEffect(() => {
     if (user) {
-      loadUserProfile();
-      checkAdminRole();
-      registerSession();
-      loadUnreadCounts();
+      loadUserProfile().catch((e) => console.error("[Feed] loadUserProfile", e));
+      checkAdminRole().catch((e) => console.error("[Feed] checkAdminRole", e));
+      registerSession().catch((e) => console.error("[Feed] registerSession", e));
+      loadUnreadCounts().catch((e) => console.error("[Feed] loadUnreadCounts", e));
     }
   }, [user]);
 
@@ -122,15 +135,15 @@ const Feed = () => {
       : userProfile?.primary_neighborhood_id;
 
   useEffect(() => {
-    if (currentNeighborhoodId) {
-      setPosts([]);
-      setCursor(null);
-      setHasMore(true);
-      loadPosts(null);
-      loadServices();
-      loadAnnouncements();
-      subscribeToRealtimePosts();
-    }
+    if (!currentNeighborhoodId) return;
+    setPosts([]);
+    setCursor(null);
+    setHasMore(true);
+    loadPosts(null);
+    loadServices().catch((e) => console.error("[Feed] loadServices", e));
+    loadAnnouncements().catch((e) => console.error("[Feed] loadAnnouncements", e));
+    const cleanup = subscribeToRealtimePosts();
+    return () => { cleanup?.(); };
   }, [currentNeighborhoodId]);
 
   // Realtime subscription for new posts
@@ -197,7 +210,7 @@ const Feed = () => {
       .from("profiles")
       .select("full_name, neighborhood, city, primary_neighborhood_id, secondary_neighborhood_id, avatar_url")
       .eq("user_id", user.id)
-      .single();
+      .maybeSingle();
 
     if (data) {
       setUserProfile(data);
