@@ -420,11 +420,16 @@ workflows:
           # This guarantees the new code is well above any code uploaded to Play in the
           # past day or so, even if the remote check below silently fails.
           # Bump well above any versionCode already accepted by Google Play.
-          # Last known used code was ~1778366544 (epoch + ~100k). We add 1_000_000
-          # so the new code lands clearly above that floor even if the remote
-          # check fails or returns a stale value.
-          LOCAL=$(( $(date +%s) + 1000000 ))
-          echo "Local candidate versionCode (epoch + 1000000): $LOCAL"
+          # Known-used floor: 1779267389 was rejected as already used. We add
+          # 10_000_000 to the epoch and also enforce a hard floor above the
+          # last known rejected code so we land clearly above it.
+          KNOWN_USED_FLOOR=1779267389
+          LOCAL=$(( $(date +%s) + 10000000 ))
+          if [ "$LOCAL" -le "$KNOWN_USED_FLOOR" ]; then
+            LOCAL=$(( KNOWN_USED_FLOOR + 1 ))
+          fi
+          echo "Known used floor: $KNOWN_USED_FLOOR"
+          echo "Local candidate versionCode (max of epoch+10000000, floor+1): $LOCAL"
 
           echo "--- Env vars potentially holding Google Play credentials ---"
           env | grep -iE 'google|gcloud|play' | awk -F= '{print $1}' || true
@@ -478,25 +483,30 @@ workflows:
                 REMOTE_OK=1
                 echo "Remote latest versionCode (Google Play): $REMOTE"
               else
-                echo "ERROR: google-play CLI failed despite credentials being present:"
+                echo "WARN: google-play CLI failed — falling back to incremental local bump"
                 echo "$REMOTE_RAW"
-                exit 1
+                REMOTE=0
+                REMOTE_OK=0
               fi
             else
-              echo "ERROR: google-play CLI missing but credentials are present"
-              exit 1
+              echo "WARN: google-play CLI missing — falling back to incremental local bump"
             fi
             rm -f /tmp/gp_creds.json
           else
-            echo "WARN: no Google Play credentials detected — using LOCAL (epoch + 100000) only"
+            echo "WARN: no Google Play credentials detected — using LOCAL with incremental bump"
           fi
 
-          if [ "$REMOTE" -ge "$LOCAL" ]; then
+          if [ "$REMOTE_OK" = "1" ] && [ "$REMOTE" -ge "$LOCAL" ]; then
             VERSION_CODE=$((REMOTE + 1))
             echo "Final versionCode: $VERSION_CODE  (remote >= local, bumped above remote)"
           else
-            VERSION_CODE=$LOCAL
-            echo "Final versionCode: $VERSION_CODE  (local epoch+offset, ahead of any prior build)"
+            # Fallback: when remote check fails/missing, we cannot validate
+            # against Play. Add a per-build random nudge (1k–50k) on top of
+            # LOCAL so successive failed builds don't keep colliding on the
+            # same epoch-derived value.
+            NUDGE=$(( (RANDOM % 49000) + 1000 ))
+            VERSION_CODE=$(( LOCAL + NUDGE ))
+            echo "Final versionCode: $VERSION_CODE  (local + nudge $NUDGE, no remote validation)"
           fi
 
           cd android
