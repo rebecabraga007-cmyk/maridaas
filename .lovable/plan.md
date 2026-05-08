@@ -1,17 +1,37 @@
-## Diagnóstico
+## Problema
 
-O erro do Codemagic é o bug conhecido do npm com dependências opcionais do Rollup: o `package-lock.json` foi gerado em outro SO/arquitetura e não contém o pacote nativo `@rollup/rollup-darwin-arm64`. Quando o Codemagic roda `npm ci`, o lockfile não baixa o binário nativo necessário no macOS Apple Silicon, e o Vite quebra no build.
+O upload do build para o App Store Connect funcionou, mas o envio automático para o TestFlight falhou com:
 
-## Plano de correção
+> The build is missing export compliance.
 
-1. **Forçar reinstalação limpa antes do build no Codemagic**
-   - No workflow `ios-release`, alterar o passo "Install dependencies" para apagar `node_modules` e `package-lock.json` e rodar `npm install` (em vez de `npm ci`). Isso faz o npm baixar o binário nativo correto da arquitetura da máquina de build.
-   - Aplicar o mesmo padrão no workflow `android-release` por consistência (evita o mesmo bug ao mudar de runner).
+Isso acontece porque o `Info.plist` do app não declara se o app usa criptografia não-isenta. Sem essa declaração, a Apple bloqueia o envio para revisão até que alguém preencha manualmente no App Store Connect.
 
-2. **Não tocar em código de aplicação**
-   - O problema é exclusivamente de pipeline/lockfile. Nada em `src/` precisa ser alterado.
-   - Manter `package.json` e demais arquivos como estão.
+Como o Maridas usa apenas HTTPS padrão (Supabase, Stripe, OneSignal) e não implementa criptografia proprietária, podemos declarar `ITSAppUsesNonExemptEncryption = false` e o build passa direto, sem intervenção manual a cada release.
 
-3. **Resultado esperado**
-   - O `vite build` passa a rodar normalmente no Codemagic em macOS arm64 e em Linux Android.
-   - O pipeline iOS/Android volta a gerar IPA/AAB sem o erro `Cannot find module @rollup/rollup-darwin-arm64`.
+## Plano
+
+Atualizar o workflow `ios-release` no `codemagic.yaml` para injetar a chave de export compliance no `Info.plist` antes do archive.
+
+### Mudança em `codemagic.yaml` (workflow `ios-release`)
+
+No step **"Increment build & marketing version"** (que já mexe no `Info.plist` via `PlistBuddy`), adicionar duas linhas que garantem a presença da chave:
+
+```bash
+/usr/libexec/PlistBuddy -c "Add :ITSAppUsesNonExemptEncryption bool false" "$PLIST" 2>/dev/null \
+  || /usr/libexec/PlistBuddy -c "Set :ITSAppUsesNonExemptEncryption false" "$PLIST"
+```
+
+Isso:
+- Adiciona a chave se não existir
+- Atualiza para `false` se já existir
+- É idempotente entre builds
+
+### Resultado esperado
+
+- Próximo build sobe e é submetido ao TestFlight automaticamente, sem o erro 422
+- Não requer nenhuma ação manual no App Store Connect a cada versão
+- Sem mudanças no código React/Capacitor
+
+### Observação
+
+Essa declaração (`false`) é correta apenas porque o app usa exclusivamente criptografia padrão do sistema (HTTPS/TLS via WebView, bibliotecas Apple). Se no futuro for adicionada criptografia customizada (ex: E2EE de mensagens com algoritmo próprio), essa flag precisará virar `true` e exigirá documentação adicional para a Apple.
