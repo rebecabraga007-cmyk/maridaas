@@ -350,6 +350,18 @@ workflows:
             echo "ERROR: ANDROID_GENERATION_FAILED — android/app/build.gradle missing"
             exit 1
            fi
+      - name: Override Android applicationId for Google Play
+        script: |
+          set -e
+          # iOS bundle id: com.healthmedia.maridas (App Store)
+          # Android applicationId: com.maridas.app (Google Play — already registered)
+          # Capacitor scaffolds Android using the iOS appId; we override here.
+          ANDROID_APP_ID="com.maridas.app"
+          sed -i.bak -E "s/applicationId \"[^\"]+\"/applicationId \"$ANDROID_APP_ID\"/" android/app/build.gradle
+          sed -i.bak -E "s/namespace \"[^\"]+\"/namespace \"$ANDROID_APP_ID\"/" android/app/build.gradle
+          rm -f android/app/build.gradle.bak
+          echo "--- applicationId / namespace after override ---"
+          grep -E "applicationId|namespace" android/app/build.gradle
       - name: Generate native app icons
         script: |
           set -e
