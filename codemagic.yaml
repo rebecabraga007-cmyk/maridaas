@@ -57,6 +57,11 @@ workflows:
           echo "--- iOS tree ---"
           find ios -maxdepth 5 \( -name "Podfile" -o -name "Package.swift" -o -name "*.xcodeproj" -o -name "*.xcworkspace" \)
 
+      - name: Generate native app icons
+        script: |
+          set -e
+          npx -y @capacitor/assets generate --ios --iconBackgroundColor '#5BA69A' --iconBackgroundColorDark '#5BA69A'
+
       - name: Detect iOS dependency manager (CocoaPods vs SPM)
         script: |
           set -e
@@ -220,14 +225,14 @@ workflows:
     publishing:
       app_store_connect:
         auth: integration
-        submit_to_testflight: false
-        submit_to_app_store: false
+        submit_to_testflight: true
+        submit_to_app_store: true
 
   android-release:
     name: Android Release
     max_build_duration: 60
     environment:
-      java: 17
+      java: 21
       node: 22.11.0
       android_signing:
         - healthmedia
@@ -255,9 +260,36 @@ workflows:
           if [ ! -f "android/app/build.gradle" ]; then
             echo "ERROR: ANDROID_GENERATION_FAILED — android/app/build.gradle missing"
             exit 1
-          fi
+           fi
+      - name: Generate native app icons
+        script: |
+          set -e
+          npx -y @capacitor/assets generate --android --iconBackgroundColor '#5BA69A' --iconBackgroundColorDark '#5BA69A'
       - name: Set Android SDK location
         script: echo "sdk.dir=$ANDROID_SDK_ROOT" > android/local.properties
+      - name: Configure release signing
+        script: |
+          set -e
+          cd android/app
+          cat > /tmp/signing.gradle <<'EOF'
+          signingConfigs {
+              release {
+                  if (System.getenv("CM_KEYSTORE_PATH")) {
+                      storeFile file(System.getenv("CM_KEYSTORE_PATH"))
+                      storePassword System.getenv("CM_KEYSTORE_PASSWORD")
+                      keyAlias System.getenv("CM_KEY_ALIAS")
+                      keyPassword System.getenv("CM_KEY_PASSWORD")
+                  }
+              }
+          }
+          EOF
+          awk '/^android \{/{print; while ((getline line < "/tmp/signing.gradle") > 0) print "    " line; next} {print}' build.gradle > build.gradle.new
+          mv build.gradle.new build.gradle
+          sed -i.bak 's|buildTypes {|buildTypes {\
+          release { signingConfig signingConfigs.release }|' build.gradle
+          rm -f build.gradle.bak
+          echo "--- signingConfigs / buildTypes ---"
+          grep -n "signingConfig\|buildTypes\|storeFile" build.gradle || true
       - name: Increment version code
         script: |
           set -e

@@ -1,28 +1,32 @@
-## Atualizar Política de Privacidade no app
+## Objetivo
 
-Substituir o conteúdo de `src/pages/PrivacyPolicy.tsx` pela versão completa (LGPD + GDPR) já gerada em `/mnt/documents/maridaas-politica-de-privacidade.md`, mantendo:
+Gerar a **imagem de destaque (feature graphic)** do Google Play Console no tamanho exato exigido: **1024×500 px** (PNG, sem transparência).
 
-- Rota existente `/privacidade` (já registrada em `App.tsx`)
-- Header com botão voltar
-- `SEOHead` com canonical `https://maridaas.lovable.app/privacidade`
-- Estilo `prose` do Tailwind
+Essa é a imagem que aparece no topo da página do app na Play Store, acima das screenshots.
 
-### Mudanças
+## O que vou gerar
 
-1. **`src/pages/PrivacyPolicy.tsx`** — reescrever conteúdo com as 12 seções:
-   1. Sobre o Maridaas
-   2. Dados coletados (fornecidos / automáticos / terceiros — Supabase, Stripe, OneSignal, Google/Apple)
-   3. Como usamos
-   4. Compartilhamento
-   5. Armazenamento e segurança
-   6. Direitos LGPD/GDPR
-   7. Cookies
-   8. Retenção
-   9. Menores
-   10. Transferência internacional
-   11. Alterações
-   12. Contato (privacidade@maridaas.com + https://maridaas.lovable.app)
+Um PNG `maridaas-feature-graphic-1024x500.png` com:
 
-   Exibir a URL oficial (`https://maridaas.lovable.app/privacidade`) no topo da página, como referência para App Store/Google Play.
+- Fundo: gradiente teal (mesma paleta Maridaas das outras peças — `#5BA69A` → tom mais escuro)
+- Logo Maridaas à esquerda (ou centralizado)
+- Tagline em pt-BR à direita: **"A rede social das mulheres do seu bairro"**
+- Sem texto pequeno nas bordas (a Play Store corta levemente em alguns dispositivos)
+- Sem bordas arredondadas, sem transparência (requisito Google)
 
-Nenhuma outra alteração — rota, footer e links existentes para `/privacidade` continuam funcionando.
+## Como vou produzir
+
+Script Python com Pillow:
+1. Criar canvas 1024×500 com gradiente teal.
+2. Colar logo Maridaas (de `/mnt/documents/maridaas-icons/icon-512.png` ou do `public/`).
+3. Renderizar tagline em fonte sans-serif clara, com peso bold.
+4. QA: abrir o PNG e verificar legibilidade, contraste, e que nada importante encosta nas bordas.
+
+## Saída
+
+- `/mnt/documents/appstore-screenshots/maridaas-feature-graphic-1024x500.png`
+- Link de download
+
+## Pergunta rápida
+
+A tagline padrão é **"A rede social das mulheres do seu bairro"**. Quer mudar para outra frase, ou seguir com essa?
