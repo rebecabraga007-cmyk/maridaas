@@ -37,6 +37,21 @@ async function cleanupServiceWorkersAndCaches() {
 
 void cleanupServiceWorkersAndCaches();
 
+// Global error handlers — log but never blank the screen for async rejections.
+// Apple's review caught intermittent post-login errors; this prevents silent crashes.
+if (typeof window !== "undefined") {
+  window.addEventListener("error", (event) => {
+    // eslint-disable-next-line no-console
+    console.error("[Maridaas window.error]", event.message, event.error);
+  });
+  window.addEventListener("unhandledrejection", (event) => {
+    // eslint-disable-next-line no-console
+    console.error("[Maridaas unhandledrejection]", event.reason);
+    // Prevent the runtime from treating this as a fatal app crash.
+    event.preventDefault?.();
+  });
+}
+
 try {
   const rootEl = document.getElementById("root");
   if (!rootEl) throw new Error("Root element ausente");
