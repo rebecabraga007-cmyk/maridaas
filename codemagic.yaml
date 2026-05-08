@@ -535,6 +535,20 @@ workflows:
 
           echo "--- Android native version fields after patch ---"
           grep -E "versionCode|versionName" app/build.gradle
+      - name: Clean previous Android build outputs
+        script: |
+          set -e
+          echo "--- Cleaning stale Android build outputs ---"
+          rm -rf android/app/build android/build android/.gradle
+          rm -rf android/app/build/outputs/bundle android/app/build/outputs/apk
+          mkdir -p android/app/build/outputs/bundle/release
+          REMAINING=$(find android/app/build/outputs/bundle/release -name "*.aab" -type f 2>/dev/null | wc -l | tr -d ' ')
+          if [ "$REMAINING" != "0" ]; then
+            echo "ERROR: stale .aab files still present after cleanup:"
+            find android/app/build/outputs/bundle/release -name "*.aab" -type f -print
+            exit 1
+          fi
+          echo "Android output directory clean."
       - name: Build AAB (release)
         script: |
           set -e
@@ -590,6 +604,30 @@ workflows:
           echo "APPLICATION_ID=com.maridas.app"
           echo "AAB_VERSION_CODE=$ACTUAL_VERSION_CODE"
           echo "AAB_SHA256=$AAB_SHA256"
+          echo "FINAL_VERSION_CODE=$ACTUAL_VERSION_CODE"
+          echo "AAB_OUTPUT_PATH=$AAB_ABS_PATH"
+          echo "APPLICATION_ID=com.maridas.app"
+          echo "AAB_VERSION_CODE=$ACTUAL_VERSION_CODE"
+          echo "AAB_SHA256=$AAB_SHA256"
+      - name: Validate single AAB before upload
+        script: |
+          set -e
+          OUT_DIR="android/app/build/outputs/bundle/release"
+          if [ ! -d "$OUT_DIR" ]; then
+            echo "ERROR: output dir $OUT_DIR not found"
+            exit 1
+          fi
+          AAB_LIST=$(find "$OUT_DIR" -maxdepth 1 -name "*.aab" -type f)
+          AAB_COUNT=$(echo "$AAB_LIST" | grep -c '\.aab$' || true)
+          if [ "$AAB_COUNT" -ne 1 ]; then
+            echo "ERROR: expected exactly one .aab in $OUT_DIR before upload, found $AAB_COUNT"
+            echo "$AAB_LIST"
+            exit 1
+          fi
+          UPLOAD_AAB=$(echo "$AAB_LIST" | head -n1)
+          echo "UPLOAD_AAB_PATH=$(cd "$(dirname "$UPLOAD_AAB")" && pwd)/$(basename "$UPLOAD_AAB")"
+          echo "UPLOAD_AAB_COUNT=$AAB_COUNT"
+          echo "Single AAB validated. Ready for upload."
     artifacts:
       - android/app/build/outputs/bundle/release/*.aab
     publishing:
