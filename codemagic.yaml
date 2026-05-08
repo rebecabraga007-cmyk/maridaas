@@ -394,11 +394,50 @@ workflows:
       - name: Increment version code
         script: |
           set -e
-          # Use epoch seconds — strictly monotonic, never collides with previous
-          # uploads (manual or automated). Today this is ~1.7B, well under the
-          # Google Play limit of 2,100,000,000. No remote API check needed.
-          VERSION_CODE=$(date +%s)
-          echo "Using versionCode=$VERSION_CODE (epoch seconds)"
+          ANDROID_APP_ID="com.maridas.app"
+
+          # Local candidate: epoch seconds (~1.78B today, well under Play's 2.1B limit)
+          LOCAL=$(date +%s)
+          echo "Local candidate versionCode: $LOCAL"
+
+          # Detect a Google Play service-account credential variable
+          CRED_VAR=""
+          for v in GCLOUD_SERVICE_ACCOUNT_CREDENTIALS GOOGLE_PLAY_SERVICE_ACCOUNT_CREDENTIALS GOOGLE_PLAY_SERVICE_ACCOUNT_JSON; do
+            if [ -n "$(eval echo \$$v)" ]; then
+              CRED_VAR="$v"
+              echo "Detected credentials in env var: $CRED_VAR"
+              break
+            fi
+          done
+
+          REMOTE=0
+          if [ -n "$CRED_VAR" ] && command -v google-play >/dev/null 2>&1; then
+            set +e
+            REMOTE_RAW=$(google-play get-latest-build-number \
+              --credentials "@env:$CRED_VAR" \
+              --package-name "$ANDROID_APP_ID" \
+              --tracks internal alpha beta production 2>&1)
+            RC=$?
+            set -e
+            if [ $RC -eq 0 ]; then
+              REMOTE=$(echo "$REMOTE_RAW" | grep -Eo '[0-9]+' | sort -n | tail -n1)
+              [ -z "$REMOTE" ] && REMOTE=0
+              echo "Remote latest versionCode (Google Play): $REMOTE"
+            else
+              echo "WARN: google-play CLI failed; falling back. Output:"
+              echo "$REMOTE_RAW"
+            fi
+          else
+            echo "WARN: no Google Play credentials detected or google-play CLI missing; using local +1 fallback"
+          fi
+
+          if [ "$REMOTE" -ge "$LOCAL" ]; then
+            VERSION_CODE=$((REMOTE + 1))
+            echo "Final versionCode: $VERSION_CODE  (remote >= local, bumped above remote)"
+          else
+            VERSION_CODE=$((LOCAL + 1))
+            echo "Final versionCode: $VERSION_CODE  (local + 1, ahead of any prior build)"
+          fi
 
           cd android
           sed -i.bak "s/versionCode [0-9][0-9]*/versionCode $VERSION_CODE/" app/build.gradle
