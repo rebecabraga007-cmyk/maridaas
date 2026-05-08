@@ -1,44 +1,36 @@
-# Plano para corrigir a tela branca do site publicado
+## Diagnóstico
 
-## Objetivo
-Fazer o site publicado parar de abrir em branco e garantir um publish estável para envio à App Store.
+A captura mostra o erro real: `Uncaught Error: supabaseUrl is required` vindo do bundle JS. Isso acontece quando algum módulo importa `src/integrations/supabase/client.ts` e executa `createClient(...)` com `VITE_SUPABASE_URL` ausente.
 
-## O que foi confirmado
-- O site publicado `maridaas.lovable.app` carrega um bundle específico: `assets/index-CP8TdlsP.js`.
-- Esse bundle quebra na inicialização com o erro: `supabaseUrl is required`.
-- O preview atual não está na mesma falha fatal: ele ao menos renderiza a tela de carregamento.
-- O projeto lê as variáveis de cliente por `import.meta.env.VITE_SUPABASE_URL` e `import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY`.
-- O arquivo `.gitignore` ainda ignora `.env`, o que é compatível com o cenário clássico de publish gerar bundle sem essas variáveis quando o ambiente gerenciado não foi refletido corretamente no artefato publicado.
+O fallback em `main.tsx` ainda não resolve totalmente porque ele também depende das variáveis `VITE_*` existirem no bundle. Se o ambiente de build não injeta essas variáveis, qualquer import do cliente do backend continua podendo derrubar o app antes da UI renderizar.
 
-## Implementação proposta
-1. Ajustar a inicialização do cliente para falhar de forma controlada no frontend
-   - Evitar que uma ausência de variável derrube toda a aplicação com tela branca.
-   - Substituir a falha síncrona por tratamento explícito e mensagem de erro renderizável.
-   - Isso garante que, se o ambiente publicado voltar a sair errado, o app mostra erro diagnosticável em vez de branco total.
+## Plano de correção
 
-2. Adicionar proteção de bootstrap no app
-   - Colocar uma checagem de configuração antes de montar fluxos que dependem do backend.
-   - Exibir fallback visual consistente com a identidade do app quando as variáveis obrigatórias não existirem.
+1. **Blindar o cliente do backend contra crash fatal**
+   - Não editar manualmente o arquivo gerado `src/integrations/supabase/client.ts`.
+   - Criar uma camada segura separada, por exemplo `src/integrations/supabase/safeClient.ts`, que usa valores de fallback públicos e válidos quando `import.meta.env` vier vazio.
+   - Exportar um `supabase` compatível para o restante do app, sem lançar erro síncrono no carregamento do módulo.
 
-3. Remover a fragilidade estrutural ligada ao `.env` no repositório
-   - Parar de depender de uma configuração que pode gerar artefato publicado sem as variáveis no bundle final.
-   - Ajustar o projeto para o fluxo gerenciado atual, reduzindo a chance de novo publish sair com bundle quebrado.
+2. **Trocar imports do app para o cliente seguro**
+   - Atualizar imports em páginas, hooks, componentes e integração Lovable para usar o cliente seguro.
+   - Manter o arquivo gerado intacto.
+   - Isso remove a principal causa da tela branca: `createClient(undefined, undefined)`.
 
-4. Validar preview e publicado
-   - Confirmar que o preview continua carregando.
-   - Publicar/atualizar e verificar se o domínio publicado deixa de servir o bundle quebrado e para de lançar `supabaseUrl is required`.
+3. **Ajustar o bootstrap visual**
+   - Atualizar `src/main.tsx` para aceitar o fallback seguro de configuração e não bloquear a renderização só porque `VITE_*` não foi injetado.
+   - Manter o diagnóstico visual para erros reais de render/import.
+   - Evitar deixar a tela preta de diagnóstico como experiência final quando o app inicia corretamente.
 
-## Resultado esperado
-- O publicado deixa de abrir em branco.
-- Se houver problema de configuração em builds futuros, o app mostra erro controlado em vez de tela branca.
-- O pipeline fica mais robusto para o próximo ciclo de publicação iOS.
+4. **Validar build estável e chunks**
+   - Conferir se não há `React.lazy`/imports dinâmicos quebrados restantes além do import controlado do bootstrap.
+   - Garantir que o bundle não dependa de service worker/PWA para carregar.
+   - Manter `vite-plugin-pwa` removido e os kill-switch workers em `/sw.js` e `/service-worker.js` por um ciclo de release.
 
-## Detalhes técnicos
-- Arquivos mais prováveis de ajuste:
-  - `src/integrations/supabase/client.ts` (sem editar manualmente se continuar gerado; se necessário, a proteção deve subir para a camada de bootstrap que o consome)
-  - arquivo de entrada do app / composição principal
-  - `.gitignore`
-- Validação final:
-  - console do publicado sem `supabaseUrl is required`
-  - screenshot do publicado renderizando UI
-  - conferência do novo asset hash publicado
+5. **Resultado esperado**
+   - O app deixa de quebrar com `supabaseUrl is required`.
+   - Preview, publicado e Capacitor passam a renderizar UI em vez de tela branca.
+   - Se ocorrer outro erro de produção, a tela mostra o erro real em vez de ficar silenciosa.
+
+## Observação importante
+
+Depois da implementação, ainda será necessário publicar/atualizar o frontend para substituir o bundle que está rodando no preview/publicado. Para Capacitor, depois disso rode `git pull`, `npm install` se necessário, `npm run build` e `npx cap sync ios/android` antes de gerar novo build nativo.
