@@ -87,16 +87,6 @@ export function useServices() {
     }
   }, []);
 
-  const checkPremiumStatus = useCallback(async (userId: string) => {
-    setCheckingPremium(true);
-
-    const { data, error } = await supabase.rpc("is_premium_user", { _user_id: userId });
-
-    if (!error) setIsPremium(Boolean(data));
-
-    setCheckingPremium(false);
-  }, []);
-
   const loadServices = useCallback(async (neighborhoodId: string) => {
     const { data, error } = await supabase.rpc("get_services_with_details", {
       _neighborhood_id: neighborhoodId,
