@@ -24,7 +24,10 @@ workflows:
       - name: Install dependencies
         script: |
           set -e
-          npm ci || npm install
+          # Workaround for npm optional-deps bug (rollup native binaries):
+          # https://github.com/npm/cli/issues/4828
+          rm -rf node_modules package-lock.json
+          npm install
 
       - name: Build web assets
         script: |
@@ -307,7 +310,10 @@ workflows:
         - google_play
     scripts:
       - name: Install dependencies
-        script: npm install
+        script: |
+          set -e
+          rm -rf node_modules package-lock.json
+          npm install
       - name: Build web assets
         script: CAPACITOR=true npm run build
       - name: Ensure Capacitor Android packages
