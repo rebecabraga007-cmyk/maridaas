@@ -29,7 +29,7 @@ workflows:
       - name: Build web assets
         script: |
           set -e
-          npm run build
+          CAPACITOR=true npm run build
           if [ ! -d "dist" ] && [ ! -d "build" ] && [ ! -d "out" ]; then
             echo "ERROR: no web build output"
             exit 1
@@ -309,7 +309,7 @@ workflows:
       - name: Install dependencies
         script: npm install
       - name: Build web assets
-        script: npm run build
+        script: CAPACITOR=true npm run build
       - name: Ensure Capacitor Android packages
         script: |
           set -e
