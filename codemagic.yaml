@@ -535,6 +535,20 @@ workflows:
 
           echo "--- Android native version fields after patch ---"
           grep -E "versionCode|versionName" app/build.gradle
+      - name: Clean previous Android build outputs
+        script: |
+          set -e
+          echo "--- Cleaning stale Android build outputs ---"
+          rm -rf android/app/build android/build android/.gradle
+          rm -rf android/app/build/outputs/bundle android/app/build/outputs/apk
+          mkdir -p android/app/build/outputs/bundle/release
+          REMAINING=$(find android/app/build/outputs/bundle/release -name "*.aab" -type f 2>/dev/null | wc -l | tr -d ' ')
+          if [ "$REMAINING" != "0" ]; then
+            echo "ERROR: stale .aab files still present after cleanup:"
+            find android/app/build/outputs/bundle/release -name "*.aab" -type f -print
+            exit 1
+          fi
+          echo "Android output directory clean."
       - name: Build AAB (release)
         script: |
           set -e
