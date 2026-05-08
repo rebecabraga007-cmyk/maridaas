@@ -1,38 +1,27 @@
-## Diagnóstico
+# Plano para corrigir a tela branca publicada
 
-A tela branca em https://maridaas.lovable.app é causada por um erro JavaScript no carregamento do app:
+## Objetivo
+Fazer o site publicado carregar a versão correta do frontend, em vez do bundle antigo que ainda quebra na inicialização.
 
-```
-Uncaught Error: supabaseUrl is required.
-  at .../assets/index-CP8TdlsP.js
-```
+## O que foi confirmado
+- O site publicado `maridaas.lovable.app` continua carregando o bundle `index-CP8TdlsP.js`.
+- Esse bundle ainda dispara o erro `supabaseUrl is required`, por isso a tela fica branca.
+- No código atual, o client usa `VITE_SUPABASE_URL` e `VITE_SUPABASE_PUBLISHABLE_KEY` corretamente.
+- As variáveis de ambiente existem no projeto atual, então o problema não parece ser do código-fonte e sim da versão publicada que ainda está desatualizada.
 
-O bundle JS publicado (`index-CP8TdlsP.js`) foi gerado **sem** as variáveis `VITE_SUPABASE_URL` e `VITE_SUPABASE_PUBLISHABLE_KEY`. Como `src/integrations/supabase/client.ts` lê esses valores via `import.meta.env.*`, o `createClient` recebe `undefined` e lança erro logo na inicialização — antes de qualquer componente React conseguir renderizar. Resultado: `<div id="root">` permanece vazio.
+## Plano de ação
+1. Verificar se o frontend atual já está pronto no editor/preview e não está mais gerando esse erro.
+2. Atualizar a publicação do app para forçar uma nova versão pública do frontend.
+3. Confirmar que o hash do arquivo JS publicado mudou e que `CP8TdlsP` deixou de ser servido.
+4. Validar a página publicada após refresh forçado para garantir que a tela branca sumiu.
+5. Se o hash continuar o mesmo após a atualização, investigar cache/publicação travada em vez de mexer novamente no código.
 
-A `.env` no projeto está correta (`VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `VITE_SUPABASE_PROJECT_ID` presentes), e o **preview** (`id-preview--…lovable.app`) funciona porque é construído com essas variáveis. O build publicado, porém, foi feito antes do `.env` estar disponível no pipeline de publish — por isso o domínio público quebra.
+## Resultado esperado
+- A URL publicada abre normalmente.
+- O console não mostra mais `supabaseUrl is required`.
+- O bundle público passa a ser uma nova versão, diferente de `index-CP8TdlsP.js`.
 
-## Plano
-
-**Ação principal: Republicar o app.**
-
-Um novo build vai embutir os valores corretos de `VITE_SUPABASE_URL` e `VITE_SUPABASE_PUBLISHABLE_KEY` no bundle, eliminando o erro e fazendo a tela branca desaparecer.
-
-Passos:
-
-1. Abrir o diálogo **Publish** (canto superior direito do editor).
-2. Clicar em **Update** para forçar um novo build/deploy do frontend.
-3. Aguardar a conclusão (~1–2 min) e recarregar https://maridaas.lovable.app com Ctrl+Shift+R (cache busting).
-
-## Verificação
-
-Após o redeploy:
-
-- O console do navegador em https://maridaas.lovable.app **não deve** mais mostrar `supabaseUrl is required`.
-- A landing page deve renderizar normalmente; usuárias logadas devem ser redirecionadas para `/feed`.
-- O hash do bundle servido (`/assets/index-XXXX.js`) deve ser diferente de `index-CP8TdlsP.js`.
-
-## Observações técnicas
-
-- `src/integrations/supabase/client.ts` é gerado automaticamente pela plataforma e não pode ser editado manualmente, então não dá para adicionar fallback hardcoded ali.
-- Não é necessária nenhuma mudança de código — o problema é exclusivamente do artefato publicado estar desatualizado em relação à `.env`.
-- Após esta republicação, builds futuros (incluindo o iOS via Codemagic, que usa `npm run build` com a `.env` presente) continuarão funcionando normalmente.
+## Detalhes técnicos
+- Causa mais provável: a publicação pública ainda está apontando para um build antigo, feito antes de a configuração atual estar válida.
+- Como o erro acontece já na criação do client, qualquer bundle com variáveis ausentes derruba a aplicação inteira antes da renderização.
+- Neste caso, a correção principal é de publicação do frontend, não de backend.
