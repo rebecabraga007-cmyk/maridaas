@@ -14,6 +14,7 @@ workflows:
           - "maridas cert"
       vars:
         BUNDLE_ID: "com.healthmedia.maridas"
+        APPLE_APP_ID: "6766708263"
         APPLE_TEAM_ID: "22M7YZ5TMF"
         XCODE_WORKSPACE: "ios/App/App.xcworkspace"
         XCODE_PROJECT: "ios/App/App.xcodeproj"
@@ -156,11 +157,19 @@ workflows:
           fi
           LOCAL_PATCH=$(echo "$CURRENT_VERSION" | awk -F. '{print ($3==""?0:$3)}')
 
-          # Try to fetch the latest marketing version already on App Store Connect
+          # Try to fetch the latest marketing version already on App Store Connect.
+          # We must look at *all* App Store Versions (including ones in
+          # WAITING_FOR_REVIEW / PREPARE_FOR_SUBMISSION / DEVELOPER_REJECTED),
+          # otherwise we may reuse a locked version string and Apple returns:
+          #   409 "The specified pre-release build could not be added"
           LATEST_REMOTE=""
-          if command -v app-store-connect >/dev/null 2>&1; then
-            LATEST_REMOTE=$(app-store-connect get-latest-app-store-build-number "$BUNDLE_ID" 2>/dev/null | grep -Eo '\b[0-9]+\.[0-9]+\.[0-9]+\b' | tail -n1 || true)
-            echo "Latest remote version reported: ${LATEST_REMOTE:-none}"
+          if command -v app-store-connect >/dev/null 2>&1 && [ -n "$APPLE_APP_ID" ]; then
+            LATEST_REMOTE=$(app-store-connect apps app-store-versions "$APPLE_APP_ID" --json 2>/dev/null \
+              | grep -Eo '"versionString"[[:space:]]*:[[:space:]]*"[0-9]+\.[0-9]+\.[0-9]+"' \
+              | grep -Eo '[0-9]+\.[0-9]+\.[0-9]+' \
+              | sort -t. -k1,1n -k2,2n -k3,3n \
+              | tail -n1 || true)
+            echo "Latest remote App Store Version reported: ${LATEST_REMOTE:-none}"
           fi
 
           REMOTE_PATCH=0
@@ -303,7 +312,7 @@ workflows:
       app_store_connect:
         auth: integration
         submit_to_testflight: true
-        submit_to_app_store: false
+        submit_to_app_store: true
 
   android-release:
     name: Android Release
