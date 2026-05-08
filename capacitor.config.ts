@@ -1,8 +1,8 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.maridas.app',
-  appName: 'maridaas',
+  appId: 'com.healthmedia.maridas',
+  appName: 'Maridaas',
   webDir: 'dist',
   ios: {
     contentInset: 'always',

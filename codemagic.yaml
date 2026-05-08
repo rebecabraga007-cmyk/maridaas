@@ -35,10 +35,9 @@ workflows:
             exit 1
           fi
 
-      - name: Ensure Capacitor packages
+      - name: Ensure Capacitor config exists
         script: |
           set -e
-          npm install @capacitor/core @capacitor/cli @capacitor/ios
           if [ ! -f "capacitor.config.ts" ] && [ ! -f "capacitor.config.json" ]; then
             echo "ERROR: capacitor config missing"
             exit 1
@@ -237,7 +236,6 @@ workflows:
             clean archive \
             CODE_SIGN_STYLE=Manual \
             DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
-            PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_ID" \
             PROVISIONING_PROFILE_SPECIFIER="$CM_PROFILE_NAME" \
             CODE_SIGN_IDENTITY="$DIST_SHA"
 
