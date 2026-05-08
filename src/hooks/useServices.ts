@@ -34,8 +34,6 @@ export function useServices() {
   const [userProfile, setUserProfile] = useState<Profile | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isModerator, setIsModerator] = useState(false);
-  const [isPremium, setIsPremium] = useState(false);
-  const [checkingPremium, setCheckingPremium] = useState(true);
 
   useEffect(() => {
     const {
@@ -89,16 +87,6 @@ export function useServices() {
     }
   }, []);
 
-  const checkPremiumStatus = useCallback(async (userId: string) => {
-    setCheckingPremium(true);
-
-    const { data, error } = await supabase.rpc("is_premium_user", { _user_id: userId });
-
-    if (!error) setIsPremium(Boolean(data));
-
-    setCheckingPremium(false);
-  }, []);
-
   const loadServices = useCallback(async (neighborhoodId: string) => {
     const { data, error } = await supabase.rpc("get_services_with_details", {
       _neighborhood_id: neighborhoodId,
@@ -131,8 +119,7 @@ export function useServices() {
     if (!user) return;
     loadUserProfile(user.id);
     checkUserRoles(user.id);
-    checkPremiumStatus(user.id);
-  }, [user, loadUserProfile, checkUserRoles, checkPremiumStatus]);
+  }, [user, loadUserProfile, checkUserRoles]);
 
   useEffect(() => {
     if (userProfile?.primary_neighborhood_id) {
@@ -153,8 +140,6 @@ export function useServices() {
     locationLabel,
     isAdmin,
     isModerator,
-    isPremium,
-    checkingPremium,
     reloadServices,
   };
 }
