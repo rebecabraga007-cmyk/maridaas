@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { X, User, MapPin, Star, Calendar, Eye, Briefcase, MessageSquare, Trash2 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from "@/integrations/supabase/safeClient";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Input } from "@/components/ui/input";
