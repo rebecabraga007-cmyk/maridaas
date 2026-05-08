@@ -420,19 +420,32 @@ workflows:
           # Capacitor recreates android/app/build.gradle on every build, so we patch the
           # generated native file before Gradle builds the bundle. versionName remains
           # untouched and independent.
-          # Floor MUST stay above the highest already-used versionCode on Google Play.
-          # Last rejected: 1788279146 → set floor to 1788379146 (gap of 100k to escape the burned range).
-          KNOWN_USED_FLOOR=1788379146
-          EPOCH_CODE=$(date +%s)
-          # Per-build jitter (100..599) so two builds in the same second never collide.
-          JITTER=$(( (RANDOM % 500) + 100 ))
-          # Base local candidate: epoch + 100k headroom + jitter. Grows ~1/sec, well under int32 max (2147483647) until ~2038.
-          LOCAL=$(( EPOCH_CODE + 100000 + JITTER ))
+          # Strategy: jump to a high base (2,000,000,000) far above all previously used codes.
+          # Android/Google Play accept versionCode up to 2,100,000,000 — we stay safely under it.
+          # Last rejected codes were ~1.78B, so we leave a ~200M gap to never collide again.
+          KNOWN_USED_FLOOR=1788379270
+          BASE_VERSION_CODE=2000000000
+          MAX_VERSION_CODE=2100000000
+
+          # Prefer Codemagic build number (monotonic per project); fall back to epoch-derived offset.
+          BUILD_NUM="${CM_BUILD_NUMBER:-${BUILD_NUMBER:-0}}"
+          if [ -z "$BUILD_NUM" ] || [ "$BUILD_NUM" = "0" ]; then
+            # Fallback: minutes since 2024-01-01 (~grows by 1/min, decades of headroom).
+            BUILD_NUM=$(( ($(date +%s) - 1704067200) / 60 ))
+          fi
+          # Small jitter so two builds in the same minute never collide.
+          JITTER=$(( (RANDOM % 50) + 1 ))
+          LOCAL=$(( BASE_VERSION_CODE + BUILD_NUM + JITTER ))
+
           if [ "$LOCAL" -le "$KNOWN_USED_FLOOR" ]; then
-            LOCAL=$(( KNOWN_USED_FLOOR + JITTER ))
+            LOCAL=$(( KNOWN_USED_FLOOR + JITTER + 1 ))
+          fi
+          if [ "$LOCAL" -ge "$MAX_VERSION_CODE" ]; then
+            echo "ERROR: computed versionCode $LOCAL exceeds Android max $MAX_VERSION_CODE"
+            exit 1
           fi
           echo "Known used floor: $KNOWN_USED_FLOOR"
-          echo "Epoch: $EPOCH_CODE  Jitter: $JITTER"
+          echo "Base: $BASE_VERSION_CODE  BuildNum: $BUILD_NUM  Jitter: $JITTER"
           echo "Local candidate versionCode: $LOCAL"
 
           echo "--- Env vars potentially holding Google Play credentials ---"
