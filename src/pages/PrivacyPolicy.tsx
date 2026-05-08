@@ -74,7 +74,6 @@ const PrivacyPolicy = () => {
         <h3>2.3 Dados de terceiros</h3>
         <ul>
           <li><strong>Login social:</strong> Google e Apple compartilham nome, e-mail e identificador único conforme autorizado por você.</li>
-          <li><strong>Pagamentos:</strong> assinaturas Premium são processadas pelo Stripe; não armazenamos dados completos de cartão.</li>
           <li><strong>Notificações push:</strong> identificadores gerenciados pelo OneSignal.</li>
         </ul>
 

@@ -16,7 +16,7 @@ import NeighborhoodView from "./pages/NeighborhoodView";
 import Admin from "./pages/Admin";
 import Messages from "./pages/Messages";
 import Inbox from "./pages/Inbox";
-import Premium from "./pages/Premium";
+
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import TermsOfService from "./pages/TermsOfService";
 import NotFound from "./pages/NotFound";
@@ -61,7 +61,7 @@ const App = () => (
               <Route path="/neighborhoods/:neighborhoodId" element={<NeighborhoodView />} />
               <Route path="/messages/:userId" element={<Messages />} />
               <Route path="/inbox" element={<Inbox />} />
-              <Route path="/premium" element={<Premium />} />
+              
             </Route>
             <Route element={<ProtectedRoute requireAdmin />}>
               <Route path="/admin" element={<Admin />} />

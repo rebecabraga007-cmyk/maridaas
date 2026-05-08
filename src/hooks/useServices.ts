@@ -34,8 +34,6 @@ export function useServices() {
   const [userProfile, setUserProfile] = useState<Profile | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isModerator, setIsModerator] = useState(false);
-  const [isPremium, setIsPremium] = useState(false);
-  const [checkingPremium, setCheckingPremium] = useState(true);
 
   useEffect(() => {
     const {
@@ -131,8 +129,7 @@ export function useServices() {
     if (!user) return;
     loadUserProfile(user.id);
     checkUserRoles(user.id);
-    checkPremiumStatus(user.id);
-  }, [user, loadUserProfile, checkUserRoles, checkPremiumStatus]);
+  }, [user, loadUserProfile, checkUserRoles]);
 
   useEffect(() => {
     if (userProfile?.primary_neighborhood_id) {
@@ -153,8 +150,6 @@ export function useServices() {
     locationLabel,
     isAdmin,
     isModerator,
-    isPremium,
-    checkingPremium,
     reloadServices,
   };
 }

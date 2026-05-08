@@ -53,13 +53,7 @@ const TermsOfService = () => {
           <li>Não tentar acessar dados de outras usuárias indevidamente</li>
         </ul>
 
-        <h2>5. Serviços Premium</h2>
-        <p>
-          A assinatura Premium é cobrada mensalmente via Stripe. O cancelamento pode ser feito
-          a qualquer momento e será efetivo ao final do período pago.
-        </p>
-
-        <h2>6. Propriedade Intelectual</h2>
+        <h2>5. Propriedade Intelectual</h2>
         <p>
           Todo o conteúdo publicado pelas usuárias permanece de sua autoria.
           A Maridaas possui licença de uso para exibição dentro da plataforma.
