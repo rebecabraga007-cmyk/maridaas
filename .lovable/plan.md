@@ -1,32 +1,38 @@
-## Objetivo
+## Diagnóstico
 
-Gerar a **imagem de destaque (feature graphic)** do Google Play Console no tamanho exato exigido: **1024×500 px** (PNG, sem transparência).
+A tela branca em https://maridaas.lovable.app é causada por um erro JavaScript no carregamento do app:
 
-Essa é a imagem que aparece no topo da página do app na Play Store, acima das screenshots.
+```
+Uncaught Error: supabaseUrl is required.
+  at .../assets/index-CP8TdlsP.js
+```
 
-## O que vou gerar
+O bundle JS publicado (`index-CP8TdlsP.js`) foi gerado **sem** as variáveis `VITE_SUPABASE_URL` e `VITE_SUPABASE_PUBLISHABLE_KEY`. Como `src/integrations/supabase/client.ts` lê esses valores via `import.meta.env.*`, o `createClient` recebe `undefined` e lança erro logo na inicialização — antes de qualquer componente React conseguir renderizar. Resultado: `<div id="root">` permanece vazio.
 
-Um PNG `maridaas-feature-graphic-1024x500.png` com:
+A `.env` no projeto está correta (`VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `VITE_SUPABASE_PROJECT_ID` presentes), e o **preview** (`id-preview--…lovable.app`) funciona porque é construído com essas variáveis. O build publicado, porém, foi feito antes do `.env` estar disponível no pipeline de publish — por isso o domínio público quebra.
 
-- Fundo: gradiente teal (mesma paleta Maridaas das outras peças — `#5BA69A` → tom mais escuro)
-- Logo Maridaas à esquerda (ou centralizado)
-- Tagline em pt-BR à direita: **"A rede social das mulheres do seu bairro"**
-- Sem texto pequeno nas bordas (a Play Store corta levemente em alguns dispositivos)
-- Sem bordas arredondadas, sem transparência (requisito Google)
+## Plano
 
-## Como vou produzir
+**Ação principal: Republicar o app.**
 
-Script Python com Pillow:
-1. Criar canvas 1024×500 com gradiente teal.
-2. Colar logo Maridaas (de `/mnt/documents/maridaas-icons/icon-512.png` ou do `public/`).
-3. Renderizar tagline em fonte sans-serif clara, com peso bold.
-4. QA: abrir o PNG e verificar legibilidade, contraste, e que nada importante encosta nas bordas.
+Um novo build vai embutir os valores corretos de `VITE_SUPABASE_URL` e `VITE_SUPABASE_PUBLISHABLE_KEY` no bundle, eliminando o erro e fazendo a tela branca desaparecer.
 
-## Saída
+Passos:
 
-- `/mnt/documents/appstore-screenshots/maridaas-feature-graphic-1024x500.png`
-- Link de download
+1. Abrir o diálogo **Publish** (canto superior direito do editor).
+2. Clicar em **Update** para forçar um novo build/deploy do frontend.
+3. Aguardar a conclusão (~1–2 min) e recarregar https://maridaas.lovable.app com Ctrl+Shift+R (cache busting).
 
-## Pergunta rápida
+## Verificação
 
-A tagline padrão é **"A rede social das mulheres do seu bairro"**. Quer mudar para outra frase, ou seguir com essa?
+Após o redeploy:
+
+- O console do navegador em https://maridaas.lovable.app **não deve** mais mostrar `supabaseUrl is required`.
+- A landing page deve renderizar normalmente; usuárias logadas devem ser redirecionadas para `/feed`.
+- O hash do bundle servido (`/assets/index-XXXX.js`) deve ser diferente de `index-CP8TdlsP.js`.
+
+## Observações técnicas
+
+- `src/integrations/supabase/client.ts` é gerado automaticamente pela plataforma e não pode ser editado manualmente, então não dá para adicionar fallback hardcoded ali.
+- Não é necessária nenhuma mudança de código — o problema é exclusivamente do artefato publicado estar desatualizado em relação à `.env`.
+- Após esta republicação, builds futuros (incluindo o iOS via Codemagic, que usa `npm run build` com a `.env` presente) continuarão funcionando normalmente.
