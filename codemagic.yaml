@@ -579,11 +579,19 @@ workflows:
             echo "ERROR: AAB versionCode mismatch. Expected $EXPECTED_VERSION_CODE, got $ACTUAL_VERSION_CODE"
             exit 1
           fi
-          echo "Final AAB: $AAB_PATH"
-          echo "Final AAB versionCode: $ACTUAL_VERSION_CODE"
+          AAB_ABS_PATH=$(cd "$(dirname "$AAB_PATH")" && pwd)/$(basename "$AAB_PATH")
+          if command -v sha256sum >/dev/null 2>&1; then
+            AAB_SHA256=$(sha256sum "$AAB_PATH" | awk '{print $1}')
+          else
+            AAB_SHA256=$(shasum -a 256 "$AAB_PATH" | awk '{print $1}')
+          fi
+          echo "FINAL_VERSION_CODE=$ACTUAL_VERSION_CODE"
+          echo "AAB_OUTPUT_PATH=$AAB_ABS_PATH"
+          echo "APPLICATION_ID=com.maridas.app"
+          echo "AAB_VERSION_CODE=$ACTUAL_VERSION_CODE"
+          echo "AAB_SHA256=$AAB_SHA256"
     artifacts:
-      - android/app/build/outputs/**/*.aab
-      - android/app/build/outputs/**/*.apk
+      - android/app/build/outputs/bundle/release/*.aab
     publishing:
       google_play:
         credentials: $GCLOUD_SERVICE_ACCOUNT_CREDENTIALS
