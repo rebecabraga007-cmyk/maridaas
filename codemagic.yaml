@@ -460,22 +460,14 @@ workflows:
           set -e
           ANDROID_APP_ID="com.maridas.app"
 
-          # Native Android versionCode — unique, increasing and separated from versionName.
-          # Capacitor recreates android/app/build.gradle on every build, so this step patches
-          # the generated native Gradle file before bundleRelease. No random numbers are used.
-          KNOWN_USED_FLOOR=1788379270
-          HIGH_BASE_VERSION_CODE=2050000000
+          # Strategy: simple, monotonic, sequential versionCode driven by the CI build number.
+          # No timestamps, no remote Play lookups, no slot math, no near-int32 ceilings.
+          # Range: 1 .. 2_100_000_000 (well below int32 max 2_147_483_647).
           MAX_VERSION_CODE=2100000000
-          EPOCH_BASE_SECONDS=1735689600
 
-          NOW_SECONDS=$(date +%s)
-          TIME_SLOT=$(( (NOW_SECONDS - EPOCH_BASE_SECONDS) / 6 ))
-          [ "$TIME_SLOT" -lt 0 ] && TIME_SLOT=0
-          LOCAL=$(( HIGH_BASE_VERSION_CODE + TIME_SLOT ))
-
-          BUILD_NUM=0
-          BUILD_SOURCE="none"
-          for v in CM_BUILD_NUMBER BUILD_NUMBER GITHUB_RUN_NUMBER BITRISE_BUILD_NUMBER; do
+          BUILD_NUM=""
+          BUILD_SOURCE=""
+          for v in CM_BUILD_NUMBER BUILD_NUMBER GITHUB_RUN_NUMBER BITRISE_BUILD_NUMBER PROJECT_BUILD_NUMBER; do
             VAL=$(printenv "$v" 2>/dev/null || true)
             if echo "$VAL" | grep -Eq '^[0-9]+$' && [ "$VAL" -gt 0 ]; then
               BUILD_NUM="$VAL"
@@ -483,92 +475,26 @@ workflows:
               break
             fi
           done
-          if [ "$BUILD_NUM" -gt 0 ]; then
-            BUILD_CANDIDATE=$(( HIGH_BASE_VERSION_CODE + BUILD_NUM ))
-            if [ "$BUILD_CANDIDATE" -gt "$LOCAL" ] && [ "$BUILD_CANDIDATE" -lt "$MAX_VERSION_CODE" ]; then
-              LOCAL="$BUILD_CANDIDATE"
-            fi
-          fi
-          if [ "$LOCAL" -le "$KNOWN_USED_FLOOR" ]; then
-            LOCAL=$(( KNOWN_USED_FLOOR + 1 ))
-          fi
-          if [ "$LOCAL" -ge "$MAX_VERSION_CODE" ]; then
-            echo "ERROR: local versionCode $LOCAL exceeds Android max $MAX_VERSION_CODE"
+
+          if [ -z "$BUILD_NUM" ]; then
+            echo "ERROR: no sequential CI build number found (expected one of CM_BUILD_NUMBER, BUILD_NUMBER, GITHUB_RUN_NUMBER, BITRISE_BUILD_NUMBER)."
+            echo "Codemagic exposes CM_BUILD_NUMBER for every build — confirm the workflow runs on Codemagic."
             exit 1
           fi
 
-          echo "Known used floor: $KNOWN_USED_FLOOR"
-          echo "High base: $HIGH_BASE_VERSION_CODE  Time slot: $TIME_SLOT  Build source: $BUILD_SOURCE=$BUILD_NUM"
-          echo "Local candidate versionCode: $LOCAL"
+          # Final versionCode = pure CI build number. Strictly increasing, no collisions, far from int32 ceiling.
+          VERSION_CODE="$BUILD_NUM"
 
-          echo "--- Env vars potentially holding Google Play credentials ---"
-          env | grep -iE 'google|gcloud|play' | awk -F= '{print $1}' || true
-
-          CRED_VAR=""
-          CRED_JSON=""
-          for v in GCLOUD_SERVICE_ACCOUNT_CREDENTIALS GOOGLE_PLAY_SERVICE_ACCOUNT_CREDENTIALS GOOGLE_PLAY_SERVICE_ACCOUNT_JSON GOOGLE_PLAY_JSON_KEY GCP_SA_KEY; do
-            VAL=$(printenv "$v" 2>/dev/null || true)
-            if [ -n "$VAL" ]; then
-              CRED_VAR="$v"
-              CRED_JSON="$VAL"
-              echo "Detected credentials in env var: $CRED_VAR"
-              break
-            fi
-          done
-
-          REMOTE=0
-          REMOTE_OK=0
-          if [ -n "$CRED_VAR" ] && command -v google-play >/dev/null 2>&1; then
-            printf '%s' "$CRED_JSON" > /tmp/gp_creds.raw
-            cat > /tmp/normalize_creds.py <<'PY'
-          import json, sys
-          raw = open('/tmp/gp_creds.raw').read().strip()
-          try:
-              obj = json.loads(raw)
-          except Exception:
-              obj = json.loads(raw.replace('\\n', '\n'))
-          sys.stdout.write(json.dumps(obj))
-          PY
-            CRED_JSON_NORMALIZED=$(python3 /tmp/normalize_creds.py)
-            RC=$?
-            rm -f /tmp/gp_creds.raw /tmp/normalize_creds.py
-            if [ $RC -ne 0 ] || [ -z "$CRED_JSON_NORMALIZED" ]; then
-              echo "ERROR: $CRED_VAR does not contain valid JSON. Recreate it as the full service account JSON."
-              exit 1
-            fi
-
-            set +e
-            REMOTE_RAW=$(google-play get-latest-build-number \
-              --credentials "$CRED_JSON_NORMALIZED" \
-              --package-name "$ANDROID_APP_ID" \
-              --tracks internal alpha beta production 2>&1)
-            RC=$?
-            if [ $RC -ne 0 ]; then
-              REMOTE_RAW=$(google-play get-latest-build-number \
-                --credentials "$CRED_JSON_NORMALIZED" \
-                --package-name "$ANDROID_APP_ID" 2>&1)
-              RC=$?
-            fi
-            set -e
-            if [ $RC -eq 0 ]; then
-              REMOTE=$(echo "$REMOTE_RAW" | grep -Eo '[0-9]+' | sort -n | tail -n1)
-              [ -z "$REMOTE" ] && REMOTE=0
-              REMOTE_OK=1
-              echo "Remote latest versionCode (Google Play): $REMOTE"
-            else
-              echo "WARN: google-play CLI failed — using high timestamp/build candidate"
-              echo "$REMOTE_RAW"
-            fi
-          else
-            echo "WARN: Google Play lookup unavailable — using high timestamp/build candidate"
+          if ! echo "$VERSION_CODE" | grep -Eq '^[0-9]+$'; then
+            echo "ERROR: computed versionCode '$VERSION_CODE' is not a positive integer"
+            exit 1
           fi
-
-          VERSION_CODE="$LOCAL"
-          if [ "$REMOTE_OK" = "1" ] && [ "$REMOTE" -ge "$VERSION_CODE" ]; then
-            VERSION_CODE=$(( REMOTE + 1 ))
+          if [ "$VERSION_CODE" -le 0 ]; then
+            echo "ERROR: computed versionCode $VERSION_CODE must be > 0"
+            exit 1
           fi
           if [ "$VERSION_CODE" -ge "$MAX_VERSION_CODE" ]; then
-            echo "ERROR: final versionCode $VERSION_CODE exceeds Android max $MAX_VERSION_CODE"
+            echo "ERROR: computed versionCode $VERSION_CODE exceeds safe Android max $MAX_VERSION_CODE"
             exit 1
           fi
 
@@ -580,63 +506,35 @@ workflows:
             echo "ANDROID_VERSION_CODE=$VERSION_CODE" >> "$CM_ENV"
           fi
 
+          echo "Build source: $BUILD_SOURCE=$BUILD_NUM"
+          echo "FINAL_VERSION_CODE=$VERSION_CODE"
+          echo "APPLICATION_ID=$ANDROID_APP_ID"
+
           cd android
-          python3 <<'PY'
+          python3 <<PY
           from pathlib import Path
           import re
 
+          version_code = "$VERSION_CODE"
           path = Path("app/build.gradle")
           text = path.read_text()
-          block = '''
-          def resolveGeneratedVersionCode = {
-              long maxVersionCode = 2100000000L
-              long knownUsedFloor = 1788379270L
-              long highBaseVersionCode = 2050000000L
-              long epochBaseSeconds = 1735689600L
-              long nowSeconds = (System.currentTimeMillis() / 1000L) as long
-              long timeSlotCandidate = highBaseVersionCode + Math.max(0L, Math.floorDiv(nowSeconds - epochBaseSeconds, 6L))
-              long envCandidate = 0L
 
-              ["GENERATED_VERSION_CODE", "ANDROID_VERSION_CODE", "VERSION_CODE"].each { name ->
-                  def value = System.getenv(name)
-                  if (value != null && value ==~ /\\d+/) {
-                      envCandidate = Math.max(envCandidate, value.toLong())
-                  }
-              }
-              ["CM_BUILD_NUMBER", "BUILD_NUMBER", "GITHUB_RUN_NUMBER", "BITRISE_BUILD_NUMBER"].each { name ->
-                  def value = System.getenv(name)
-                  if (value != null && value ==~ /\\d+/) {
-                      long candidate = highBaseVersionCode + value.toLong()
-                      if (candidate < maxVersionCode) {
-                          envCandidate = Math.max(envCandidate, candidate)
-                      }
-                  }
-              }
+          # Remove any previously injected resolver block to keep a single source of truth.
+          text = re.sub(
+              r"\ndef resolveGeneratedVersionCode = \{[\s\S]*?\}\s*\ndef generatedVersionCode = resolveGeneratedVersionCode\(\)\s*\nprintln \"Generated Android versionCode:[^\n]*\n",
+              "\n",
+              text,
+          )
 
-              long code = [knownUsedFloor + 1L, timeSlotCandidate, envCandidate].max()
-              if (code >= maxVersionCode) {
-                  throw new GradleException("Generated versionCode ${code} exceeds Android max ${maxVersionCode}")
-              }
-              return code as int
-          }
-          def generatedVersionCode = resolveGeneratedVersionCode()
-          println "Generated Android versionCode: ${generatedVersionCode}"
-          '''
-
-          if "def generatedVersionCode = resolveGeneratedVersionCode()" not in text:
-              text = text.replace("android {", block + "\nandroid {", 1)
-
-          text, count = re.subn(r"versionCode\s+\d+", "versionCode generatedVersionCode", text, count=1)
-          if count == 0:
-              text, count = re.subn(r"versionCode\s+[A-Za-z_][A-Za-z0-9_]*", "versionCode generatedVersionCode", text, count=1)
+          # Force the literal versionCode value coming from the pipeline. No env reads in Gradle.
+          text, count = re.subn(r"versionCode\s+[^\s\n]+", f"versionCode {version_code}", text, count=1)
           if count == 0:
               raise SystemExit("ERROR: versionCode line not found in android/app/build.gradle")
           path.write_text(text)
           PY
 
-          echo "Final Android versionCode selected: $VERSION_CODE"
           echo "--- Android native version fields after patch ---"
-          grep -E "generatedVersionCode|versionCode|versionName" app/build.gradle
+          grep -E "versionCode|versionName" app/build.gradle
       - name: Build AAB (release)
         script: |
           set -e
@@ -681,11 +579,19 @@ workflows:
             echo "ERROR: AAB versionCode mismatch. Expected $EXPECTED_VERSION_CODE, got $ACTUAL_VERSION_CODE"
             exit 1
           fi
-          echo "Final AAB: $AAB_PATH"
-          echo "Final AAB versionCode: $ACTUAL_VERSION_CODE"
+          AAB_ABS_PATH=$(cd "$(dirname "$AAB_PATH")" && pwd)/$(basename "$AAB_PATH")
+          if command -v sha256sum >/dev/null 2>&1; then
+            AAB_SHA256=$(sha256sum "$AAB_PATH" | awk '{print $1}')
+          else
+            AAB_SHA256=$(shasum -a 256 "$AAB_PATH" | awk '{print $1}')
+          fi
+          echo "FINAL_VERSION_CODE=$ACTUAL_VERSION_CODE"
+          echo "AAB_OUTPUT_PATH=$AAB_ABS_PATH"
+          echo "APPLICATION_ID=com.maridas.app"
+          echo "AAB_VERSION_CODE=$ACTUAL_VERSION_CODE"
+          echo "AAB_SHA256=$AAB_SHA256"
     artifacts:
-      - android/app/build/outputs/**/*.aab
-      - android/app/build/outputs/**/*.apk
+      - android/app/build/outputs/bundle/release/*.aab
     publishing:
       google_play:
         credentials: $GCLOUD_SERVICE_ACCOUNT_CREDENTIALS
