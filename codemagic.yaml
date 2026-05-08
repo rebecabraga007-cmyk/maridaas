@@ -227,7 +227,7 @@ workflows:
     name: Android Release
     max_build_duration: 60
     environment:
-      java: 21
+      java: 17
       node: 22.11.0
       android_signing:
         - healthmedia
@@ -260,13 +260,9 @@ workflows:
         script: echo "sdk.dir=$ANDROID_SDK_ROOT" > android/local.properties
       - name: Increment version code
         script: |
-          set -e
           cd android
           VERSION_CODE=$(($(date +%s) / 60))
-          sed -i.bak "s/versionCode [0-9][0-9]*/versionCode $VERSION_CODE/" app/build.gradle
-          rm -f app/build.gradle.bak
-          echo "--- versionCode after substitution ---"
-          grep "versionCode" app/build.gradle
+          sed -i "s/versionCode [0-9]*/versionCode $VERSION_CODE/" app/build.gradle
       - name: Build AAB (release)
         script: |
           cd android
