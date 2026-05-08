@@ -501,39 +501,6 @@ export type Database = {
           },
         ]
       }
-      subscriptions: {
-        Row: {
-          created_at: string
-          expires_at: string | null
-          id: string
-          product_id: string | null
-          status: string
-          stripe_customer_id: string | null
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          created_at?: string
-          expires_at?: string | null
-          id?: string
-          product_id?: string | null
-          status?: string
-          stripe_customer_id?: string | null
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          created_at?: string
-          expires_at?: string | null
-          id?: string
-          product_id?: string | null
-          status?: string
-          stripe_customer_id?: string | null
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
       user_messages: {
         Row: {
           content: string
@@ -756,7 +723,6 @@ export type Database = {
         Args: { _neighborhood_id: string; _user_id: string }
         Returns: boolean
       }
-      is_premium_user: { Args: { _user_id: string }; Returns: boolean }
       same_neighborhood: { Args: { target_user_id: string }; Returns: boolean }
       sanitize_like_input: { Args: { input_text: string }; Returns: string }
       search_users_global:
