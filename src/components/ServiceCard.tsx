@@ -1,6 +1,6 @@
 import { Star, User } from "lucide-react";
 import React, { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from "@/integrations/supabase/safeClient";
 import ServiceDetailModal from "./ServiceDetailModal";
 
 interface ServiceCardProps {

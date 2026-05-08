@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from "@/integrations/supabase/safeClient";
 import { User } from "@supabase/supabase-js";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";

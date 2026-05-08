@@ -2,7 +2,7 @@ import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Heart, MessageCircle, User, MoreVertical, Trash2, Edit2, X, Check, Share, Flag } from "lucide-react";
 import React, { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from "@/integrations/supabase/safeClient";
 import CommentsModal from "./CommentsModal";
 import ProfilePreviewPopup from "./ProfilePreviewPopup";
 import UserBadge from "./UserBadge";
