@@ -1,30 +1,22 @@
-## Problema
+Plano para corrigir definitivamente o `versionCode` Android:
 
-O `versionCode` continua colidindo (agora 1788279146) porque:
+1. Atualizar somente o passo `Increment version code` em `codemagic.yaml`.
 
-- `LOCAL = date +%s + BUILD_OFFSET`, onde `BUILD_OFFSET` são só os **últimos 3 dígitos** do CM_BUILD_ID (0–999).
-- O epoch atual está em `~1788279146`. Então cada novo build gera um número quase igual ao anterior (diferença de poucos segundos), e o offset pequeno não ajuda.
-- O `KNOWN_USED_FLOOR=1788279145` ficou exatamente 1 abaixo do código que acabou de ser rejeitado, então o fallback gera `floor+1 = 1788279146` — já usado.
-- A chamada remota ao Google Play continua falhando (sem credencial válida ou CLI), então sempre caímos no LOCAL.
+2. Abandonar a fórmula atual `epoch + 100000 + jitter`, porque ela continua perto da faixa já usada/rejeitada.
 
-## Correção proposta em `codemagic.yaml` (passo "Increment version code")
+3. Gerar o novo `versionCode` em uma faixa bem acima da atual, por exemplo:
+   - `KNOWN_USED_FLOOR=1788379270`
+   - `BASE_VERSION_CODE=2000000000`
+   - usar `CM_BUILD_NUMBER`/`BUILD_NUMBER` quando disponível para gerar `2000000000 + buildNumber`
+   - se o número calculado não for maior que o último usado, incrementar localmente até ultrapassar o piso.
 
-1. **Subir o floor** para `1788279200` (bem acima do último rejeitado), garantindo escape imediato da faixa queimada.
-2. **Trocar a estratégia de geração** para algo monotonicamente crescente e com gap grande entre builds:
-   - `EPOCH=$(date +%s)`
-   - `LOCAL=$(( EPOCH * 2 ))` (dobra o epoch → cada segundo vira +2, e o resultado fica muito acima de qualquer versionCode já enviado, dando margem permanente).
-   - Ainda aplicar `LOCAL=max(LOCAL, KNOWN_USED_FLOOR + 1)`.
-3. **Adicionar margem fixa por build** somando `RANDOM % 500 + 100` ao final, para que dois builds disparados no mesmo segundo não colidam.
-4. **Manter** a checagem remota Google Play: se responder, `VERSION_CODE = max(REMOTE + 1, LOCAL)`. Se falhar, usar `LOCAL` direto (já garantidamente acima do floor).
-5. **Não mexer** em `versionName` (continua independente, vindo do build.gradle nativo).
-6. **Logar claramente** EPOCH, LOCAL calculado, REMOTE (ou WARN), e VERSION_CODE final, para diagnóstico futuro.
+4. Manter a checagem remota do Google Play:
+   - se funcionar, usar `max(remote + 1, localCandidate)`
+   - se falhar, usar o candidato local alto, nunca abaixo do piso conhecido.
 
-Limite Android: `versionCode` é int 32-bit (máx `2147483647`). Com `epoch*2 ≈ 3.5 bi` em 2026 estouraríamos — então na verdade vou usar **`LOCAL = EPOCH + 100000`** (gap maior que o atual `+ últimos 3 dígitos do build id`) e confiar no floor bump como salto inicial. Isso mantém crescimento ~1/segundo + 100k de cabeça, e nunca estoura int32 antes de ~2038.
+5. Adicionar proteção contra limite Android:
+   - `versionCode` deve ficar abaixo de `2100000000` para evitar problemas com o limite inteiro do Android/Google Play.
 
-### Resultado esperado
+6. Preservar `versionName` separado e intacto, alterando apenas `versionCode` em `android/app/build.gradle` antes do build `.aab`.
 
-Próximo build gera `versionCode ≥ 1788279200 + 100000 ≈ 1788379xxx`, bem acima de `1788279146`, e cada build subsequente é estritamente maior.
-
-### Arquivos alterados
-
-- `codemagic.yaml` (somente o passo "Increment version code")
+Resultado esperado: o próximo build deve sair em uma faixa como `2000000001+`, muito acima de `1788379270`, evitando reutilização dos códigos anteriores.
