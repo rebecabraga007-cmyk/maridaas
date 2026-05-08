@@ -394,8 +394,35 @@ workflows:
       - name: Increment version code
         script: |
           set -e
+          ANDROID_APP_ID="com.maridas.app"
+
+          # Local candidate based on epoch minutes (monotonic across builds)
+          LOCAL_VERSION_CODE=$(($(date +%s) / 60))
+
+          # Query Google Play for the highest versionCode already uploaded across
+          # ALL tracks (internal/alpha/beta/production) AND any draft/archived bundles.
+          # Google Play rejects re-using or going below any previously-uploaded
+          # versionCode, even from deleted/archived releases.
+          REMOTE_VERSION_CODE=0
+          if [ -n "$GCLOUD_SERVICE_ACCOUNT_CREDENTIALS" ] && command -v google-play >/dev/null 2>&1; then
+            echo "Querying Google Play for latest versionCode of $ANDROID_APP_ID..."
+            REMOTE_VERSION_CODE=$(google-play get-latest-build-number \
+              --credentials "@env:GCLOUD_SERVICE_ACCOUNT_CREDENTIALS" \
+              --package-name "$ANDROID_APP_ID" 2>/dev/null \
+              | grep -Eo '[0-9]+' | tail -n1 || echo "0")
+            REMOTE_VERSION_CODE=${REMOTE_VERSION_CODE:-0}
+            echo "Latest remote Google Play versionCode: $REMOTE_VERSION_CODE"
+          else
+            echo "google-play CLI or credentials unavailable — skipping remote check"
+          fi
+
+          VERSION_CODE=$LOCAL_VERSION_CODE
+          if [ "$REMOTE_VERSION_CODE" -ge "$VERSION_CODE" ]; then
+            VERSION_CODE=$((REMOTE_VERSION_CODE + 1))
+            echo "Remote versionCode >= local — bumping to $VERSION_CODE"
+          fi
+
           cd android
-          VERSION_CODE=$(($(date +%s) / 60))
           sed -i.bak "s/versionCode [0-9][0-9]*/versionCode $VERSION_CODE/" app/build.gradle
           rm -f app/build.gradle.bak
           echo "--- versionCode after substitution ---"
