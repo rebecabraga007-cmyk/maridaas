@@ -1,44 +1,90 @@
-# Remover funcionalidade Premium e pagamentos Stripe
+## Objetivo
 
-Para atender à exigência da Apple, vamos remover toda a camada de monetização (Premium, trial, Stripe) do app. Todos os recursos antes restritos a Premium passam a ser gratuitos para qualquer usuária autenticada.
+Substituir o algoritmo atual de `versionCode` Android (timestamp + base alta `2050000000` + cache remoto da Play + closure Groovy `resolveGeneratedVersionCode`) por uma estratégia simples e monotônica baseada em `CM_BUILD_NUMBER` (= `$BUILD_NUMBER` no Codemagic), com valor literal injetado no Gradle, logs explícitos e validação do AAB real antes do upload.
 
-## O que muda para a usuária
+## Mudanças no `codemagic.yaml` — workflow `android-release`
 
-- A página `/premium` deixa de existir (passa a redirecionar para o feed).
-- Banner de "2 meses grátis" e qualquer aviso de trial são removidos.
-- Botões "Assinar", "Gerenciar assinatura" e "Ver meu Premium" são removidos do app (Profile, Feed, BottomNav, Landing, etc.).
-- Postagem de serviços deixa de exigir Premium — qualquer usuária pode publicar serviços livremente.
-- Nada no app menciona R$ 29,90, Stripe, cobrança ou assinatura.
+### 1. Step "Prepare Android versionCode" (linhas ~458–639) — reescrita completa
 
-## Mudanças no frontend
+Remover:
+- `HIGH_BASE_VERSION_CODE=2050000000`, `EPOCH_BASE_SECONDS`, `TIME_SLOT`, cálculo timestamp.
+- Toda a integração `google-play get-latest-build-number` (CRED_VAR, normalize_creds.py, REMOTE).
+- Closure Groovy `resolveGeneratedVersionCode` injetada no `build.gradle`.
 
-- `src/App.tsx`: remover import e rota de `Premium`.
-- `src/pages/Premium.tsx`: deletar.
-- `src/components/WelcomeTrialBanner.tsx`: deletar e remover usos.
-- `src/hooks/useServices.ts`: remover `isPremium`, `checkingPremium` e a chamada a `is_premium_user`.
-- `src/pages/Services.tsx` e `ServicesView.tsx`: remover bloqueios/CTAs de Premium na criação de serviço.
-- `src/components/CreateServiceModal.tsx`: remover qualquer gating de Premium.
-- `src/components/BottomNav.tsx`, `Landing.tsx`, `Profile.tsx`, `Feed.tsx`, `Inbox.tsx`, `Neighborhoods.tsx`, `Messages.tsx`: remover links/badges/CTAs de Premium.
-- `src/pages/PrivacyPolicy.tsx` e `TermsOfService.tsx`: remover seções sobre assinatura, cobrança e Stripe.
+Manter / adicionar:
+- Piso conhecido como variável: `KNOWN_USED_FLOOR=2057099000` (acima do `2057098943` já enviado e rejeitado).
+- Leitura estrita de `CM_BUILD_NUMBER`:
+  ```
+  if ! echo "$CM_BUILD_NUMBER" | grep -Eq '^[0-9]+$' || [ "$CM_BUILD_NUMBER" -le 0 ]; then
+    echo "ERROR: CM_BUILD_NUMBER ausente — não é possível gerar versionCode monotônico"
+    exit 1
+  fi
+  ```
+- Cálculo:
+  ```
+  VERSION_CODE=$(( KNOWN_USED_FLOOR + CM_BUILD_NUMBER ))
+  ```
+- Sanidade: `> KNOWN_USED_FLOOR`, `< 2100000000`, inteiro positivo, falha explícita em qualquer violação.
+- Persistência:
+  ```
+  echo "GENERATED_VERSION_CODE=$VERSION_CODE" >> $CM_ENV
+  printf '%s' "$VERSION_CODE" > /tmp/android_version_code.txt
+  ```
+- Patch direto no `android/app/build.gradle` substituindo a linha `versionCode <n>` por **valor literal** (sem closures, sem `System.getenv`, sem `System.currentTimeMillis`):
+  ```
+  versionCode 2057099XXX
+  ```
+  Gradle não recalcula nada. Eliminamos a divergência shell↔AAB.
+- Logs obrigatórios no fim do step:
+  ```
+  FINAL_VERSION_CODE=<n>
+  CM_BUILD_NUMBER=<n>
+  KNOWN_USED_FLOOR=<n>
+  APPLICATION_ID=com.maridas.app
+  ```
 
-## Mudanças no backend (Lovable Cloud)
+### 2. Step "Build AAB (release)" (linhas ~640–685) — reforço de auditoria
 
-- Deletar Edge Functions: `create-checkout`, `customer-portal`, `check-subscription`.
-- Remover entradas correspondentes em `supabase/config.toml`.
-- Migração SQL para:
-  - Dropar a tabela `subscriptions` (e policies/triggers relacionados).
-  - Dropar a função `is_premium_user`.
-  - Remover qualquer policy/trigger que referenciava Premium para postagem de serviços.
-- A secret `STRIPE_SECRET_KEY` pode permanecer não utilizada (sem impacto); opcionalmente, removemos depois.
+- Manter `gradlew clean :app:bundleRelease --no-build-cache --rerun-tasks`.
+- Manter validação `bundletool dump manifest` comparando `versionCode` do AAB com `GENERATED_VERSION_CODE`.
+- Adicionar leitura e validação de `applicationId` via `bundletool dump manifest --xpath '/manifest/@package'`, falhar se ≠ `com.maridas.app`.
+- Adicionar logs finais:
+  ```
+  FINAL_AAB_PATH=<caminho absoluto>
+  FINAL_AAB_SHA256=<sha256sum do .aab>
+  FINAL_AAB_VERSION_CODE=<n>
+  FINAL_AAB_APPLICATION_ID=<n>
+  FINAL_AAB_SIZE=<bytes>
+  ```
 
-## Itens preservados
+### 3. Bloco `artifacts:` (linha 686-688) — restringir
 
-- Autenticação, perfil, feed, mural, serviços, mensagens, vizinhanças, push (OneSignal), admin — tudo continua funcionando.
-- Apenas a camada de monetização é removida.
+Reduzir a um único glob explícito do diretório oficial desta build:
+```
+artifacts:
+  - android/app/build/outputs/bundle/release/*.aab
+```
+Remover `**/*.apk` e o glob amplo `**/*.aab` para impedir que um artefato antigo de outro caminho seja publicado.
 
-## Validação
+## Ações fora do pipeline (necessárias pelo usuário)
 
-- Build limpo sem referências a `Premium`, `Stripe`, `is_premium_user`, `subscriptions`.
-- Navegação manual: `/premium` redireciona para `/feed`; criação de serviço funciona para usuária comum; nenhum banner de trial aparece.
+Mesmo com o pipeline correto, "versionCode já usado" pode persistir por estado no Play Console:
 
-Deseja que eu prossiga com essa remoção completa? Se sim, aprove o plano e eu aplico todas as mudanças (frontend + edge functions + migração SQL) em um único passo.
+1. Play Console → **App bundle explorer**: identificar o maior `versionCode` registrado em qualquer track (Internal, Closed, Open, Production) e em releases descartadas/rejeitadas.
+2. Se for maior que `2057099000`, atualizar `KNOWN_USED_FLOOR` no `codemagic.yaml` para esse valor.
+3. Em todos os tracks: **Discard release** de qualquer draft pendente.
+4. Confirmar que apenas um workflow Android está habilitado no Codemagic (sem builds paralelos disputando `CM_BUILD_NUMBER`).
+
+## Detalhes técnicos
+
+- `CM_BUILD_NUMBER` é estritamente monotônico por workflow no Codemagic — equivale ao `$BUILD_NUMBER` solicitado.
+- Faixa resultante com `KNOWN_USED_FLOOR=2057099000` e builds <100k: `versionCode` entre `2057099001` e `~2057199000`. Folga de ~43 milhões até o teto Android `2100000000`.
+- Valor literal no Gradle elimina overflow `long → int` e qualquer recomputação dinâmica.
+- `--no-build-cache --rerun-tasks` já garante zero reaproveitamento.
+- Hash SHA256 nos logs permite confirmar visualmente que o `.aab` publicado pela Play é o gerado neste run.
+
+## Fora de escopo
+
+- Workflow iOS (já validado via `CFBundleVersion` no IPA).
+- Credenciais, signing config, tracks de publicação.
+- Código frontend.
