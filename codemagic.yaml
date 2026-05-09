@@ -539,6 +539,7 @@ workflows:
       - name: Build AAB (release)
         script: |
           set -e
+          ANDROID_APP_ID="com.maridas.app"
           EXPECTED_VERSION_CODE="${GENERATED_VERSION_CODE:-$(cat /tmp/android_version_code.txt 2>/dev/null || true)}"
           if [ -z "$EXPECTED_VERSION_CODE" ]; then
             echo "ERROR: expected Android versionCode not found"
@@ -550,27 +551,28 @@ workflows:
           rm -rf app/build build .gradle
           ./gradlew clean :app:bundleRelease --no-build-cache --rerun-tasks
 
-          AAB_PATH=$(find app/build/outputs/bundle/release -name "*.aab" -type f | sort | tail -n1)
-          if [ -z "$AAB_PATH" ]; then
-            echo "ERROR: release AAB not generated"
-            exit 1
-          fi
-          AAB_COUNT=$(find app/build/outputs/bundle/release -name "*.aab" -type f | wc -l | tr -d ' ')
+          AAB_DIR="app/build/outputs/bundle/release"
+          AAB_COUNT=$(find "$AAB_DIR" -maxdepth 1 -name "*.aab" -type f | wc -l | tr -d ' ')
           if [ "$AAB_COUNT" -ne 1 ]; then
-            echo "ERROR: expected exactly one fresh AAB, found $AAB_COUNT"
-            find app/build/outputs/bundle/release -name "*.aab" -type f -print
+            echo "ERROR: expected exactly one fresh AAB in $AAB_DIR, found $AAB_COUNT"
+            find "$AAB_DIR" -name "*.aab" -type f -print
             exit 1
           fi
+          AAB_PATH=$(find "$AAB_DIR" -maxdepth 1 -name "*.aab" -type f)
+          AAB_ABS=$(cd "$(dirname "$AAB_PATH")" && pwd)/$(basename "$AAB_PATH")
 
           if command -v bundletool >/dev/null 2>&1; then
-            ACTUAL_VERSION_CODE=$(bundletool dump manifest --bundle "$AAB_PATH" --xpath '/manifest/@android:versionCode' | tr -dc '0-9')
+            BUNDLETOOL="bundletool"
           else
             BUNDLETOOL_JAR="/tmp/bundletool-all-1.17.2.jar"
             if [ ! -f "$BUNDLETOOL_JAR" ]; then
               curl -fsSL -o "$BUNDLETOOL_JAR" "https://github.com/google/bundletool/releases/download/1.17.2/bundletool-all-1.17.2.jar"
             fi
-            ACTUAL_VERSION_CODE=$(java -jar "$BUNDLETOOL_JAR" dump manifest --bundle "$AAB_PATH" --xpath '/manifest/@android:versionCode' | tr -dc '0-9')
+            BUNDLETOOL="java -jar $BUNDLETOOL_JAR"
           fi
+
+          ACTUAL_VERSION_CODE=$($BUNDLETOOL dump manifest --bundle "$AAB_PATH" --xpath '/manifest/@android:versionCode' | tr -dc '0-9')
+          ACTUAL_APPLICATION_ID=$($BUNDLETOOL dump manifest --bundle "$AAB_PATH" --xpath '/manifest/@package' | tr -d '\n' | tr -d ' ')
 
           if [ -z "$ACTUAL_VERSION_CODE" ]; then
             echo "ERROR: could not read versionCode from generated AAB"
@@ -580,11 +582,23 @@ workflows:
             echo "ERROR: AAB versionCode mismatch. Expected $EXPECTED_VERSION_CODE, got $ACTUAL_VERSION_CODE"
             exit 1
           fi
-          echo "Final AAB: $AAB_PATH"
-          echo "Final AAB versionCode: $ACTUAL_VERSION_CODE"
+          if [ "$ACTUAL_APPLICATION_ID" != "$ANDROID_APP_ID" ]; then
+            echo "ERROR: AAB applicationId mismatch. Expected $ANDROID_APP_ID, got '$ACTUAL_APPLICATION_ID'"
+            exit 1
+          fi
+
+          AAB_SHA256=$(shasum -a 256 "$AAB_PATH" | awk '{print $1}')
+          AAB_SIZE=$(wc -c < "$AAB_PATH" | tr -d ' ')
+
+          echo "============================================================"
+          echo "FINAL_AAB_PATH=$AAB_ABS"
+          echo "FINAL_AAB_SHA256=$AAB_SHA256"
+          echo "FINAL_AAB_VERSION_CODE=$ACTUAL_VERSION_CODE"
+          echo "FINAL_AAB_APPLICATION_ID=$ACTUAL_APPLICATION_ID"
+          echo "FINAL_AAB_SIZE=$AAB_SIZE"
+          echo "============================================================"
     artifacts:
-      - android/app/build/outputs/**/*.aab
-      - android/app/build/outputs/**/*.apk
+      - android/app/build/outputs/bundle/release/*.aab
     publishing:
       google_play:
         credentials: $GCLOUD_SERVICE_ACCOUNT_CREDENTIALS
