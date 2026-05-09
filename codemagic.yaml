@@ -542,7 +542,8 @@ workflows:
 
           echo "============================================================"
           echo "FINAL_VERSION_CODE=$VERSION_CODE"
-          echo "CM_BUILD_NUMBER=$CM_BUILD_NUMBER"
+          echo "BUILD_NUMBER_SOURCE=$BUILD_SOURCE"
+          echo "BUILD_NUMBER_VALUE=$BUILD_NUM"
           echo "KNOWN_USED_FLOOR=$KNOWN_USED_FLOOR"
           echo "APPLICATION_ID=$ANDROID_APP_ID"
           echo "============================================================"
