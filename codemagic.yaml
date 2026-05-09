@@ -472,13 +472,25 @@ workflows:
           KNOWN_USED_FLOOR=2057099000
           MAX_VERSION_CODE=2100000000
 
-          if ! echo "${CM_BUILD_NUMBER:-}" | grep -Eq '^[0-9]+$' || [ "${CM_BUILD_NUMBER:-0}" -le 0 ]; then
-            echo "ERROR: CM_BUILD_NUMBER missing or invalid (got '${CM_BUILD_NUMBER:-}')."
-            echo "       Codemagic must provide a monotonic build number — cannot continue."
+          BUILD_NUM=""
+          BUILD_SOURCE=""
+          for v in CM_BUILD_NUMBER BUILD_NUMBER PROJECT_BUILD_NUMBER FCI_BUILD_NUMBER; do
+            VAL=$(printenv "$v" 2>/dev/null || true)
+            if echo "$VAL" | grep -Eq '^[0-9]+$' && [ "$VAL" -gt 0 ]; then
+              BUILD_NUM="$VAL"
+              BUILD_SOURCE="$v"
+              break
+            fi
+          done
+
+          if [ -z "$BUILD_NUM" ]; then
+            echo "ERROR: no monotonic build number found in standard Codemagic env vars"
+            echo "       Checked: CM_BUILD_NUMBER, BUILD_NUMBER, PROJECT_BUILD_NUMBER, FCI_BUILD_NUMBER"
+            env | grep -iE 'build.?number' || true
             exit 1
           fi
 
-          VERSION_CODE=$(( KNOWN_USED_FLOOR + CM_BUILD_NUMBER ))
+          VERSION_CODE=$(( KNOWN_USED_FLOOR + BUILD_NUM ))
 
           if [ "$VERSION_CODE" -le "$KNOWN_USED_FLOOR" ]; then
             echo "ERROR: computed versionCode ($VERSION_CODE) is not above floor ($KNOWN_USED_FLOOR)"
@@ -530,7 +542,8 @@ workflows:
 
           echo "============================================================"
           echo "FINAL_VERSION_CODE=$VERSION_CODE"
-          echo "CM_BUILD_NUMBER=$CM_BUILD_NUMBER"
+          echo "BUILD_NUMBER_SOURCE=$BUILD_SOURCE"
+          echo "BUILD_NUMBER_VALUE=$BUILD_NUM"
           echo "KNOWN_USED_FLOOR=$KNOWN_USED_FLOOR"
           echo "APPLICATION_ID=$ANDROID_APP_ID"
           echo "============================================================"
