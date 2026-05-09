@@ -1,75 +1,44 @@
-## Objetivo
-Eliminar risco de colisão no `versionCode` Android e tornar o artifact publicado totalmente rastreável no pipeline.
+# Remover funcionalidade Premium e pagamentos Stripe
 
-## O que encontrei
-- O workflow Android já tem:
-  - rebuild limpo do Android
-  - injeção de `versionCode` no `build.gradle`
-  - validação do `.aab` com `bundletool`
-  - falha em divergência
-- Hoje o algoritmo ainda é complexo e arriscado:
-  - usa base alta (`2050000000`)
-  - usa timestamp em slots
-  - combina fallback por build number
-  - consulta o maior código remoto na Play
-- Isso mantém o valor perigosamente perto do teto de `int32` do Android e aumenta chance de colisão, corrida entre builds e comportamento inconsistente.
+Para atender à exigência da Apple, vamos remover toda a camada de monetização (Premium, trial, Stripe) do app. Todos os recursos antes restritos a Premium passam a ser gratuitos para qualquer usuária autenticada.
 
-## Plano
-1. **Trocar a estratégia de geração por uma sequência monotônica simples**
-   - Remover a lógica baseada em timestamp alto, `HIGH_BASE_VERSION_CODE`, `TIME_SLOT`, `KNOWN_USED_FLOOR` e incremento a partir de cache remoto.
-   - Passar a usar `BUILD_NUMBER`/`CM_BUILD_NUMBER` como fonte primária e obrigatória do `versionCode`.
-   - Falhar o build se nenhum número sequencial confiável estiver disponível.
+## O que muda para a usuária
 
-2. **Endurecer a validação de faixa e tipo**
-   - Validar explicitamente que o valor:
-     - é numérico inteiro
-     - é maior que zero
-     - é menor que `2100000000`
-   - Garantir que o Gradle use exatamente esse valor vindo do ambiente, sem recomputar com outra regra paralela.
+- A página `/premium` deixa de existir (passa a redirecionar para o feed).
+- Banner de "2 meses grátis" e qualquer aviso de trial são removidos.
+- Botões "Assinar", "Gerenciar assinatura" e "Ver meu Premium" são removidos do app (Profile, Feed, BottomNav, Landing, etc.).
+- Postagem de serviços deixa de exigir Premium — qualquer usuária pode publicar serviços livremente.
+- Nada no app menciona R$ 29,90, Stripe, cobrança ou assinatura.
 
-3. **Remover fontes de não determinismo**
-   - Eliminar dependência de:
-     - timestamp gigante
-     - cast implícito entre `long` e `int`
-     - consulta do maior `versionCode` remoto para decidir o local
-     - normalização/fallbacks que possam gerar valores diferentes entre shell e Gradle
-   - Deixar uma única fonte de verdade para o `versionCode` do build.
+## Mudanças no frontend
 
-4. **Adicionar rastreabilidade explícita do artifact final**
-   - Logar de forma exata e fácil de buscar:
-     - `FINAL_VERSION_CODE=`
-     - `AAB_OUTPUT_PATH=`
-     - `APPLICATION_ID=`
-     - opcionalmente `AAB_SHA256=` para conferir se o arquivo baixado é o mesmo do upload
-   - Manter a validação com `bundletool`, comparando o valor esperado com o presente dentro do `.aab` final.
+- `src/App.tsx`: remover import e rota de `Premium`.
+- `src/pages/Premium.tsx`: deletar.
+- `src/components/WelcomeTrialBanner.tsx`: deletar e remover usos.
+- `src/hooks/useServices.ts`: remover `isPremium`, `checkingPremium` e a chamada a `is_premium_user`.
+- `src/pages/Services.tsx` e `ServicesView.tsx`: remover bloqueios/CTAs de Premium na criação de serviço.
+- `src/components/CreateServiceModal.tsx`: remover qualquer gating de Premium.
+- `src/components/BottomNav.tsx`, `Landing.tsx`, `Profile.tsx`, `Feed.tsx`, `Inbox.tsx`, `Neighborhoods.tsx`, `Messages.tsx`: remover links/badges/CTAs de Premium.
+- `src/pages/PrivacyPolicy.tsx` e `TermsOfService.tsx`: remover seções sobre assinatura, cobrança e Stripe.
 
-5. **Blindar contra artifact incorreto**
-   - Confirmar que só exista **um** `.aab` final no diretório esperado.
-   - Fazer o passo de publicação usar exatamente o artifact recém-validado.
-   - Se houver mais de um `.aab`, falhar o pipeline e listar os caminhos encontrados.
+## Mudanças no backend (Lovable Cloud)
 
-6. **Revisar o workflow quanto a concorrência e publicação**
-   - Confirmar que há apenas um workflow Android publicando para a Play.
-   - Confirmar package id fixo (`com.maridas.app`) e track correto.
-   - Evitar lógica que dependa de estado remoto para incrementar código durante builds paralelos.
+- Deletar Edge Functions: `create-checkout`, `customer-portal`, `check-subscription`.
+- Remover entradas correspondentes em `supabase/config.toml`.
+- Migração SQL para:
+  - Dropar a tabela `subscriptions` (e policies/triggers relacionados).
+  - Dropar a função `is_premium_user`.
+  - Remover qualquer policy/trigger que referenciava Premium para postagem de serviços.
+- A secret `STRIPE_SECRET_KEY` pode permanecer não utilizada (sem impacto); opcionalmente, removemos depois.
 
-## Resultado esperado
-- `versionCode` sempre crescente
-- abaixo do limite Android
-- sem dependência de timestamp alto
-- sem colisão por cache remoto
-- sem divergência entre valor calculado e valor empacotado
-- logs suficientes para provar qual `.aab` foi gerado e qual código ele contém
+## Itens preservados
 
-## Detalhes técnicos
-- Arquivo alvo: `codemagic.yaml`
-- Mudança principal:
-  - substituir o algoritmo atual por leitura direta de `CM_BUILD_NUMBER`/`BUILD_NUMBER`
-  - propagar esse valor para o patch do `android/app/build.gradle`
-  - manter validação final via `bundletool`
-- Logs finais esperados no build:
-  - `FINAL_VERSION_CODE=...`
-  - `AAB_OUTPUT_PATH=...`
-  - `APPLICATION_ID=com.maridas.app`
-  - `AAB_VERSION_CODE=...`
-  - `AAB_SHA256=...`
+- Autenticação, perfil, feed, mural, serviços, mensagens, vizinhanças, push (OneSignal), admin — tudo continua funcionando.
+- Apenas a camada de monetização é removida.
+
+## Validação
+
+- Build limpo sem referências a `Premium`, `Stripe`, `is_premium_user`, `subscriptions`.
+- Navegação manual: `/premium` redireciona para `/feed`; criação de serviço funciona para usuária comum; nenhum banner de trial aparece.
+
+Deseja que eu prossiga com essa remoção completa? Se sim, aprove o plano e eu aplico todas as mudanças (frontend + edge functions + migração SQL) em um único passo.
