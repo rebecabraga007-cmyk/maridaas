@@ -64,6 +64,35 @@ workflows:
           echo "--- iOS tree ---"
           find ios -maxdepth 5 \( -name "Podfile" -o -name "Package.swift" -o -name "*.xcodeproj" -o -name "*.xcworkspace" \)
 
+      - name: Inject iOS privacy usage descriptions
+        script: |
+          set -e
+          PLIST="ios/App/App/Info.plist"
+          if [ ! -f "$PLIST" ]; then
+            echo "ERROR: $PLIST missing — cap sync did not generate iOS project"
+            exit 1
+          fi
+
+          set_key() {
+            local key="$1"
+            local value="$2"
+            /usr/libexec/PlistBuddy -c "Add :$key string $value" "$PLIST" 2>/dev/null \
+              || /usr/libexec/PlistBuddy -c "Set :$key $value" "$PLIST"
+            echo "  $key set"
+          }
+
+          set_key "NSCameraUsageDescription" \
+            "Permitir acesso à câmera para tirar fotos de perfil e enviar imagens no aplicativo."
+          set_key "NSPhotoLibraryUsageDescription" \
+            "Permitir acesso à galeria para selecionar fotos de perfil e compartilhar imagens no aplicativo."
+          set_key "NSPhotoLibraryAddUsageDescription" \
+            "Permitir salvar imagens geradas ou editadas pelo aplicativo na galeria."
+
+          echo "--- Info.plist privacy keys ---"
+          /usr/libexec/PlistBuddy -c "Print :NSCameraUsageDescription" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Print :NSPhotoLibraryUsageDescription" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Print :NSPhotoLibraryAddUsageDescription" "$PLIST"
+
       - name: Generate native app icons
         script: |
           set -e
@@ -386,6 +415,16 @@ workflows:
             exit 1
           fi
           echo "OK — IPA CFBundleVersion ($ACTUAL) matches pipeline value ($EXPECTED)"
+
+          # Apple rejects builds (ITMS-90683) without these privacy usage descriptions.
+          for KEY in NSCameraUsageDescription NSPhotoLibraryUsageDescription NSPhotoLibraryAddUsageDescription; do
+            VAL=$(/usr/libexec/PlistBuddy -c "Print :$KEY" "$APP_PLIST" 2>/dev/null || true)
+            if [ -z "$VAL" ]; then
+              echo "ERROR: IPA missing required privacy key: $KEY (App Store error 90683)"
+              exit 1
+            fi
+            echo "OK — $KEY present in IPA"
+          done
     artifacts:
       - $CM_BUILD_DIR/build/ipa/*.ipa
       - $CM_BUILD_DIR/App.xcarchive

@@ -74,9 +74,15 @@ Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/c
 
 ## iOS — App Store submission checklist
 
-This project ships as a Capacitor iOS app. After `npx cap sync ios`, open
-`ios/App/App/Info.plist` in Xcode and ensure these usage descriptions exist
-(Apple rejects builds without them when the app touches camera/photos):
+This project ships as a Capacitor iOS app. The `ios/` directory is **not**
+committed; it is regenerated on every Codemagic build via `npx cap add ios`.
+
+The Codemagic step **"Inject iOS privacy usage descriptions"** automatically
+injects the required `Info.plist` keys after `cap sync` and before archive,
+and the **"Validate IPA"** step fails the build if any of them is missing
+in the final IPA. You do **not** need to edit `Info.plist` manually.
+
+Strings injected (kept here as the source of truth shown to App Store reviewers):
 
 ```xml
 <key>NSCameraUsageDescription</key>
