@@ -71,3 +71,35 @@ Yes, you can!
 To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
 
 Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+
+## iOS — App Store submission checklist
+
+This project ships as a Capacitor iOS app. After `npx cap sync ios`, open
+`ios/App/App/Info.plist` in Xcode and ensure these usage descriptions exist
+(Apple rejects builds without them when the app touches camera/photos):
+
+```xml
+<key>NSCameraUsageDescription</key>
+<string>O Maridaas precisa da câmera para você atualizar sua foto de perfil.</string>
+<key>NSPhotoLibraryUsageDescription</key>
+<string>O Maridaas acessa suas fotos para você escolher uma imagem de perfil.</string>
+<key>NSPhotoLibraryAddUsageDescription</key>
+<string>O Maridaas salva imagens na sua galeria quando solicitado.</string>
+```
+
+### Apple Guideline 3.1.1 (digital payments)
+
+External checkout (Stripe, links de pagamento, etc.) é **proibido em iOS**.
+O app detecta a plataforma via `src/lib/platform.ts` e o hook
+`src/hooks/useSubscription.ts` esconde toda UI de upgrade no iOS até que
+a integração StoreKit (in-app purchase) seja adicionada. Não exiba botões
+"Assinar Premium" ou redirecionamentos para Stripe em builds iOS.
+
+### Build local
+
+```sh
+npm install
+npm run build
+npx cap sync ios
+npx cap open ios   # depois Product > Archive no Xcode
+```
