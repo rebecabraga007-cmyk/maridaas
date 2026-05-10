@@ -1,61 +1,87 @@
+# Fix: garantir privacy usage descriptions no IPA iOS
+
 ## Problema
 
-O Codemagic falha no passo `Archive` com:
+A Apple rejeitou a build (erro **ITMS-90683**) porque o `Info.plist` do IPA não contém:
 
-```
-IONCameraLib_IONCameraLib does not support provisioning profiles ...
-IONCameraLib does not support provisioning profiles ...
-```
+- `NSCameraUsageDescription`
+- `NSPhotoLibraryUsageDescription`
+- `NSPhotoLibraryAddUsageDescription`
 
-Causa: passamos `CODE_SIGN_STYLE=Manual` + `PROVISIONING_PROFILE_SPECIFIER` + `CODE_SIGN_IDENTITY` direto na linha de comando do `xcodebuild`. Esses valores se aplicam a **todos** os targets do build graph, incluindo as bibliotecas SPM (`IONCameraLib`, `IONCameraLib_IONCameraLib`, `Capacitor`, `Cordova`, `CameraPlugin`), que não suportam provisioning profile. O Xcode 26 passou a tratar isso como erro fatal.
+A pasta `ios/` **não existe no repositório** — o pipeline Codemagic (`ios-release`) recria tudo a cada build com `rm -rf ios && npx cap add ios && npx cap sync ios`. O template padrão do Capacitor iOS **não inclui** essas três chaves, então toda build sai sem elas. Editar o `Info.plist` manualmente seria perdido na próxima build.
 
-A etapa `xcode-project use-profiles` já grava as configurações de assinatura **somente no target `App`** dentro do `project.pbxproj` — então não precisamos repetir esses valores como overrides globais na CLI.
+## Solução
 
-## Correções
+Injetar as três chaves automaticamente via `PlistBuddy` **dentro do pipeline**, logo após `cap sync` e antes do archive. Como `ios/` é regenerado a cada build, esta é a única fonte de verdade duradoura. Adicionalmente, validar a presença das chaves no IPA final para falhar a build (em vez de a Apple) caso algo regrida.
 
-### 1. `codemagic.yaml` — passo "Archive (xcodebuild, Codemagic manual signing)"
+Sem mudanças no código React/Capacitor — o plugin `@capacitor/camera` continua igual.
 
-Remover os overrides de assinatura da linha de comando do `xcodebuild`. Manter `xcode-project use-profiles` (que já roda antes) como única fonte da configuração de assinatura, escopada ao target `App`.
+## Mudanças
+
+### 1. `codemagic.yaml` — novo step "Inject iOS privacy usage descriptions"
+
+Inserido **logo após** `Recreate iOS platform from scratch` e **antes** de `Generate native app icons`. Usa `PlistBuddy` com `Add` + fallback `Set` (idempotente — funciona em rebuild ou em re-run).
 
 ```yaml
-xcodebuild \
-  -project "$XCODE_PROJECT" \
-  -scheme "$XCODE_SCHEME" \
-  -configuration Release \
-  -archivePath "$CM_BUILD_DIR/App.xcarchive" \
-  -destination "generic/platform=iOS" \
-  -skipPackagePluginValidation \
-  clean archive
+- name: Inject iOS privacy usage descriptions
+  script: |
+    set -e
+    PLIST="ios/App/App/Info.plist"
+    if [ ! -f "$PLIST" ]; then
+      echo "ERROR: $PLIST missing — cap sync did not generate iOS project"
+      exit 1
+    fi
+
+    set_key() {
+      local key="$1"
+      local value="$2"
+      /usr/libexec/PlistBuddy -c "Add :$key string $value" "$PLIST" 2>/dev/null \
+        || /usr/libexec/PlistBuddy -c "Set :$key $value" "$PLIST"
+      echo "  $key set"
+    }
+
+    set_key "NSCameraUsageDescription" \
+      "Permitir acesso à câmera para tirar fotos de perfil e enviar imagens no aplicativo."
+    set_key "NSPhotoLibraryUsageDescription" \
+      "Permitir acesso à galeria para selecionar fotos de perfil e compartilhar imagens no aplicativo."
+    set_key "NSPhotoLibraryAddUsageDescription" \
+      "Permitir salvar imagens geradas ou editadas pelo aplicativo na galeria."
+
+    echo "--- Info.plist privacy keys ---"
+    /usr/libexec/PlistBuddy -c "Print :NSCameraUsageDescription" "$PLIST"
+    /usr/libexec/PlistBuddy -c "Print :NSPhotoLibraryUsageDescription" "$PLIST"
+    /usr/libexec/PlistBuddy -c "Print :NSPhotoLibraryAddUsageDescription" "$PLIST"
 ```
 
-(Os logs `Using DEVELOPMENT_TEAM=...` etc. continuam sendo impressos para debug, mas não são passados ao xcodebuild.)
+### 2. `codemagic.yaml` — reforço no step "Validate IPA CFBundleVersion"
 
-Com isso, os targets SPM ficam com `CODE_SIGN_STYLE=Automatic` + `CODE_SIGNING_ALLOWED=NO` (default do SPM) e só o target `App` recebe o profile manual.
+Adicionar verificação das três chaves no `Info.plist` extraído do IPA (final source of truth). Falha a build com mensagem clara se faltar qualquer uma — protege contra regressão futura.
 
-### 2. Forçar versão `1.1.5`
-
-Hoje o passo "Increment build & marketing version" calcula o patch a partir do que já existe na App Store + `MARKETING_BASE_VERSION="1.1"`. Para garantir exatamente `1.1.5`:
-
-- Trocar `MARKETING_BASE_VERSION: "1.1"` por uma nova var `MARKETING_VERSION_OVERRIDE: "1.1.5"`.
-- No script de bump, se `MARKETING_VERSION_OVERRIDE` estiver setado e for `X.Y.Z`, pular toda a lógica de cálculo e usar esse valor literal para `MARKETING_VERSION` e `CFBundleShortVersionString`. `CFBundleVersion` (build number) continua usando epoch/minutos como hoje.
-
-Fluxo:
-
-```text
-MARKETING_VERSION_OVERRIDE set?
-  ├─ yes → NEW_VERSION = override (1.1.5), pula App Store Connect lookup
-  └─ no  → mantém comportamento atual (auto patch)
+```bash
+for KEY in NSCameraUsageDescription NSPhotoLibraryUsageDescription NSPhotoLibraryAddUsageDescription; do
+  VAL=$(/usr/libexec/PlistBuddy -c "Print :$KEY" "$APP_PLIST" 2>/dev/null || true)
+  if [ -z "$VAL" ]; then
+    echo "ERROR: IPA missing required privacy key: $KEY (App Store error 90683)"
+    exit 1
+  fi
+  echo "OK — $KEY present in IPA"
+done
 ```
 
-## Arquivos a alterar
+### 3. `README.md`
 
-- `codemagic.yaml`
-  - Workflow `ios-release` → `environment.vars`: adicionar `MARKETING_VERSION_OVERRIDE: "1.1.5"`.
-  - Passo "Increment build & marketing version": branch curto-circuito quando override está presente.
-  - Passo "Archive (xcodebuild, Codemagic manual signing)": remover os 4 overrides de assinatura da chamada do `xcodebuild`.
+Atualizar o bloco "iOS — App Store submission checklist" para deixar claro que **não é mais necessário** editar o `Info.plist` manualmente — o pipeline injeta as três chaves automaticamente. As strings exatas usadas pelo pipeline ficam documentadas no README como referência.
 
-## Notas
+### 4. Arquivos **não** modificados
 
-- Nada muda no código do app (React/Capacitor) nem nos plugins.
-- Próxima publicação: a App Store Connect aceita `1.1.5` desde que ainda não exista uma versão `1.1.5` em estado bloqueado lá; se existir, o submit falhará e basta subir o override para `1.1.6`.
-- O passo `Validate IPA CFBundleVersion` continua válido (compara build number, não marketing version).
+- `capacitor.config.ts` — Capacitor CLI não suporta declarar usage descriptions via `capacitor.config` (apenas plugins Android/iOS nativos). Continuar como está.
+- `package.json` — sem postinstall (rodaria localmente sem `ios/`, criando ruído). A injeção fica no pipeline, que é o único lugar onde `ios/` existe.
+- `src/components/ImageUpload.tsx` — já trata permissões corretamente via `Camera.requestPermissions`.
+
+## Compatibilidade verificada
+
+- ✅ Capacitor 8 + `@capacitor/camera` 8 (já no `package.json`)
+- ✅ Xcode 26.2 (versão atual do pipeline)
+- ✅ iOS 18+ (chaves padrão Apple, mesmas há anos)
+- ✅ App Store Review (cobre erros ITMS-90683 para Camera + PhotoLibrary + PhotoLibraryAdd)
+- ✅ Idempotente — re-runs do pipeline não duplicam chaves nem falham
