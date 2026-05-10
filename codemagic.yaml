@@ -21,6 +21,8 @@ workflows:
         XCODE_SCHEME: "App"
         # Base marketing version (MAJOR.MINOR). Patch is auto-incremented per build.
         MARKETING_BASE_VERSION: "1.1"
+        # When set to a full X.Y.Z, forces the marketing version exactly (skips auto patch logic).
+        MARKETING_VERSION_OVERRIDE: "1.1.5"
     scripts:
       - name: Install dependencies
         script: |
@@ -150,6 +152,19 @@ workflows:
           if [ -z "$CURRENT_VERSION" ] || ! echo "$CURRENT_VERSION" | grep -Eq '^[0-9]+(\.[0-9]+){0,2}$'; then
             CURRENT_VERSION="1.0.0"
           fi
+
+          # Hard override: if MARKETING_VERSION_OVERRIDE is set to a valid X.Y.Z, use it verbatim.
+          if [ -n "$MARKETING_VERSION_OVERRIDE" ] && echo "$MARKETING_VERSION_OVERRIDE" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            NEW_VERSION="$MARKETING_VERSION_OVERRIDE"
+            echo "MARKETING_VERSION_OVERRIDE active -> forcing version $NEW_VERSION"
+            sed -i.bak -E "s/MARKETING_VERSION = [^;]+;/MARKETING_VERSION = $NEW_VERSION;/g" "$PBXPROJ"
+            rm -f "$PBXPROJ.bak"
+            /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $NEW_VERSION" "$PLIST"
+            echo "Set MARKETING_VERSION / CFBundleShortVersionString to $NEW_VERSION"
+            grep -E "MARKETING_VERSION|CURRENT_PROJECT_VERSION" "$PBXPROJ" | sort -u
+            exit 0
+          fi
+
           echo "Current MARKETING_VERSION: $CURRENT_VERSION"
 
           # Override MAJOR.MINOR with MARKETING_BASE_VERSION when provided (e.g. "1.1")
@@ -271,6 +286,13 @@ workflows:
           fi
           echo "Using CODE_SIGN_IDENTITY SHA=$DIST_SHA"
 
+          # NOTE: do NOT pass CODE_SIGN_STYLE / DEVELOPMENT_TEAM / PROVISIONING_PROFILE_SPECIFIER /
+          # CODE_SIGN_IDENTITY on the xcodebuild command line. Those overrides apply to ALL targets
+          # in the build graph (including SPM packages like IONCameraLib, Capacitor, Cordova) which
+          # do NOT support provisioning profiles and Xcode 26 fails the build with:
+          #   "<Target> does not support provisioning profiles ... Set the provisioning profile value to Automatic".
+          # `xcode-project use-profiles` (run earlier) already wrote the manual signing config into
+          # the App target's project.pbxproj, scoped to that single target.
           xcodebuild \
             -project "$XCODE_PROJECT" \
             -scheme "$XCODE_SCHEME" \
@@ -278,11 +300,7 @@ workflows:
             -archivePath "$CM_BUILD_DIR/App.xcarchive" \
             -destination "generic/platform=iOS" \
             -skipPackagePluginValidation \
-            clean archive \
-            CODE_SIGN_STYLE=Manual \
-            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
-            PROVISIONING_PROFILE_SPECIFIER="$CM_PROFILE_NAME" \
-            CODE_SIGN_IDENTITY="$DIST_SHA"
+            clean archive
 
       - name: Export IPA
         script: |

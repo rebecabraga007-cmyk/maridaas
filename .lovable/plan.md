@@ -1,44 +1,61 @@
-## Objetivo
-Gerar **10 screenshots reais do app** em **2048×2732 (retrato, iPad 13")**, prontas para upload na App Store Connect.
+## Problema
 
-## Telas selecionadas (essenciais, públicas)
+O Codemagic falha no passo `Archive` com:
 
-Como você optou por capturar apenas conteúdo público (sem login), o conjunto de 10 será montado a partir das páginas acessíveis sem autenticação + a tela de auth + páginas legais. Vou variar estados (vazio, com conteúdo, modal aberto) para evitar repetição.
+```
+IONCameraLib_IONCameraLib does not support provisioning profiles ...
+IONCameraLib does not support provisioning profiles ...
+```
 
-| # | Rota | Estado |
-|---|------|--------|
-| 1 | `/` (Landing) | Topo / hero |
-| 2 | `/` (Landing) | Seção de features / como funciona |
-| 3 | `/` (Landing) | Rodapé com CTA |
-| 4 | `/auth` | Tela de login (aba "Entrar") |
-| 5 | `/auth` | Tela de cadastro (aba "Criar conta") |
-| 6 | `/feed` | Redireciona para `/auth` → captura do estado de boas-vindas |
-| 7 | `/privacidade` | Topo da política |
-| 8 | `/privacidade` | Seção de direitos LGPD |
-| 9 | `/termos` | Topo dos termos |
-| 10 | `/404` (rota inexistente) | Página NotFound estilizada |
+Causa: passamos `CODE_SIGN_STYLE=Manual` + `PROVISIONING_PROFILE_SPECIFIER` + `CODE_SIGN_IDENTITY` direto na linha de comando do `xcodebuild`. Esses valores se aplicam a **todos** os targets do build graph, incluindo as bibliotecas SPM (`IONCameraLib`, `IONCameraLib_IONCameraLib`, `Capacitor`, `Cordova`, `CameraPlugin`), que não suportam provisioning profile. O Xcode 26 passou a tratar isso como erro fatal.
 
-> Se preferir cobrir mais telas autenticadas (Feed real, Serviços, Bairros, Perfil, Mensagens), basta me passar credenciais de uma conta de teste e eu refaço a seleção — fica muito mais representativo para o review da Apple.
+A etapa `xcode-project use-profiles` já grava as configurações de assinatura **somente no target `App`** dentro do `project.pbxproj` — então não precisamos repetir esses valores como overrides globais na CLI.
 
-## Como vou gerar
+## Correções
 
-1. **Abrir o preview do app no browser headless** em viewport `1024×1366` CSS pixels (iPad 13" lógico em retrato).
-2. Navegar para cada rota da lista acima.
-3. Capturar screenshot em alta densidade (`devicePixelRatio` 2 → resultado 2048×2732 nativo).
-4. Para cada captura, rodar um passe em Python/Pillow para:
-   - Garantir dimensão exata `2048×2732` (resize/crop se necessário, mantendo proporção).
-   - Salvar como PNG sem perdas em `/mnt/documents/appstore/ipad-13/`.
-5. Nomear sequencialmente: `ipad13-01-landing-hero.png`, `ipad13-02-landing-features.png`, etc.
-6. Entregar cada arquivo com tag `<lov-artifact>` para download direto.
+### 1. `codemagic.yaml` — passo "Archive (xcodebuild, Codemagic manual signing)"
 
-## Detalhes técnicos
+Remover os overrides de assinatura da linha de comando do `xcodebuild`. Manter `xcode-project use-profiles` (que já roda antes) como única fonte da configuração de assinatura, escopada ao target `App`.
 
-- Viewport CSS usado: `1024×1366` (ponto lógico do iPad Pro 12.9"/13").
-- Densidade de captura: 2x → bitmap `2048×2732`.
-- Sem moldura de iPad, sem legendas promocionais (você pediu "captura pura").
-- Sem login: rotas protegidas (`/feed`, `/profile`, etc.) renderizam o redirect para `/auth`, então não vou tentar forçá-las.
-- As capturas refletem o **estado atual do preview** — sem dados sensíveis, sem indicadores de Stripe (já removidos), sem tela Premium.
+```yaml
+xcodebuild \
+  -project "$XCODE_PROJECT" \
+  -scheme "$XCODE_SCHEME" \
+  -configuration Release \
+  -archivePath "$CM_BUILD_DIR/App.xcarchive" \
+  -destination "generic/platform=iOS" \
+  -skipPackagePluginValidation \
+  clean archive
+```
 
-## Resultado entregue
+(Os logs `Using DEVELOPMENT_TEAM=...` etc. continuam sendo impressos para debug, mas não são passados ao xcodebuild.)
 
-10 PNGs `2048×2732` salvos em `/mnt/documents/appstore/ipad-13/`, com link de download para cada um, prontos para arrastar no App Store Connect → "iPad Pro (12.9-inch) Display".
+Com isso, os targets SPM ficam com `CODE_SIGN_STYLE=Automatic` + `CODE_SIGNING_ALLOWED=NO` (default do SPM) e só o target `App` recebe o profile manual.
+
+### 2. Forçar versão `1.1.5`
+
+Hoje o passo "Increment build & marketing version" calcula o patch a partir do que já existe na App Store + `MARKETING_BASE_VERSION="1.1"`. Para garantir exatamente `1.1.5`:
+
+- Trocar `MARKETING_BASE_VERSION: "1.1"` por uma nova var `MARKETING_VERSION_OVERRIDE: "1.1.5"`.
+- No script de bump, se `MARKETING_VERSION_OVERRIDE` estiver setado e for `X.Y.Z`, pular toda a lógica de cálculo e usar esse valor literal para `MARKETING_VERSION` e `CFBundleShortVersionString`. `CFBundleVersion` (build number) continua usando epoch/minutos como hoje.
+
+Fluxo:
+
+```text
+MARKETING_VERSION_OVERRIDE set?
+  ├─ yes → NEW_VERSION = override (1.1.5), pula App Store Connect lookup
+  └─ no  → mantém comportamento atual (auto patch)
+```
+
+## Arquivos a alterar
+
+- `codemagic.yaml`
+  - Workflow `ios-release` → `environment.vars`: adicionar `MARKETING_VERSION_OVERRIDE: "1.1.5"`.
+  - Passo "Increment build & marketing version": branch curto-circuito quando override está presente.
+  - Passo "Archive (xcodebuild, Codemagic manual signing)": remover os 4 overrides de assinatura da chamada do `xcodebuild`.
+
+## Notas
+
+- Nada muda no código do app (React/Capacitor) nem nos plugins.
+- Próxima publicação: a App Store Connect aceita `1.1.5` desde que ainda não exista uma versão `1.1.5` em estado bloqueado lá; se existir, o submit falhará e basta subir o override para `1.1.6`.
+- O passo `Validate IPA CFBundleVersion` continua válido (compara build number, não marketing version).
