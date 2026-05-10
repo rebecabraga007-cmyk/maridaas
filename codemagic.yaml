@@ -286,6 +286,13 @@ workflows:
           fi
           echo "Using CODE_SIGN_IDENTITY SHA=$DIST_SHA"
 
+          # NOTE: do NOT pass CODE_SIGN_STYLE / DEVELOPMENT_TEAM / PROVISIONING_PROFILE_SPECIFIER /
+          # CODE_SIGN_IDENTITY on the xcodebuild command line. Those overrides apply to ALL targets
+          # in the build graph (including SPM packages like IONCameraLib, Capacitor, Cordova) which
+          # do NOT support provisioning profiles and Xcode 26 fails the build with:
+          #   "<Target> does not support provisioning profiles ... Set the provisioning profile value to Automatic".
+          # `xcode-project use-profiles` (run earlier) already wrote the manual signing config into
+          # the App target's project.pbxproj, scoped to that single target.
           xcodebuild \
             -project "$XCODE_PROJECT" \
             -scheme "$XCODE_SCHEME" \
@@ -293,11 +300,7 @@ workflows:
             -archivePath "$CM_BUILD_DIR/App.xcarchive" \
             -destination "generic/platform=iOS" \
             -skipPackagePluginValidation \
-            clean archive \
-            CODE_SIGN_STYLE=Manual \
-            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
-            PROVISIONING_PROFILE_SPECIFIER="$CM_PROFILE_NAME" \
-            CODE_SIGN_IDENTITY="$DIST_SHA"
+            clean archive
 
       - name: Export IPA
         script: |
