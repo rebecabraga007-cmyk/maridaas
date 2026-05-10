@@ -152,6 +152,19 @@ workflows:
           if [ -z "$CURRENT_VERSION" ] || ! echo "$CURRENT_VERSION" | grep -Eq '^[0-9]+(\.[0-9]+){0,2}$'; then
             CURRENT_VERSION="1.0.0"
           fi
+
+          # Hard override: if MARKETING_VERSION_OVERRIDE is set to a valid X.Y.Z, use it verbatim.
+          if [ -n "$MARKETING_VERSION_OVERRIDE" ] && echo "$MARKETING_VERSION_OVERRIDE" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            NEW_VERSION="$MARKETING_VERSION_OVERRIDE"
+            echo "MARKETING_VERSION_OVERRIDE active -> forcing version $NEW_VERSION"
+            sed -i.bak -E "s/MARKETING_VERSION = [^;]+;/MARKETING_VERSION = $NEW_VERSION;/g" "$PBXPROJ"
+            rm -f "$PBXPROJ.bak"
+            /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $NEW_VERSION" "$PLIST"
+            echo "Set MARKETING_VERSION / CFBundleShortVersionString to $NEW_VERSION"
+            grep -E "MARKETING_VERSION|CURRENT_PROJECT_VERSION" "$PBXPROJ" | sort -u
+            exit 0
+          fi
+
           echo "Current MARKETING_VERSION: $CURRENT_VERSION"
 
           # Override MAJOR.MINOR with MARKETING_BASE_VERSION when provided (e.g. "1.1")
