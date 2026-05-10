@@ -415,6 +415,16 @@ workflows:
             exit 1
           fi
           echo "OK — IPA CFBundleVersion ($ACTUAL) matches pipeline value ($EXPECTED)"
+
+          # Apple rejects builds (ITMS-90683) without these privacy usage descriptions.
+          for KEY in NSCameraUsageDescription NSPhotoLibraryUsageDescription NSPhotoLibraryAddUsageDescription; do
+            VAL=$(/usr/libexec/PlistBuddy -c "Print :$KEY" "$APP_PLIST" 2>/dev/null || true)
+            if [ -z "$VAL" ]; then
+              echo "ERROR: IPA missing required privacy key: $KEY (App Store error 90683)"
+              exit 1
+            fi
+            echo "OK — $KEY present in IPA"
+          done
     artifacts:
       - $CM_BUILD_DIR/build/ipa/*.ipa
       - $CM_BUILD_DIR/App.xcarchive
