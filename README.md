@@ -80,11 +80,11 @@ This project ships as a Capacitor iOS app. After `npx cap sync ios`, open
 
 ```xml
 <key>NSCameraUsageDescription</key>
-<string>O Maridaas precisa da câmera para você atualizar sua foto de perfil.</string>
+<string>Permitir acesso à câmera para tirar fotos de perfil e enviar imagens no aplicativo.</string>
 <key>NSPhotoLibraryUsageDescription</key>
-<string>O Maridaas acessa suas fotos para você escolher uma imagem de perfil.</string>
+<string>Permitir acesso à galeria para selecionar fotos de perfil e compartilhar imagens no aplicativo.</string>
 <key>NSPhotoLibraryAddUsageDescription</key>
-<string>O Maridaas salva imagens na sua galeria quando solicitado.</string>
+<string>Permitir salvar imagens geradas ou editadas pelo aplicativo na galeria.</string>
 ```
 
 ### Apple Guideline 3.1.1 (digital payments)
