@@ -19,7 +19,7 @@ workflows:
         XCODE_WORKSPACE: "ios/App/App.xcworkspace"
         XCODE_PROJECT: "ios/App/App.xcodeproj"
         XCODE_SCHEME: "App"
-         # Base marketing version (MAJOR.MINOR). Patch is auto-incremented per build.
+        # Base marketing version (MAJOR.MINOR). Patch is auto-incremented per build.
         MARKETING_BASE_VERSION: "1.1"
         # When set to a full X.Y.Z, forces the marketing version exactly (skips auto patch logic).
         MARKETING_VERSION_OVERRIDE: "1.1.5"
