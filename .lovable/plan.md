@@ -1,87 +1,53 @@
-# Fix: garantir privacy usage descriptions no IPA iOS
+## Página /marketing — Kit de Imprensa Maridaas
 
-## Problema
+Criar uma página pública (mas com `noindex`) destinada a jornalistas, parceiros e criadores de conteúdo, com informações oficiais da marca, recursos visuais e contato de imprensa.
 
-A Apple rejeitou a build (erro **ITMS-90683**) porque o `Info.plist` do IPA não contém:
+### Rota e acesso
 
-- `NSCameraUsageDescription`
-- `NSPhotoLibraryUsageDescription`
-- `NSPhotoLibraryAddUsageDescription`
+- Nova rota `/marketing` registrada em `src/App.tsx`, fora do `ProtectedRoute` (acesso sem login).
+- `SEOHead` com `noindex` ativado para não aparecer em buscadores.
+- Title: "Kit de Imprensa — Maridaas"
+- Meta description curta em PT-BR.
 
-A pasta `ios/` **não existe no repositório** — o pipeline Codemagic (`ios-release`) recria tudo a cada build com `rm -rf ios && npx cap add ios && npx cap sync ios`. O template padrão do Capacitor iOS **não inclui** essas três chaves, então toda build sai sem elas. Editar o `Info.plist` manualmente seria perdido na próxima build.
+### Estrutura da página (mobile-first, mesmo estilo SaaS limpo do /support)
 
-## Solução
+1. **Header** simples com link de volta para `/`.
+2. **Hero**
+   - Logo da Maridaas (usar `/logo.png` já existente).
+   - Título: "Kit de Imprensa".
+   - Subtítulo: "Recursos oficiais, identidade visual e contatos para imprensa, parceiros e criadores de conteúdo."
+3. **Sobre a Maridaas** (card)
+   - Boilerplate curto (2–3 parágrafos) descrevendo o app: rede social de bairro feita por e para mulheres, foco em vizinhança, serviços locais e segurança.
+4. **Fatos rápidos** (grid de cards com ícones)
+   - Categoria: Rede social / comunidade local
+   - Público: Mulheres
+   - Disponível em: iOS, Android e Web (PWA)
+   - Sede: Brasil
+5. **Identidade visual** (card)
+   - Paleta oficial (teal, dourado, rosa salmão) exibida com swatches usando os tokens do design system.
+   - Tipografia: Quicksand (títulos) e Nunito (corpo).
+   - Botão "Baixar logo (PNG)" apontando para `/logo.png`.
+6. **Contato de imprensa** (card destacado)
+   - E-mail: `rebeca.braga007@gmail.com` com `mailto:` e assunto pré-preenchido "Imprensa — Maridaas".
+   - Tempo de resposta: 24–48h úteis.
+7. **Links úteis** (botões)
+   - Site / App → `/`
+   - Suporte → `/support`
+   - Política de Privacidade → `/privacidade`
+   - Termos de Uso → `/termos`
+8. **Footer** com copyright, igual ao do /support.
 
-Injetar as três chaves automaticamente via `PlistBuddy` **dentro do pipeline**, logo após `cap sync` e antes do archive. Como `ios/` é regenerado a cada build, esta é a única fonte de verdade duradoura. Adicionalmente, validar a presença das chaves no IPA final para falhar a build (em vez de a Apple) caso algo regrida.
+### Detalhes técnicos
 
-Sem mudanças no código React/Capacitor — o plugin `@capacitor/camera` continua igual.
+- Arquivo novo: `src/pages/Marketing.tsx`.
+- Reutiliza `Card`, `Button`, `SEOHead`, ícones `lucide-react` (`Newspaper`, `Mail`, `Palette`, `Download`, `Shield`, `FileText`, `LifeBuoy`, `ArrowLeft`).
+- Usa apenas tokens semânticos do design system (sem cores hardcoded).
+- Swatches da paleta renderizados com `bg-primary`, `bg-secondary`, `bg-accent` etc.
+- `App.tsx`: import de `Marketing` e `<Route path="/marketing" element={<Marketing />} />` ao lado das demais rotas públicas.
+- Sem alterações de backend, sem nova dependência.
 
-## Mudanças
+### Fora de escopo
 
-### 1. `codemagic.yaml` — novo step "Inject iOS privacy usage descriptions"
-
-Inserido **logo após** `Recreate iOS platform from scratch` e **antes** de `Generate native app icons`. Usa `PlistBuddy` com `Add` + fallback `Set` (idempotente — funciona em rebuild ou em re-run).
-
-```yaml
-- name: Inject iOS privacy usage descriptions
-  script: |
-    set -e
-    PLIST="ios/App/App/Info.plist"
-    if [ ! -f "$PLIST" ]; then
-      echo "ERROR: $PLIST missing — cap sync did not generate iOS project"
-      exit 1
-    fi
-
-    set_key() {
-      local key="$1"
-      local value="$2"
-      /usr/libexec/PlistBuddy -c "Add :$key string $value" "$PLIST" 2>/dev/null \
-        || /usr/libexec/PlistBuddy -c "Set :$key $value" "$PLIST"
-      echo "  $key set"
-    }
-
-    set_key "NSCameraUsageDescription" \
-      "Permitir acesso à câmera para tirar fotos de perfil e enviar imagens no aplicativo."
-    set_key "NSPhotoLibraryUsageDescription" \
-      "Permitir acesso à galeria para selecionar fotos de perfil e compartilhar imagens no aplicativo."
-    set_key "NSPhotoLibraryAddUsageDescription" \
-      "Permitir salvar imagens geradas ou editadas pelo aplicativo na galeria."
-
-    echo "--- Info.plist privacy keys ---"
-    /usr/libexec/PlistBuddy -c "Print :NSCameraUsageDescription" "$PLIST"
-    /usr/libexec/PlistBuddy -c "Print :NSPhotoLibraryUsageDescription" "$PLIST"
-    /usr/libexec/PlistBuddy -c "Print :NSPhotoLibraryAddUsageDescription" "$PLIST"
-```
-
-### 2. `codemagic.yaml` — reforço no step "Validate IPA CFBundleVersion"
-
-Adicionar verificação das três chaves no `Info.plist` extraído do IPA (final source of truth). Falha a build com mensagem clara se faltar qualquer uma — protege contra regressão futura.
-
-```bash
-for KEY in NSCameraUsageDescription NSPhotoLibraryUsageDescription NSPhotoLibraryAddUsageDescription; do
-  VAL=$(/usr/libexec/PlistBuddy -c "Print :$KEY" "$APP_PLIST" 2>/dev/null || true)
-  if [ -z "$VAL" ]; then
-    echo "ERROR: IPA missing required privacy key: $KEY (App Store error 90683)"
-    exit 1
-  fi
-  echo "OK — $KEY present in IPA"
-done
-```
-
-### 3. `README.md`
-
-Atualizar o bloco "iOS — App Store submission checklist" para deixar claro que **não é mais necessário** editar o `Info.plist` manualmente — o pipeline injeta as três chaves automaticamente. As strings exatas usadas pelo pipeline ficam documentadas no README como referência.
-
-### 4. Arquivos **não** modificados
-
-- `capacitor.config.ts` — Capacitor CLI não suporta declarar usage descriptions via `capacitor.config` (apenas plugins Android/iOS nativos). Continuar como está.
-- `package.json` — sem postinstall (rodaria localmente sem `ios/`, criando ruído). A injeção fica no pipeline, que é o único lugar onde `ios/` existe.
-- `src/components/ImageUpload.tsx` — já trata permissões corretamente via `Camera.requestPermissions`.
-
-## Compatibilidade verificada
-
-- ✅ Capacitor 8 + `@capacitor/camera` 8 (já no `package.json`)
-- ✅ Xcode 26.2 (versão atual do pipeline)
-- ✅ iOS 18+ (chaves padrão Apple, mesmas há anos)
-- ✅ App Store Review (cobre erros ITMS-90683 para Camera + PhotoLibrary + PhotoLibraryAdd)
-- ✅ Idempotente — re-runs do pipeline não duplicam chaves nem falham
+- Não cria área administrativa de campanhas.
+- Não adiciona formulário de contato (apenas mailto).
+- Não altera SEO de outras páginas.
