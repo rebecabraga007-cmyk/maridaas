@@ -20,6 +20,7 @@ import Inbox from "./pages/Inbox";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import TermsOfService from "./pages/TermsOfService";
 import Support from "./pages/Support";
+import Marketing from "./pages/Marketing";
 import NotFound from "./pages/NotFound";
 
 // Em build nativo (Capacitor/WKWebView/Android WebView) usamos HashRouter
