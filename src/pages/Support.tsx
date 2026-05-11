@@ -14,20 +14,20 @@ const SUPPORT_EMAIL = "rebeca.braga007@gmail.com";
 
 const faqs = [
   {
-    q: "How do I reset my password?",
-    a: 'On the login screen, tap "Forgot password" and follow the instructions sent to your registered email address.',
+    q: "Como recupero minha senha?",
+    a: 'Na tela de login, toque em "Esqueci minha senha" e siga as instruções enviadas para o e-mail cadastrado.',
   },
   {
-    q: "How do I cancel my subscription?",
-    a: "Open the app, go to your Profile, then Subscription, and tap Cancel. If you subscribed via the App Store, you can also manage it in your Apple ID settings.",
+    q: "Como cancelo minha assinatura?",
+    a: "Abra o app, vá até seu Perfil, depois em Assinatura e toque em Cancelar. Se você assinou pela App Store, também pode gerenciar nas configurações da sua Apple ID.",
   },
   {
-    q: "How do I delete my account?",
-    a: `Send an email to ${SUPPORT_EMAIL} with the subject "Account Deletion Request". Your account and personal data will be permanently removed within 48 business hours.`,
+    q: "Como excluo minha conta?",
+    a: `Envie um e-mail para ${SUPPORT_EMAIL} com o assunto "Solicitação de exclusão de conta". Sua conta e seus dados pessoais serão removidos permanentemente em até 48 horas úteis.`,
   },
   {
-    q: "How do I report a bug?",
-    a: `Email us at ${SUPPORT_EMAIL} describing the issue, your device model, and the app version. Screenshots are welcome.`,
+    q: "Como reporto um bug?",
+    a: `Envie um e-mail para ${SUPPORT_EMAIL} descrevendo o problema, o modelo do seu dispositivo e a versão do app. Capturas de tela são bem-vindas.`,
   },
 ];
 
@@ -35,14 +35,14 @@ const Support = () => {
   return (
     <div className="min-h-screen bg-white text-foreground">
       <SEOHead
-        title="Maridaas Support — Help Center & Contact"
-        description="Get help with Maridaas: contact support, FAQs, account deletion, subscriptions, and privacy requests. Response within 24–48 business hours."
+        title="Suporte Maridaas — Central de Ajuda e Contato"
+        description="Suporte da Maridaas: contato, perguntas frequentes, exclusão de conta, assinaturas e privacidade. Resposta em até 24–48 horas úteis."
         canonical="https://maridaas.lovable.app/support"
       />
 
       <header className="border-b border-border bg-white sticky top-0 z-10">
         <div className="max-w-3xl mx-auto px-4 py-3 flex items-center gap-3">
-          <Link to="/" className="text-muted-foreground hover:text-foreground" aria-label="Back to home">
+          <Link to="/" className="text-muted-foreground hover:text-foreground" aria-label="Voltar para o início">
             <ArrowLeft className="h-5 w-5" />
           </Link>
           <span className="font-semibold">Maridaas</span>
@@ -52,11 +52,12 @@ const Support = () => {
       <main className="max-w-3xl mx-auto px-4 py-10 sm:py-16">
         <section className="text-center mb-10 sm:mb-14">
           <h1 className="text-3xl sm:text-5xl font-bold tracking-tight mb-4">
-            Maridaas Support
+            Suporte Maridaas
           </h1>
           <p className="text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto">
-            Welcome to Maridaas Support. Our team is available to help with technical issues,
-            account questions, subscriptions, feedback, and privacy-related requests.
+            Bem-vinda ao Suporte da Maridaas. Nossa equipe está disponível para ajudar com
+            problemas técnicos, dúvidas sobre conta, assinaturas, feedback e solicitações
+            relacionadas à privacidade.
           </p>
         </section>
 
@@ -67,12 +68,12 @@ const Support = () => {
                 <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
                   <Mail className="h-5 w-5 text-primary" />
                 </div>
-                <CardTitle className="text-lg">Email support</CardTitle>
+                <CardTitle className="text-lg">E-mail de suporte</CardTitle>
               </div>
             </CardHeader>
             <CardContent>
               <CardDescription className="mb-3">
-                Send us a message and we will get back to you.
+                Envie uma mensagem e responderemos o quanto antes.
               </CardDescription>
               <a
                 href={`mailto:${SUPPORT_EMAIL}`}
@@ -89,13 +90,13 @@ const Support = () => {
                 <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
                   <Clock className="h-5 w-5 text-primary" />
                 </div>
-                <CardTitle className="text-lg">Response time</CardTitle>
+                <CardTitle className="text-lg">Tempo de resposta</CardTitle>
               </div>
             </CardHeader>
             <CardContent>
               <CardDescription>
-                We reply within <strong className="text-foreground">24–48 business hours</strong>,
-                Monday to Friday.
+                Respondemos em até <strong className="text-foreground">24–48 horas úteis</strong>,
+                de segunda a sexta-feira.
               </CardDescription>
             </CardContent>
           </Card>
@@ -108,7 +109,7 @@ const Support = () => {
                 <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
                   <HelpCircle className="h-5 w-5 text-primary" />
                 </div>
-                <CardTitle className="text-lg">Frequently asked questions</CardTitle>
+                <CardTitle className="text-lg">Perguntas frequentes</CardTitle>
               </div>
             </CardHeader>
             <CardContent>
@@ -131,22 +132,22 @@ const Support = () => {
                 <div className="h-10 w-10 rounded-full bg-destructive/10 flex items-center justify-center">
                   <UserX className="h-5 w-5 text-destructive" />
                 </div>
-                <CardTitle className="text-lg">Delete your account</CardTitle>
+                <CardTitle className="text-lg">Excluir sua conta</CardTitle>
               </div>
             </CardHeader>
             <CardContent className="space-y-3">
               <CardDescription>
-                You can request permanent deletion of your account and all associated personal
-                data at any time. Send an email to{" "}
-                <a href={`mailto:${SUPPORT_EMAIL}?subject=Account%20Deletion%20Request`} className="text-primary hover:underline">
+                Você pode solicitar a exclusão permanente da sua conta e de todos os dados
+                pessoais associados a qualquer momento. Envie um e-mail para{" "}
+                <a href={`mailto:${SUPPORT_EMAIL}?subject=Solicita%C3%A7%C3%A3o%20de%20exclus%C3%A3o%20de%20conta`} className="text-primary hover:underline">
                   {SUPPORT_EMAIL}
                 </a>{" "}
-                with the subject <strong className="text-foreground">"Account Deletion Request"</strong>.
-                We will process your request within 48 business hours.
+                com o assunto <strong className="text-foreground">"Solicitação de exclusão de conta"</strong>.
+                Sua solicitação será processada em até 48 horas úteis.
               </CardDescription>
               <Button asChild variant="outline">
-                <a href={`mailto:${SUPPORT_EMAIL}?subject=Account%20Deletion%20Request`}>
-                  Request account deletion
+                <a href={`mailto:${SUPPORT_EMAIL}?subject=Solicita%C3%A7%C3%A3o%20de%20exclus%C3%A3o%20de%20conta`}>
+                  Solicitar exclusão de conta
                 </a>
               </Button>
             </CardContent>
@@ -157,13 +158,13 @@ const Support = () => {
           <Button asChild variant="outline" size="lg" className="h-14">
             <Link to="/privacidade">
               <Shield className="h-5 w-5" />
-              Privacy Policy
+              Política de Privacidade
             </Link>
           </Button>
           <Button asChild variant="outline" size="lg" className="h-14">
             <Link to="/termos">
               <FileText className="h-5 w-5" />
-              Terms of Service
+              Termos de Uso
             </Link>
           </Button>
         </section>
@@ -171,7 +172,7 @@ const Support = () => {
 
       <footer className="border-t border-border bg-white">
         <div className="max-w-3xl mx-auto px-4 py-6 text-center text-sm text-muted-foreground">
-          © {new Date().getFullYear()} Maridaas. All rights reserved.
+          © {new Date().getFullYear()} Maridaas. Todos os direitos reservados.
         </div>
       </footer>
     </div>
