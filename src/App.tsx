@@ -20,6 +20,7 @@ import Inbox from "./pages/Inbox";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import TermsOfService from "./pages/TermsOfService";
 import Support from "./pages/Support";
+import Marketing from "./pages/Marketing";
 import NotFound from "./pages/NotFound";
 
 // Em build nativo (Capacitor/WKWebView/Android WebView) usamos HashRouter
@@ -72,6 +73,7 @@ const App = () => (
             <Route path="/termos" element={<TermsOfService />} />
             <Route path="/terms" element={<TermsOfService />} />
             <Route path="/support" element={<Support />} />
+            <Route path="/marketing" element={<Marketing />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
