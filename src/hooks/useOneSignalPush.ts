@@ -44,21 +44,6 @@ export const useOneSignalPush = () => {
   useEffect(() => {
     const init = async () => {
       try {
-        // Capacitor native (iOS/Android): OneSignal Web SDK não funciona em
-        // WKWebView. Marcamos como não suportado silenciosamente — sem
-        // pedir permissão, sem mostrar prompt de "instalar PWA".
-        // (Apple Guideline: app não pode pedir permissões irrelevantes.)
-        if (isNativePlatform()) {
-          setState({
-            permission: "unsupported",
-            isSupported: false,
-            isSubscribed: false,
-            isLoading: false,
-            needsPWAInstall: false,
-          });
-          return;
-        }
-
         // Native (Capacitor iOS/Android): use OneSignal Cordova plugin.
         if (isNativePlatform()) {
           const { data, error } = await supabase.functions.invoke("get-onesignal-config");
