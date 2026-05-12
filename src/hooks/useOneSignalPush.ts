@@ -14,6 +14,15 @@ import {
   isPWAInstalled,
   getDiagnostics,
 } from "@/lib/push/onesignal";
+import {
+  initNative,
+  requestNativePermission,
+  loginNative,
+  logoutNative,
+  optInNative,
+  optOutNative,
+  isOptedInNative,
+} from "@/lib/push/onesignalNative";
 
 interface PushState {
   permission: NotificationPermission | "unsupported";
