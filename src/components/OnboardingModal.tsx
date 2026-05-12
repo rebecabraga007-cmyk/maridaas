@@ -85,7 +85,7 @@ const OnboardingModal = ({ onClose }: OnboardingModalProps) => {
                 </ol>
               </div>
 
-              <Button onClick={() => setStep(2)} className="w-full btn-maridaas">
+              <Button onClick={() => setStep(pushAvailable ? 2 : 3)} className="w-full btn-maridaas">
                 Continuar <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
             </div>
