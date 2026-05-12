@@ -59,6 +59,36 @@ export const useOneSignalPush = () => {
           return;
         }
 
+        // Native (Capacitor iOS/Android): use OneSignal Cordova plugin.
+        if (isNativePlatform()) {
+          const { data, error } = await supabase.functions.invoke("get-onesignal-config");
+          if (error || !data?.appId) {
+            console.error("[push:native] Failed to get OneSignal config:", error);
+            setState({
+              permission: "default",
+              isSupported: false,
+              isSubscribed: false,
+              isLoading: false,
+              needsPWAInstall: false,
+            });
+            return;
+          }
+          await initNative(data.appId);
+          const subscribed = await isOptedInNative();
+          if (subscribed) {
+            const { data: authData } = await supabase.auth.getUser();
+            if (authData?.user) await loginNative(authData.user.id);
+          }
+          setState({
+            permission: subscribed ? "granted" : "default",
+            isSupported: true,
+            isSubscribed: subscribed,
+            isLoading: false,
+            needsPWAInstall: false,
+          });
+          return;
+        }
+
         // Check platform support
         if (!("Notification" in window) || !("serviceWorker" in navigator)) {
           setState({
