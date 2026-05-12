@@ -2,13 +2,15 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Smartphone, Bell, Check, ArrowRight, X, Loader2 } from "lucide-react";
 import { useOneSignalPush } from "@/hooks/useOneSignalPush";
+import { isNativePlatform } from "@/lib/platform";
 
 interface OnboardingModalProps {
   onClose: () => void;
 }
 
 const OnboardingModal = ({ onClose }: OnboardingModalProps) => {
-  const [step, setStep] = useState(1);
+  const native = isNativePlatform();
+  const [step, setStep] = useState(native ? 2 : 1);
   const { subscribe, isLoading, needsPWAInstall, isSupported } = useOneSignalPush();
   const [subscribing, setSubscribing] = useState(false);
   const pushAvailable = isSupported || needsPWAInstall;
