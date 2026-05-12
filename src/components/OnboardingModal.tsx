@@ -11,6 +11,7 @@ const OnboardingModal = ({ onClose }: OnboardingModalProps) => {
   const [step, setStep] = useState(1);
   const { subscribe, isLoading, needsPWAInstall, isSupported } = useOneSignalPush();
   const [subscribing, setSubscribing] = useState(false);
+  const pushAvailable = isSupported || needsPWAInstall;
 
   const handleActivateNotifications = async () => {
     setSubscribing(true);
