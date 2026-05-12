@@ -14,6 +14,15 @@ import {
   isPWAInstalled,
   getDiagnostics,
 } from "@/lib/push/onesignal";
+import {
+  initNative,
+  requestNativePermission,
+  loginNative,
+  logoutNative,
+  optInNative,
+  optOutNative,
+  isOptedInNative,
+} from "@/lib/push/onesignalNative";
 
 interface PushState {
   permission: NotificationPermission | "unsupported";
@@ -35,15 +44,30 @@ export const useOneSignalPush = () => {
   useEffect(() => {
     const init = async () => {
       try {
-        // Capacitor native (iOS/Android): OneSignal Web SDK não funciona em
-        // WKWebView. Marcamos como não suportado silenciosamente — sem
-        // pedir permissão, sem mostrar prompt de "instalar PWA".
-        // (Apple Guideline: app não pode pedir permissões irrelevantes.)
+        // Native (Capacitor iOS/Android): use OneSignal Cordova plugin.
         if (isNativePlatform()) {
+          const { data, error } = await supabase.functions.invoke("get-onesignal-config");
+          if (error || !data?.appId) {
+            console.error("[push:native] Failed to get OneSignal config:", error);
+            setState({
+              permission: "default",
+              isSupported: false,
+              isSubscribed: false,
+              isLoading: false,
+              needsPWAInstall: false,
+            });
+            return;
+          }
+          await initNative(data.appId);
+          const subscribed = await isOptedInNative();
+          if (subscribed) {
+            const { data: authData } = await supabase.auth.getUser();
+            if (authData?.user) await loginNative(authData.user.id);
+          }
           setState({
-            permission: "unsupported",
-            isSupported: false,
-            isSubscribed: false,
+            permission: subscribed ? "granted" : "default",
+            isSupported: true,
+            isSubscribed: subscribed,
             isLoading: false,
             needsPWAInstall: false,
           });
@@ -117,6 +141,31 @@ export const useOneSignalPush = () => {
     setState((prev) => ({ ...prev, isLoading: true }));
 
     try {
+      // Branch: native vs web
+      if (isNativePlatform()) {
+        const permission = await requestNativePermission();
+        if (permission !== "granted") {
+          setState((prev) => ({ ...prev, permission, isLoading: false }));
+          return false;
+        }
+        await optInNative();
+        const { data: authData } = await supabase.auth.getUser();
+        if (authData?.user) {
+          await loginNative(authData.user.id);
+          await supabase
+            .from("profiles")
+            .update({ notifications_enabled: true })
+            .eq("user_id", authData.user.id);
+        }
+        setState((prev) => ({
+          ...prev,
+          permission: "granted",
+          isSubscribed: true,
+          isLoading: false,
+        }));
+        return true;
+      }
+
       // 1. Request permission (via OneSignal — handles native prompt internally)
       const permission = await requestPushPermission();
       if (permission !== "granted") {
@@ -159,10 +208,13 @@ export const useOneSignalPush = () => {
     setState((prev) => ({ ...prev, isLoading: true }));
 
     try {
-      // Opt out of push (actually stops notifications)
-      await optOutPush();
-      // Disassociate user
-      await logoutUser();
+      if (isNativePlatform()) {
+        await optOutNative();
+        await logoutNative();
+      } else {
+        await optOutPush();
+        await logoutUser();
+      }
 
       const { data: authData } = await supabase.auth.getUser();
       if (authData?.user) {
