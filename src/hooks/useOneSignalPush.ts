@@ -208,10 +208,13 @@ export const useOneSignalPush = () => {
     setState((prev) => ({ ...prev, isLoading: true }));
 
     try {
-      // Opt out of push (actually stops notifications)
-      await optOutPush();
-      // Disassociate user
-      await logoutUser();
+      if (isNativePlatform()) {
+        await optOutNative();
+        await logoutNative();
+      } else {
+        await optOutPush();
+        await logoutUser();
+      }
 
       const { data: authData } = await supabase.auth.getUser();
       if (authData?.user) {
