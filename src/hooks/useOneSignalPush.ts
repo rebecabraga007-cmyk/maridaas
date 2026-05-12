@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/safeClient";
+import { isNativePlatform } from "@/lib/platform";
 import {
   initOneSignal,
   requestPushPermission,
