@@ -141,6 +141,31 @@ export const useOneSignalPush = () => {
     setState((prev) => ({ ...prev, isLoading: true }));
 
     try {
+      // Branch: native vs web
+      if (isNativePlatform()) {
+        const permission = await requestNativePermission();
+        if (permission !== "granted") {
+          setState((prev) => ({ ...prev, permission, isLoading: false }));
+          return false;
+        }
+        await optInNative();
+        const { data: authData } = await supabase.auth.getUser();
+        if (authData?.user) {
+          await loginNative(authData.user.id);
+          await supabase
+            .from("profiles")
+            .update({ notifications_enabled: true })
+            .eq("user_id", authData.user.id);
+        }
+        setState((prev) => ({
+          ...prev,
+          permission: "granted",
+          isSubscribed: true,
+          isLoading: false,
+        }));
+        return true;
+      }
+
       // 1. Request permission (via OneSignal — handles native prompt internally)
       const permission = await requestPushPermission();
       if (permission !== "granted") {
