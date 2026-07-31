@@ -1,6 +1,7 @@
 import { createRoot } from "react-dom/client";
 import "./index.css";
 import App from "./App.tsx";
+import { scheduleThirdPartyScripts } from "./lib/analytics";
 
 const safeText = (value: unknown) =>
   String(value).replace(/[&<>"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[char] ?? char));
@@ -56,6 +57,7 @@ try {
   const rootEl = document.getElementById("root");
   if (!rootEl) throw new Error("Root element ausente");
   createRoot(rootEl).render(<App />);
+  scheduleThirdPartyScripts();
 } catch (err) {
   // eslint-disable-next-line no-console
   console.error("[Maridaas bootstrap] Falha ao iniciar:", err);

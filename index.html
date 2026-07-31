@@ -20,10 +20,51 @@
     <link rel="icon" type="image/png" sizes="256x256" href="/favicon.png" />
     <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+
+    <!-- Preconnect a domínios críticos: fontes e backend Supabase -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="preconnect" href="https://yzrrlxnnqwihkkmokrso.supabase.co" crossorigin />
+    <link rel="dns-prefetch" href="https://yzrrlxnnqwihkkmokrso.supabase.co" />
+
+    <!-- Google Fonts carregadas de forma não-bloqueante (preload + swap) -->
+    <link
+      rel="preload"
+      as="style"
+      href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800&family=Quicksand:wght@400;500;600;700&display=swap"
+    />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800&family=Quicksand:wght@400;500;600;700&display=swap"
+      media="print"
+      onload="this.media='all'"
+    />
+    <noscript>
+      <link
+        rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800&family=Quicksand:wght@400;500;600;700&display=swap"
+      />
+    </noscript>
   </head>
 
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <!-- Skeleton estático: some assim que o React monta, evita "tela em branco" no 4G -->
+      <div aria-hidden="true" style="min-height:100vh;display:flex;flex-direction:column;background:#FAF7F5">
+        <div style="height:64px;display:flex;align-items:center;padding:0 16px;gap:12px;border-bottom:1px solid #eee">
+          <div style="width:40px;height:40px;border-radius:10px;background:#e8e3e0;animation:mrd-pulse 1.4s ease-in-out infinite"></div>
+          <div style="width:110px;height:16px;border-radius:6px;background:#e8e3e0;animation:mrd-pulse 1.4s ease-in-out infinite"></div>
+        </div>
+        <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:24px">
+          <div style="width:min(520px,80vw);height:20px;border-radius:6px;background:#e8e3e0;animation:mrd-pulse 1.4s ease-in-out infinite"></div>
+          <div style="width:min(360px,60vw);height:20px;border-radius:6px;background:#e8e3e0;animation:mrd-pulse 1.4s ease-in-out infinite"></div>
+          <div style="width:min(280px,50vw);height:48px;border-radius:9999px;background:#d9c9c2;animation:mrd-pulse 1.4s ease-in-out infinite"></div>
+        </div>
+      </div>
+      <style>
+        @keyframes mrd-pulse { 0%, 100% { opacity: 1 } 50% { opacity: .55 } }
+      </style>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

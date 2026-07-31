@@ -1,12 +1,20 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Users, MapPin, Heart, MessageCircle, ShieldCheck, Sparkles } from "lucide-react";
+import { MapPin, Heart, MessageCircle, ShieldCheck, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/safeClient";
 import SEOHead from "@/components/SEOHead";
+import Logo from "@/components/Logo";
+import SignupFlow from "@/components/auth/SignupFlow";
+import HeroQuickSignup from "@/components/landing/HeroQuickSignup";
+import SocialProof from "@/components/landing/SocialProof";
+import StickyMobileCta from "@/components/landing/StickyMobileCta";
 
 const Landing = () => {
   const navigate = useNavigate();
+  const [signupOpen, setSignupOpen] = useState(false);
+  const [signupEmail, setSignupEmail] = useState("");
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
@@ -29,11 +37,16 @@ const Landing = () => {
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
   };
 
+  const openSignup = (email?: string) => {
+    setSignupEmail(email ?? "");
+    setSignupOpen(true);
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <SEOHead
         title="Maridaas — Sua comunidade de bairro"
-        description="Conecte-se com vizinhas do seu bairro. Descubra serviços de confiança, faça amizades e fortaleça sua comunidade local."
+        description="Troque serviços com suas vizinhas de forma segura e prática. Cadastro grátis em menos de 30 segundos."
         canonical="https://maridaas.lovable.app/"
       />
 
@@ -63,69 +76,47 @@ const Landing = () => {
       <header className="fixed top-0 left-0 right-0 z-50 glass border-b border-border">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <img src="/logo.png" alt="Maridaas - Logo" className="h-10 w-10" loading="eager" />
+            <Logo variant="logo" size={40} alt="Maridaas - Logo" className="h-10 w-10" priority />
             <span className="text-xl font-display font-bold text-foreground">Maridaas</span>
           </div>
           <nav className="flex items-center gap-3" aria-label="Navegação principal">
             <Link to="/auth">
               <Button variant="ghost" size="sm">Entrar</Button>
             </Link>
-            <Link to="/auth?mode=signup">
-              <Button size="sm" className="btn-maridaas">Criar conta</Button>
-            </Link>
+            <Button size="sm" className="btn-maridaas" onClick={() => openSignup()}>
+              Criar conta
+            </Button>
           </nav>
         </div>
       </header>
 
       {/* Hero Section */}
-      <section className="pt-32 pb-20 px-4" aria-labelledby="hero-title">
+      <section className="pt-32 pb-16 px-4" aria-labelledby="hero-title">
         <div className="container mx-auto max-w-4xl text-center">
           <div className="animate-fade-in">
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-teal-light text-primary mb-6">
               <Sparkles className="w-4 h-4" aria-hidden="true" />
               <span className="text-sm font-medium">Sua vizinhança mais conectada</span>
             </div>
-            
-            <h1 id="hero-title" className="text-4xl md:text-6xl font-display font-bold text-foreground mb-6 leading-tight">
-              Conecte-se com sua{" "}
-              <span className="text-primary">comunidade</span>{" "}
-              de bairro
-            </h1>
-            
-            <p className="text-lg md:text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
-              Descubra serviços de confiança, faça novas amizades e fortaleça os laços 
-              com suas vizinhas. Maridaas é a rede social que valoriza quem está perto de você.
-            </p>
-            
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-              <Link to="/auth?mode=signup">
-                <Button size="lg" className="btn-maridaas text-lg px-8">
-                  Começar agora
-                </Button>
-              </Link>
-              <a href="#como-funciona" onClick={(e) => handleScrollTo(e, "como-funciona")}>
-                <Button variant="outline" size="lg" className="text-lg px-8">
-                  Como funciona
-                </Button>
-              </a>
-            </div>
-          </div>
 
-          {/* Hero Illustration */}
-          <div className="mt-16 relative">
-            <div className="absolute inset-0 gradient-hero opacity-10 rounded-3xl blur-3xl" aria-hidden="true"></div>
-            <div className="relative bg-card rounded-3xl shadow-elevated p-8 border border-border">
-              <div className="grid grid-cols-3 gap-4">
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="card-maridaas p-4 animate-float" style={{ animationDelay: `${i * 0.2}s` }}>
-                    <div className="avatar-maridaas mb-3 mx-auto">
-                      <Users className="w-6 h-6" aria-hidden="true" />
-                    </div>
-                    <div className="h-2 bg-muted rounded-full w-3/4 mx-auto mb-2"></div>
-                    <div className="h-2 bg-muted rounded-full w-1/2 mx-auto"></div>
-                  </div>
-                ))}
-              </div>
+            <h1 id="hero-title" className="text-4xl md:text-6xl font-display font-bold text-foreground mb-6 leading-tight">
+              Troque serviços com sua{" "}
+              <span className="text-primary">comunidade</span>{" "}
+              de bairro, com segurança
+            </h1>
+
+            <p className="text-lg md:text-xl text-muted-foreground mb-10 max-w-2xl mx-auto">
+              Descubra prestadoras de confiança recomendadas por vizinhas de verdade, faça
+              amizades e fortaleça os laços do seu bairro. Cadastro grátis em menos de 30 segundos.
+            </p>
+
+            <HeroQuickSignup onOpenSignup={openSignup} />
+            <SocialProof />
+
+            <div className="mt-10">
+              <a href="#como-funciona" onClick={(e) => handleScrollTo(e, "como-funciona")} className="text-sm text-muted-foreground hover:text-primary underline underline-offset-4">
+                Ver como funciona
+              </a>
             </div>
           </div>
         </div>
@@ -175,24 +166,27 @@ const Landing = () => {
               Segurança e Confiança
             </h2>
             <p className="text-lg opacity-90 max-w-2xl mx-auto mb-8">
-              Verificamos a identidade de cada usuária. Você só interage com pessoas 
+              Verificamos a identidade de cada usuária. Você só interage com pessoas
               que realmente moram no seu bairro.
             </p>
-            <Link to="/auth?mode=signup">
-              <Button variant="secondary" size="lg" className="text-primary font-semibold">
-                Fazer parte da comunidade
-              </Button>
-            </Link>
+            <Button
+              variant="secondary"
+              size="lg"
+              className="h-12 text-primary font-semibold"
+              onClick={() => openSignup()}
+            >
+              Fazer parte da comunidade
+            </Button>
           </div>
         </div>
       </section>
 
       {/* Footer */}
-      <footer className="py-12 px-4 border-t border-border" role="contentinfo">
+      <footer className="py-12 px-4 pb-24 md:pb-12 border-t border-border" role="contentinfo">
         <div className="container mx-auto max-w-6xl">
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="flex items-center gap-3">
-              <img src="/logo.png" alt="Maridaas" className="h-8 w-8" loading="lazy" />
+              <Logo variant="logo" size={32} alt="Maridaas" className="h-8 w-8" />
               <span className="font-display font-bold text-foreground">Maridaas</span>
             </div>
             <nav className="flex items-center gap-4 text-sm text-muted-foreground" aria-label="Links do rodapé">
@@ -205,6 +199,24 @@ const Landing = () => {
           </div>
         </div>
       </footer>
+
+      <StickyMobileCta onOpenSignup={() => openSignup()} />
+
+      {/* Modal de cadastro rápido: continua o fluxo sem sair da página */}
+      <Dialog open={signupOpen} onOpenChange={setSignupOpen}>
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+          <DialogTitle className="sr-only">Criar conta grátis na Maridaas</DialogTitle>
+          <SignupFlow
+            initialEmail={signupEmail}
+            skipSocialScreen={!!signupEmail}
+            onSuccess={() => setSignupOpen(false)}
+            onRequestLogin={() => {
+              setSignupOpen(false);
+              navigate("/auth");
+            }}
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
