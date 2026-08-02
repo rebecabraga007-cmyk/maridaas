@@ -8,6 +8,8 @@ import { useToast } from "@/hooks/use-toast";
 import { Eye, EyeOff, ArrowLeft, Loader2, Mail, Gift } from "lucide-react";
 import { z } from "zod";
 import { GoogleIcon, AppleIcon, getIsApplePlatform, useOAuth } from "@/components/auth/oauth";
+import InAppBrowserNotice from "@/components/auth/InAppBrowserNotice";
+import { isInAppBrowser } from "@/lib/browserEnv";
 
 const signupSchema = z.object({
   email: z.string().email("Email inválido"),
@@ -57,6 +59,9 @@ const SignupFlow = ({ initialEmail = "", skipSocialScreen = false, onSuccess, on
   const [address, setAddress] = useState("");
 
   const isApple = useMemo(() => getIsApplePlatform(), []);
+  // No navegador interno de apps (Instagram etc.) o Google recusa o OAuth, então
+  // a tela social vira uma rota de escape + cadastro por e-mail. Ver browserEnv.ts.
+  const inApp = useMemo(() => isInAppBrowser(), []);
 
   const formatCPF = (value: string) => value.replace(/\D/g, "").slice(0, 11);
   const formatCEP = (value: string) => value.replace(/\D/g, "").slice(0, 8);
@@ -179,16 +184,22 @@ const SignupFlow = ({ initialEmail = "", skipSocialScreen = false, onSuccess, on
           </div>
         </div>
 
-        <div className="space-y-3">{socialButtons}</div>
+        {inApp ? (
+          <InAppBrowserNotice />
+        ) : (
+          <>
+            <div className="space-y-3">{socialButtons}</div>
 
-        <div className="relative my-6">
-          <div className="absolute inset-0 flex items-center">
-            <span className="w-full border-t border-border" />
-          </div>
-          <div className="relative flex justify-center text-xs uppercase">
-            <span className="bg-card px-2 text-muted-foreground">ou</span>
-          </div>
-        </div>
+            <div className="relative my-6">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t border-border" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-card px-2 text-muted-foreground">ou</span>
+              </div>
+            </div>
+          </>
+        )}
 
         <Button
           variant="outline"

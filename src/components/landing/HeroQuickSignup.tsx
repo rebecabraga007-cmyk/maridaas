@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { GoogleIcon, AppleIcon, getIsApplePlatform, useOAuth } from "@/components/auth/oauth";
+import InAppBrowserNotice from "@/components/auth/InAppBrowserNotice";
+import { isInAppBrowser } from "@/lib/browserEnv";
 
 interface HeroQuickSignupProps {
   /** Abre o modal de cadastro completo, opcionalmente com o email já preenchido. */
@@ -19,6 +21,10 @@ const HeroQuickSignup = ({ onOpenSignup }: HeroQuickSignupProps) => {
   const { oauthLoading, handleOAuth } = useOAuth();
   const [email, setEmail] = useState("");
   const isApple = getIsApplePlatform();
+  // Dentro do navegador interno do Instagram/Facebook/TikTok o Google recusa o
+  // OAuth (`disallowed_useragent`). Mostrar os botões sociais ali é garantir um
+  // beco sem saída, então trocamos por e-mail + rota de escape para o navegador.
+  const inApp = isInAppBrowser();
 
   const socialButtons = [
     { key: "google" as const, icon: <GoogleIcon />, label: "Continuar com Google", className: "" },
@@ -41,31 +47,39 @@ const HeroQuickSignup = ({ onOpenSignup }: HeroQuickSignupProps) => {
         Crie sua conta grátis em menos de 30 segundos
       </p>
 
-      <div className="space-y-3 mb-4">
-        {socialButtons.map((btn) => (
-          <Button
-            key={btn.key}
-            type="button"
-            variant="outline"
-            className={`w-full h-12 text-base font-medium gap-3 border-border ${btn.className}`}
-            onClick={() => handleOAuth(btn.key)}
-            disabled={oauthLoading !== null}
-            aria-label={btn.label}
-          >
-            {oauthLoading === btn.key ? <Loader2 className="h-5 w-5 animate-spin" /> : btn.icon}
-            {btn.label}
-          </Button>
-        ))}
-      </div>
+      {inApp ? (
+        <div className="mb-4">
+          <InAppBrowserNotice />
+        </div>
+      ) : (
+        <>
+          <div className="space-y-3 mb-4">
+            {socialButtons.map((btn) => (
+              <Button
+                key={btn.key}
+                type="button"
+                variant="outline"
+                className={`w-full h-12 text-base font-medium gap-3 border-border ${btn.className}`}
+                onClick={() => handleOAuth(btn.key)}
+                disabled={oauthLoading !== null}
+                aria-label={btn.label}
+              >
+                {oauthLoading === btn.key ? <Loader2 className="h-5 w-5 animate-spin" /> : btn.icon}
+                {btn.label}
+              </Button>
+            ))}
+          </div>
 
-      <div className="relative my-4">
-        <div className="absolute inset-0 flex items-center">
-          <span className="w-full border-t border-border" />
-        </div>
-        <div className="relative flex justify-center text-xs uppercase">
-          <span className="bg-card px-2 text-muted-foreground">ou</span>
-        </div>
-      </div>
+          <div className="relative my-4">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t border-border" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-card px-2 text-muted-foreground">ou</span>
+            </div>
+          </div>
+        </>
+      )}
 
       <form onSubmit={handleSubmit} className="space-y-3">
         <div className="relative">

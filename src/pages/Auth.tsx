@@ -10,6 +10,8 @@ import { z } from "zod";
 import SignupFlow from "@/components/auth/SignupFlow";
 import { GoogleIcon, AppleIcon, getIsApplePlatform, useOAuth } from "@/components/auth/oauth";
 import Logo from "@/components/Logo";
+import InAppBrowserNotice from "@/components/auth/InAppBrowserNotice";
+import { isInAppBrowser } from "@/lib/browserEnv";
 
 const loginSchema = z.object({
   email: z.string().email("Email inválido"),
@@ -34,6 +36,8 @@ const Auth = () => {
   const [password, setPassword] = useState("");
 
   const isApple = getIsApplePlatform();
+  // Google recusa OAuth em WebView de app (Instagram etc.) — ver src/lib/browserEnv.ts
+  const inApp = isInAppBrowser();
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
@@ -110,30 +114,36 @@ const Auth = () => {
           <p className="text-sm text-muted-foreground mt-1">Escolha como acessar</p>
         </div>
 
-        <div className="space-y-3">
-          {socialButtons.map((btn) => (
-            <Button
-              key={btn.key}
-              variant="outline"
-              className={`w-full h-12 text-base font-medium gap-3 border-border ${btn.className}`}
-              onClick={() => handleOAuth(btn.key)}
-              disabled={oauthLoading !== null}
-              aria-label={btn.label}
-            >
-              {oauthLoading === btn.key ? <Loader2 className="h-5 w-5 animate-spin" /> : btn.icon}
-              {btn.label}
-            </Button>
-          ))}
-        </div>
+        {inApp ? (
+          <InAppBrowserNotice />
+        ) : (
+          <>
+            <div className="space-y-3">
+              {socialButtons.map((btn) => (
+                <Button
+                  key={btn.key}
+                  variant="outline"
+                  className={`w-full h-12 text-base font-medium gap-3 border-border ${btn.className}`}
+                  onClick={() => handleOAuth(btn.key)}
+                  disabled={oauthLoading !== null}
+                  aria-label={btn.label}
+                >
+                  {oauthLoading === btn.key ? <Loader2 className="h-5 w-5 animate-spin" /> : btn.icon}
+                  {btn.label}
+                </Button>
+              ))}
+            </div>
 
-        <div className="relative my-6">
-          <div className="absolute inset-0 flex items-center">
-            <span className="w-full border-t border-border" />
-          </div>
-          <div className="relative flex justify-center text-xs uppercase">
-            <span className="bg-card px-2 text-muted-foreground">ou</span>
-          </div>
-        </div>
+            <div className="relative my-6">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t border-border" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-card px-2 text-muted-foreground">ou</span>
+              </div>
+            </div>
+          </>
+        )}
 
         <Button
           variant="outline"

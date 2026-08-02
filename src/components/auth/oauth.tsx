@@ -30,14 +30,28 @@ export const useOAuth = () => {
 
   const handleOAuth = async (provider: "google" | "apple") => {
     setOauthLoading(provider);
+    // `redirected: true` significa que a lib já disparou a navegação de página
+    // inteira para o broker OAuth. Nesse caso mantemos o spinner ligado: desligá-lo
+    // faria o botão voltar ao normal enquanto a página ainda está saindo, dando a
+    // impressão de que o toque não funcionou (e provocando toques repetidos).
+    let navigatingAway = false;
+
     try {
-      const { error } = await lovable.auth.signInWithOAuth(provider, {
+      const result = await lovable.auth.signInWithOAuth(provider, {
         redirect_uri: window.location.origin,
       });
-      if (error) {
+
+      if (result?.redirected) {
+        navigatingAway = true;
+        return;
+      }
+
+      if (result?.error) {
         toast({
           title: "Erro ao entrar",
-          description: error.message || `Falha ao iniciar login com ${provider === "google" ? "Google" : "Apple"}.`,
+          description:
+            result.error.message ||
+            `Falha ao iniciar login com ${provider === "google" ? "Google" : "Apple"}.`,
           variant: "destructive",
         });
       }
@@ -48,7 +62,7 @@ export const useOAuth = () => {
         variant: "destructive",
       });
     } finally {
-      setOauthLoading(null);
+      if (!navigatingAway) setOauthLoading(null);
     }
   };
 
