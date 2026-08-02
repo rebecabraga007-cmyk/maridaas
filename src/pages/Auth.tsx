@@ -114,36 +114,32 @@ const Auth = () => {
           <p className="text-sm text-muted-foreground mt-1">Escolha como acessar</p>
         </div>
 
-        {inApp ? (
-          <InAppBrowserNotice />
-        ) : (
-          <>
-            <div className="space-y-3">
-              {socialButtons.map((btn) => (
-                <Button
-                  key={btn.key}
-                  variant="outline"
-                  className={`w-full h-12 text-base font-medium gap-3 border-border ${btn.className}`}
-                  onClick={() => handleOAuth(btn.key)}
-                  disabled={oauthLoading !== null}
-                  aria-label={btn.label}
-                >
-                  {oauthLoading === btn.key ? <Loader2 className="h-5 w-5 animate-spin" /> : btn.icon}
-                  {btn.label}
-                </Button>
-              ))}
-            </div>
+        <div className="space-y-3">
+          {socialButtons.map((btn) => (
+            <Button
+              key={btn.key}
+              variant="outline"
+              className={`w-full h-12 text-base font-medium gap-3 border-border ${btn.className}`}
+              onClick={() => handleOAuth(btn.key)}
+              disabled={oauthLoading !== null}
+              aria-label={btn.label}
+            >
+              {oauthLoading === btn.key ? <Loader2 className="h-5 w-5 animate-spin" /> : btn.icon}
+              {btn.label}
+            </Button>
+          ))}
+        </div>
 
-            <div className="relative my-6">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t border-border" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-card px-2 text-muted-foreground">ou</span>
-              </div>
-            </div>
-          </>
-        )}
+        {inApp && <InAppBrowserNotice />}
+
+        <div className="relative my-6">
+          <div className="absolute inset-0 flex items-center">
+            <span className="w-full border-t border-border" />
+          </div>
+          <div className="relative flex justify-center text-xs uppercase">
+            <span className="bg-card px-2 text-muted-foreground">ou</span>
+          </div>
+        </div>
 
         <Button
           variant="outline"

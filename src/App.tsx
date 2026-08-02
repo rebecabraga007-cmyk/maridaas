@@ -21,6 +21,7 @@ import PrivacyPolicy from "./pages/PrivacyPolicy";
 import TermsOfService from "./pages/TermsOfService";
 import Support from "./pages/Support";
 import Marketing from "./pages/Marketing";
+import OAuthUnavailable from "./pages/OAuthUnavailable";
 import NotFound from "./pages/NotFound";
 
 // Em build nativo (Capacitor/WKWebView/Android WebView) usamos HashRouter
@@ -74,6 +75,9 @@ const App = () => (
             <Route path="/terms" element={<TermsOfService />} />
             <Route path="/support" element={<Support />} />
             <Route path="/marketing" element={<Marketing />} />
+            {/* Só cai aqui se o rewrite de SPA da hospedagem engoliu o endpoint do
+                broker OAuth. Ver src/pages/OAuthUnavailable.tsx. */}
+            <Route path="/~oauth/*" element={<OAuthUnavailable />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

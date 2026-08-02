@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { ExternalLink, Check, Copy } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import {
   inAppBrowserLabel,
   isAndroid,
@@ -9,10 +8,17 @@ import {
 } from "@/lib/browserEnv";
 
 /**
- * Aviso exibido quando a página está aberta dentro do navegador interno de um
- * app (Instagram, Facebook, TikTok...). Nesses WebViews o Google bloqueia o
- * OAuth com `disallowed_useragent`, então em vez de mostrar um botão que sempre
- * falha, oferecemos a saída para o navegador padrão.
+ * Saída de emergência para quem abre a página pelo navegador interno de um app
+ * (Instagram, Facebook, TikTok...).
+ *
+ * IMPORTANTE — este componente é COMPLEMENTAR, nunca substitui os botões
+ * sociais. O Google recusa OAuth vindo de WebView embutido com
+ * `disallowed_useragent`, mas isso NÃO é uniforme: no navegador interno do
+ * Instagram no iOS o login com Google funciona normalmente (testado). O bloqueio
+ * é consistente mesmo é no WebView do Android (user-agent marcado com "; wv").
+ *
+ * Por isso os botões sociais continuam sempre visíveis e este aviso aparece
+ * discretamente abaixo, resgatando só quem realmente esbarrar no bloqueio.
  */
 const InAppBrowserNotice = () => {
   const [copied, setCopied] = useState(false);
@@ -27,27 +33,17 @@ const InAppBrowserNotice = () => {
   };
 
   return (
-    <div className="rounded-xl border border-secondary/40 bg-secondary/10 p-3 text-sm text-foreground">
-      <p className="mb-3">
-        Para entrar com <strong>Google</strong> ou <strong>Apple</strong>, abra a Maridaas no seu
-        navegador — o {label} não permite login social por dentro do app.
-        {!android && " Toque em ••• no canto e escolha “Abrir no navegador”."}
-      </p>
-
-      <Button
+    <p className="text-center text-xs text-muted-foreground">
+      Não conseguiu entrar com Google ou Apple no {label}?{" "}
+      <button
         type="button"
-        variant="outline"
         onClick={handleOpen}
-        className="w-full h-11 gap-2 bg-background"
+        className="inline-flex items-center gap-1 text-primary font-medium underline underline-offset-2"
       >
-        {copied ? <Check className="h-4 w-4" /> : android ? <ExternalLink className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+        {copied ? <Check className="h-3 w-3" /> : android ? <ExternalLink className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
         {copied ? "Link copiado — cole no navegador" : android ? "Abrir no navegador" : "Copiar link do site"}
-      </Button>
-
-      <p className="mt-3 text-xs text-muted-foreground">
-        Ou continue por aqui mesmo usando seu e-mail — funciona normalmente.
-      </p>
-    </div>
+      </button>
+    </p>
   );
 };
 
