@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { lovable } from "@/integrations/lovable/index";
+import { supabase } from "@/integrations/supabase/safeClient";
 import { useToast } from "@/hooks/use-toast";
+import { resolveOAuthMode } from "@/lib/authEnv";
 
 export const GoogleIcon = () => (
   <svg viewBox="0 0 24 24" width="20" height="20" className="shrink-0">
@@ -37,6 +39,26 @@ export const useOAuth = () => {
     let navigatingAway = false;
 
     try {
+      // Fora da hospedagem da Lovable o endpoint `/~oauth/initiate` não existe e
+      // o redirect cai no 404 do SPA — nesses casos usamos o OAuth nativo do
+      // Supabase, que aponta para um endpoint absoluto. Ver src/lib/authEnv.ts.
+      if (resolveOAuthMode() === "supabase") {
+        const { error } = await supabase.auth.signInWithOAuth({
+          provider,
+          options: { redirectTo: `${window.location.origin}/feed` },
+        });
+        if (error) {
+          toast({
+            title: "Erro ao entrar",
+            description: error.message || "Não foi possível iniciar o login social.",
+            variant: "destructive",
+          });
+        } else {
+          navigatingAway = true;
+        }
+        return;
+      }
+
       const result = await lovable.auth.signInWithOAuth(provider, {
         redirect_uri: window.location.origin,
       });
